@@ -51,13 +51,6 @@ body {
 .kopfzeile-titel { font-weight: 700; font-size: clamp(15px, 4vw, 18px); }
 .kopfzeile-status { font-size: 12px; opacity: 0.9; }
 .header-logo { height: 32px; width: auto; display: block; }
-.back-to-dashboard {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 600; color: #fff; text-decoration: none;
-  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
-  padding: 6px 14px; border-radius: 999px; white-space: nowrap; flex: 0 0 auto;
-}
-.back-to-dashboard:hover { background: rgba(255,255,255,0.28); }
 .btn-abbrechen {
   background: rgba(255,255,255,0.15); color: #fff;
   border: 1px solid rgba(255,255,255,0.5); border-radius: var(--radius-sm);
