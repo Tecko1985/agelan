@@ -1,6 +1,6 @@
 {
-  "name": "Agelan Turnier",
-  "short_name": "Agelan",
+  "name": "AgeLan Turnier",
+  "short_name": "AgeLan",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

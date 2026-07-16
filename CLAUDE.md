@@ -1,6 +1,6 @@
 # agelan
 
-Vanilla-JS-Turnier-App für die „Agelan" (2er-Team-Turnier, Gruppenphase + K.-o.) über **Firebase
+Vanilla-JS-Turnier-App für die „AgeLan" (2er-Team-Turnier, Gruppenphase + K.-o.) über **Firebase
 Realtime Database + Anonymous Auth**. Eigenständige App nach dem Muster von `E:\familien-quartett`.
 Deploy geplant über **GitHub Pages** (`Tecko1985/agelan`, Branch `main` → `tecko1985.github.io/agelan/`).
 Lokaler Dev-Server: Eintrag `agelan` in `E:\.claude\launch.json`, **Port 8791**.

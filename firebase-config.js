@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Firebase-Konfiguration für die Agelan-Turnier-App.
+// Firebase-Konfiguration für die AgeLan-Turnier-App.
 //
 // Diese Werte sind NICHT geheim (der Schutz kommt über die Datenbank-Regeln in
 // der Firebase-Konsole, nicht über diesen Schlüssel).
@@ -30,7 +30,7 @@ if (istPlatzhalterKonfig) {
   // Kein echtes Firebase-Projekt hinterlegt -> lokalen Mock aktivieren.
   window.firebase = window.createFirebaseMock();
   window.__AGELAN_MOCK__ = true;
-  console.warn("[Agelan] Kein Firebase konfiguriert – lokaler Test-Modus (Daten bleiben in diesem Browser).");
+  console.warn("[AgeLan] Kein Firebase konfiguriert – lokaler Test-Modus (Daten bleiben in diesem Browser).");
 }
 
 firebase.initializeApp(firebaseConfig);

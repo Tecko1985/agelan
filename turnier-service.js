@@ -1,5 +1,5 @@
 // ===========================================================================
-// turnier-service.js – Firebase-Kapsel & komplette Turnierlogik für Agelan.
+// turnier-service.js – Firebase-Kapsel & komplette Turnierlogik für AgeLan.
 //
 // app.js redet ausschließlich über die turnierService-API (unten) und nie direkt
 // mit Firebase. getZustand() liefert einen fertig aufbereiteten UI-Zustand
