@@ -8,6 +8,7 @@ let zustand = null;
 let willMitmachen = false;   // lokaler UI-Zustand: "Jetzt anmelden" geklickt
 let meldeSpielId = null;     // aktuell im Melde-Dialog bearbeitetes Spiel
 let meldeAdminModus = false; // Melde-Dialog als Admin-Korrektur?
+let losFelderInit = false;   // Auslosungs-Felder je Team-Phase einmal mit Vorschlag füllen
 
 // --- Helfer ----------------------------------------------------------------
 function escapeHtml(s) {
@@ -60,6 +61,7 @@ function render(z) {
   zustand = z;
   const screen = bestimmeScreen(z);
   showScreen(screen);
+  if (z.phase !== "teams") losFelderInit = false;
 
   if (screen === "screen-start") renderStart(z);
   if (screen === "screen-lobby") renderLobby(z);
@@ -149,7 +151,30 @@ function renderTeams(z) {
       .join("");
     document.getElementById("tausch-a").innerHTML = optionen;
     document.getElementById("tausch-b").innerHTML = optionen;
+
+    document.getElementById("los-teamzahl").textContent = "(" + z.teams.length + " Teams)";
+    if (!losFelderInit) {
+      losFelderInit = true;
+      document.getElementById("los-gruppen").value = Math.max(1, Math.ceil(z.teams.length / 4));
+    }
+    aktualisiereLosVorschau(z.teams.length);
   }
+}
+
+// Zeigt an, wie groß die Gruppen bei der aktuell gewählten Gruppenzahl würden.
+function aktualisiereLosVorschau(teamAnzahl) {
+  const gruppenEl = document.getElementById("los-gruppen");
+  const vorschauEl = document.getElementById("los-vorschau");
+  if (!gruppenEl || !vorschauEl) return;
+  const gruppen = Math.max(1, Math.min(teamAnzahl, Number(gruppenEl.value) || 1));
+  const basis = Math.floor(teamAnzahl / gruppen);
+  const rest = teamAnzahl % gruppen;
+  const groessen = [];
+  for (let i = 0; i < gruppen; i++) groessen.push(basis + (i < rest ? 1 : 0));
+  const alleGleich = groessen.every((g) => g === groessen[0]);
+  vorschauEl.textContent = "→ " + (alleGleich
+    ? gruppen + " Gruppe" + (gruppen > 1 ? "n" : "") + " à " + groessen[0] + " Teams"
+    : gruppen + " Gruppen: " + groessen.join(", ") + " Teams");
 }
 
 // --- GRUPPEN ---------------------------------------------------------------
@@ -350,9 +375,6 @@ function wireEvents() {
   document.getElementById("btn-turnier-erstellen").addEventListener("click", async () => {
     const res = await turnierService.erstelleTurnier({
       name: document.getElementById("neu-name").value,
-      bestOf: document.getElementById("neu-bestof").value,
-      anzahlGruppen: document.getElementById("neu-gruppen").value,
-      weiterProGruppe: document.getElementById("neu-weiter").value,
       adminPin: document.getElementById("neu-pin").value,
     });
     zeigeFehler("neu-fehler", res.erfolg ? "" : res.fehler);
@@ -415,8 +437,16 @@ function wireEvents() {
   });
   document.getElementById("btn-gruppen-losen").addEventListener("click", async () => {
     const modusEl = document.querySelector('input[name="losmodus"]:checked');
-    const res = await turnierService.loseGruppen(modusEl ? modusEl.value : "setzliste");
+    const res = await turnierService.loseGruppen({
+      modus: modusEl ? modusEl.value : "setzliste",
+      bestOf: document.getElementById("los-bestof").value,
+      anzahlGruppen: document.getElementById("los-gruppen").value,
+      weiterProGruppe: document.getElementById("los-weiter").value,
+    });
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
+  });
+  document.getElementById("los-gruppen").addEventListener("input", () => {
+    if (zustand) aktualisiereLosVorschau(zustand.teams.length);
   });
 
   // Gruppen: K.o. auslosen

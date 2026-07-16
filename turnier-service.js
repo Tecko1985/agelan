@@ -284,7 +284,7 @@ function onZustandsAenderung(callback) {
 // ===========================================================================
 
 // --- Turnier anlegen (Admin) ----------------------------------------------
-async function erstelleTurnier({ name, bestOf, anzahlGruppen, weiterProGruppe, adminPin }) {
+async function erstelleTurnier({ name, adminPin }) {
   await authBereit;
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Turniernamen eingeben." };
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
@@ -292,15 +292,17 @@ async function erstelleTurnier({ name, bestOf, anzahlGruppen, weiterProGruppe, a
     return { erfolg: false, fehler: "Es läuft bereits ein Turnier. Erst zurücksetzen." };
   }
   const pin = String(adminPin).trim();
+  // Modus (Best-of), Gruppen-Anzahl und Weiterkommende werden erst beim Auslosen
+  // festgelegt – dann steht die Teilnehmerzahl fest. Hier nur Platzhalter-Defaults.
   await db.ref(BASIS + "/meta").set({
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     hostId: eigeneUid,
     adminPin: pin,
     phase: "anmeldung",
-    bestOf: [3, 5, 7].includes(Number(bestOf)) ? Number(bestOf) : 3,
-    anzahlGruppen: Math.max(1, Math.min(8, Number(anzahlGruppen) || 2)),
-    weiterProGruppe: Math.max(1, Math.min(4, Number(weiterProGruppe) || 2)),
+    bestOf: 3,
+    anzahlGruppen: 2,
+    weiterProGruppe: 2,
     punkteSieg: 3,
     siegerTeamId: null,
   });
@@ -472,7 +474,7 @@ function verteileNachToepfen(teams, anzahlGruppen) {
   return buckets;
 }
 
-async function loseGruppen(modus) {
+async function loseGruppen(optionen) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
@@ -480,7 +482,11 @@ async function loseGruppen(modus) {
   const teams = teamListe();
   if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teams." };
 
-  const anzahlGruppen = Math.min(meta.anzahlGruppen || 2, teams.length);
+  const opt = optionen || {};
+  const bestOf = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
+  const anzahlGruppen = Math.max(1, Math.min(teams.length, Number(opt.anzahlGruppen) || meta.anzahlGruppen || 2));
+  const weiterProGruppe = Math.max(1, Math.min(teams.length, Number(opt.weiterProGruppe) || meta.weiterProGruppe || 2));
+  const modus = opt.modus === "zufaellig" ? "zufaellig" : "setzliste";
   const buckets = modus === "zufaellig"
     ? verteileZufaellig(teams, anzahlGruppen)
     : verteileNachToepfen(teams, anzahlGruppen);
@@ -511,6 +517,9 @@ async function loseGruppen(modus) {
     }
   });
   updates["meta/phase"] = "gruppen";
+  updates["meta/bestOf"] = bestOf;
+  updates["meta/anzahlGruppen"] = anzahlGruppen;
+  updates["meta/weiterProGruppe"] = weiterProGruppe;
   await db.ref(BASIS).update(updates);
   return { erfolg: true };
 }

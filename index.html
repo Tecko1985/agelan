@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.2">
+<link rel="stylesheet" href="style.css?v=1.3">
 </head>
 <body>
 
@@ -38,29 +38,12 @@
           <label class="feld-label" for="neu-name">Turniername</label>
           <input type="text" id="neu-name" class="eingabe" placeholder="z. B. Agelan 2026" maxlength="40" autocomplete="off">
 
-          <label class="feld-label" for="neu-bestof">Modus je Spiel</label>
-          <select id="neu-bestof" class="eingabe">
-            <option value="3">Best of 3 (erst 2 Sätze gewinnen)</option>
-            <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
-            <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
-          </select>
-
-          <div class="feld-zeile">
-            <div>
-              <label class="feld-label" for="neu-gruppen">Gruppen</label>
-              <input type="number" id="neu-gruppen" class="eingabe" value="2" min="1" max="8">
-            </div>
-            <div>
-              <label class="feld-label" for="neu-weiter">Weiter je Gruppe</label>
-              <input type="number" id="neu-weiter" class="eingabe" value="2" min="1" max="4">
-            </div>
-          </div>
-
           <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
           <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
 
           <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
-          <p class="hinweis-text" id="neu-fehler"></p>
+          <p class="hinweis-text">Modus und Gruppen legst du später beim Auslosen fest – dann steht die Teilnehmerzahl fest.</p>
+          <p class="hinweis-text fehler" id="neu-fehler"></p>
         </div>
       </div>
 
@@ -141,7 +124,28 @@
         <button class="btn btn-secondary btn-grow" id="btn-teams-neu">🎲 Neu vorschlagen</button>
 
         <div class="karte-block">
-          <p class="feld-label">Gruppen auslosen</p>
+          <p class="feld-label">Turnier auslosen <span class="los-teamzahl" id="los-teamzahl"></span></p>
+
+          <label class="feld-label" for="los-bestof">Modus je Spiel</label>
+          <select id="los-bestof" class="eingabe">
+            <option value="3">Best of 3 (erst 2 Sätze gewinnen)</option>
+            <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
+            <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
+          </select>
+
+          <div class="feld-zeile">
+            <div>
+              <label class="feld-label" for="los-gruppen">Gruppen</label>
+              <input type="number" id="los-gruppen" class="eingabe" min="1" value="2">
+            </div>
+            <div>
+              <label class="feld-label" for="los-weiter">Weiter je Gruppe</label>
+              <input type="number" id="los-weiter" class="eingabe" min="1" value="2">
+            </div>
+          </div>
+          <p class="hinweis-text" id="los-vorschau"></p>
+
+          <p class="feld-label">Auslosungs-Art</p>
           <label class="radio-zeile">
             <input type="radio" name="losmodus" value="setzliste" checked>
             <span><strong>Nach Setzliste</strong> — starke Teams auf die Gruppen verteilt (fairere Gruppen)</span>
@@ -238,9 +242,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="firebase-mock.js?v=1.2"></script>
-<script src="firebase-config.js?v=1.2"></script>
-<script src="turnier-service.js?v=1.2"></script>
-<script src="app.js?v=1.2"></script>
+<script src="firebase-mock.js?v=1.3"></script>
+<script src="firebase-config.js?v=1.3"></script>
+<script src="turnier-service.js?v=1.3"></script>
+<script src="app.js?v=1.3"></script>
 </body>
 </html>

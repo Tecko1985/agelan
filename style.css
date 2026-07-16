@@ -110,6 +110,7 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
 .radio-zeile { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text); margin: 8px 0; cursor: pointer; text-align: left; }
 .radio-zeile input { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary); }
 .radio-zeile span { flex: 1; }
+.los-teamzahl { font-weight: 400; color: var(--muted); font-size: 13px; }
 
 /* ---------- Buttons ---------- */
 .btn { padding: 14px 18px; border-radius: var(--radius-sm); border: none; font-size: 16px; font-weight: 600; cursor: pointer; }
