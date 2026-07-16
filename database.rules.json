@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "turniere": {
+      "$tid": {
+        ".read": true,
+        ".write": "auth != null",
+
+        "meta": {
+          ".validate": "newData.hasChildren(['name', 'phase'])",
+          "name":  { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+          "phase": { ".validate": "newData.isString()" },
+          "bestOf": { ".validate": "newData.isNumber()" }
+        },
+
+        "spieler": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['name', 'rating'])",
+            "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+            "rating": { ".validate": "newData.isNumber() && newData.val() >= 500 && newData.val() <= 3000" }
+          }
+        },
+
+        "spiele": {
+          "$sid": {
+            "saetzeA": { ".validate": "newData.isNumber() || newData.val() == null" },
+            "saetzeB": { ".validate": "newData.isNumber() || newData.val() == null" },
+            "status":  { ".validate": "newData.isString()" }
+          }
+        }
+      }
+    }
+  }
+}

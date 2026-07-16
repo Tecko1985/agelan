@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agelan – Turnier</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a56a0">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=1.0">
+</head>
+<body>
+
+<header class="kopfzeile">
+  <div class="kopfzeile-left">
+    <span class="kopfzeile-titel">🏆 Agelan</span>
+  </div>
+  <a href="https://tecko1985.github.io/ToolsUebersicht/" class="back-to-dashboard">← Dashboard</a>
+  <div class="kopfzeile-right">
+    <span class="kopfzeile-status" id="sync-status">● live</span>
+    <button class="btn-abbrechen" id="btn-admin-oeffnen" title="Veranstalter">⚙️</button>
+    <img class="header-logo" src="logo.png" alt="1. SC 1911 e.V. Heilbad Heiligenstadt" />
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ============ START ============ -->
+  <section class="screen active" id="screen-start">
+    <div class="screen-inhalt zentriert">
+
+      <!-- kein Turnier -> anlegen (Veranstalter) -->
+      <div id="start-kein-turnier">
+        <h1 class="logo">🏆 Agelan</h1>
+        <p class="untertitel">Aktuell läuft kein Turnier.</p>
+        <div class="karte-block">
+          <h2>Turnier anlegen</h2>
+          <label class="feld-label" for="neu-name">Turniername</label>
+          <input type="text" id="neu-name" class="eingabe" placeholder="z. B. Agelan 2026" maxlength="40" autocomplete="off">
+
+          <label class="feld-label" for="neu-bestof">Modus je Spiel</label>
+          <select id="neu-bestof" class="eingabe">
+            <option value="3">Best of 3 (erst 2 Sätze gewinnen)</option>
+            <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
+            <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
+          </select>
+
+          <div class="feld-zeile">
+            <div>
+              <label class="feld-label" for="neu-gruppen">Gruppen</label>
+              <input type="number" id="neu-gruppen" class="eingabe" value="2" min="1" max="8">
+            </div>
+            <div>
+              <label class="feld-label" for="neu-weiter">Weiter je Gruppe</label>
+              <input type="number" id="neu-weiter" class="eingabe" value="2" min="1" max="4">
+            </div>
+          </div>
+
+          <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
+          <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+
+          <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
+          <p class="hinweis-text" id="neu-fehler"></p>
+        </div>
+      </div>
+
+      <!-- Turnier läuft, Anmeldung offen -> mitmachen -->
+      <div id="start-turnier-laeuft" style="display:none">
+        <h1 class="logo" id="start-turniername">🏆</h1>
+        <p class="untertitel" id="start-phase-text">Anmeldung läuft</p>
+        <p class="spieler-zaehler" id="start-zaehler"></p>
+        <div class="aktion-block">
+          <button class="btn btn-primary btn-grow" id="btn-mitmachen">Jetzt anmelden</button>
+          <button class="btn btn-link" id="btn-nur-zuschauen">Nur zuschauen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOGIN (Name + Rating) ============ -->
+  <section class="screen" id="screen-login">
+    <div class="screen-inhalt zentriert">
+      <h2>Anmeldung</h2>
+      <p class="untertitel">Trage deinen Namen und dein Rating ein.</p>
+      <label class="feld-label" for="login-name">Name</label>
+      <input type="text" id="login-name" class="eingabe" placeholder="Dein Name" maxlength="24" autocomplete="off">
+
+      <label class="feld-label" for="login-rating">Rating (500–3000)</label>
+      <div class="rating-zeile">
+        <input type="range" id="login-rating-slider" min="500" max="3000" step="10" value="1500">
+        <input type="number" id="login-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+      </div>
+
+      <button class="btn btn-primary btn-grow" id="btn-login-bestaetigen">Anmelden</button>
+      <p class="hinweis-text" id="login-fehler"></p>
+      <button class="btn btn-link" id="btn-login-zurueck">Zurück</button>
+    </div>
+  </section>
+
+  <!-- ============ LOBBY (Anmeldung läuft) ============ -->
+  <section class="screen" id="screen-lobby">
+    <div class="screen-inhalt">
+      <h2 id="lobby-titel">Anmeldung</h2>
+      <p class="spieler-zaehler" id="lobby-zaehler">0 Angemeldete</p>
+      <ul class="spieler-liste" id="lobby-spielerliste"></ul>
+
+      <div id="lobby-eigen" class="karte-block" style="display:none">
+        <p class="feld-label">Dein Rating anpassen</p>
+        <div class="rating-zeile">
+          <input type="range" id="lobby-rating-slider" min="500" max="3000" step="10" value="1500">
+          <input type="number" id="lobby-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+        </div>
+        <button class="btn btn-secondary btn-grow" id="btn-lobby-rating-speichern">Speichern</button>
+      </div>
+
+      <button class="btn btn-secondary btn-grow" id="btn-lobby-selbst-anmelden" style="display:none">＋ Selbst mitspielen</button>
+
+      <div id="lobby-admin" style="display:none">
+        <button class="btn btn-primary btn-grow" id="btn-teams-bilden">Teams bilden →</button>
+        <p class="hinweis-text">Als Veranstalter: bildet ratingfaire 2er-Teams.</p>
+      </div>
+      <p class="hinweis-text" id="lobby-warte" style="display:none">Warte, bis der Veranstalter die Teams bildet …</p>
+    </div>
+  </section>
+
+  <!-- ============ TEAMS ============ -->
+  <section class="screen" id="screen-teams">
+    <div class="screen-inhalt">
+      <h2>Teams</h2>
+      <div class="team-liste" id="teams-liste"></div>
+
+      <div id="teams-admin" style="display:none">
+        <div class="karte-block">
+          <p class="feld-label">Zwei Spieler tauschen</p>
+          <div class="feld-zeile">
+            <select id="tausch-a" class="eingabe"></select>
+            <select id="tausch-b" class="eingabe"></select>
+          </div>
+          <button class="btn btn-secondary btn-grow" id="btn-tauschen">Tauschen</button>
+        </div>
+        <button class="btn btn-secondary btn-grow" id="btn-teams-neu">🎲 Neu vorschlagen</button>
+        <button class="btn btn-primary btn-grow" id="btn-gruppen-losen">Gruppen auslosen →</button>
+        <p class="hinweis-text" id="teams-fehler"></p>
+      </div>
+      <p class="hinweis-text" id="teams-warte" style="display:none">Warte, bis der Veranstalter die Gruppen auslost …</p>
+    </div>
+  </section>
+
+  <!-- ============ GRUPPEN ============ -->
+  <section class="screen" id="screen-gruppen">
+    <div class="screen-inhalt">
+      <h2>Gruppenphase</h2>
+      <div id="gruppen-container"></div>
+
+      <div id="gruppen-admin" style="display:none">
+        <button class="btn btn-primary btn-grow" id="btn-ko-losen">K.o.-Auslosung starten →</button>
+        <p class="hinweis-text" id="gruppen-admin-hinweis"></p>
+      </div>
+      <p class="hinweis-text" id="gruppen-warte" style="display:none"></p>
+    </div>
+  </section>
+
+  <!-- ============ K.O. ============ -->
+  <section class="screen" id="screen-ko">
+    <div class="screen-inhalt">
+      <h2>K.-o.-Runde</h2>
+      <div id="ko-container" class="bracket"></div>
+      <div id="ko-admin" style="display:none">
+        <button class="btn btn-link" id="btn-ko-naechste">Nächste Runde manuell prüfen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEENDET ============ -->
+  <section class="screen" id="screen-beendet">
+    <div class="screen-inhalt zentriert">
+      <h1 class="sieger-titel">🏆 Turnier beendet!</h1>
+      <p class="sieger-name" id="beendet-sieger">—</p>
+      <div id="beendet-bracket" class="bracket"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ Modal: Ergebnis melden ============ -->
+<div class="modal-overlay" id="modal-melden">
+  <div class="modal">
+    <h3 id="melden-titel">Ergebnis melden</h3>
+    <div class="melden-teams">
+      <div class="melden-team">
+        <span class="melden-teamname" id="melden-name-a">Team A</span>
+        <input type="number" id="melden-saetze-a" class="eingabe saetze-input" min="0" value="0">
+      </div>
+      <span class="melden-doppelpunkt">:</span>
+      <div class="melden-team">
+        <span class="melden-teamname" id="melden-name-b">Team B</span>
+        <input type="number" id="melden-saetze-b" class="eingabe saetze-input" min="0" value="0">
+      </div>
+    </div>
+    <p class="hinweis-text" id="melden-hinweis"></p>
+    <p class="hinweis-text fehler" id="melden-fehler"></p>
+    <button class="btn btn-primary btn-grow" id="btn-melden-speichern">Speichern</button>
+    <button class="btn btn-link" id="btn-melden-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
+<!-- ============ Modal: Veranstalter ============ -->
+<div class="modal-overlay" id="modal-admin">
+  <div class="modal">
+    <h3>Veranstalter</h3>
+    <div id="admin-login">
+      <label class="feld-label" for="admin-pin">Admin-PIN eingeben</label>
+      <input type="text" id="admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+      <button class="btn btn-primary btn-grow" id="btn-admin-anmelden">Anmelden</button>
+      <p class="hinweis-text fehler" id="admin-fehler"></p>
+    </div>
+    <div id="admin-panel" style="display:none">
+      <p class="hinweis-text" id="admin-panel-info">Du bist als Veranstalter angemeldet.</p>
+      <button class="btn btn-secondary btn-grow" id="btn-admin-reset">Turnier zurücksetzen</button>
+      <p class="hinweis-text">Löscht das komplette Turnier (nicht umkehrbar).</p>
+    </div>
+    <button class="btn btn-link" id="btn-admin-schliessen">Schließen</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="firebase-mock.js?v=1.0"></script>
+<script src="firebase-config.js?v=1.1"></script>
+<script src="turnier-service.js?v=1.0"></script>
+<script src="app.js?v=1.0"></script>
+</body>
+</html>
