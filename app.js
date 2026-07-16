@@ -414,7 +414,8 @@ function wireEvents() {
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
   });
   document.getElementById("btn-gruppen-losen").addEventListener("click", async () => {
-    const res = await turnierService.loseGruppen();
+    const modusEl = document.querySelector('input[name="losmodus"]:checked');
+    const res = await turnierService.loseGruppen(modusEl ? modusEl.value : "setzliste");
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
   });
 

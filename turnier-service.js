@@ -450,7 +450,29 @@ async function tauscheSpieler(uidA, uidB) {
 }
 
 // --- Gruppen auslosen (Admin) ---------------------------------------------
-async function loseGruppen() {
+// Rein zufällige Verteilung (Schlangensystem, gleichmäßige Gruppengrößen).
+function verteileZufaellig(teams, anzahlGruppen) {
+  const gemischt = mischeArray(teams.map((t) => t.id));
+  const buckets = Array.from({ length: anzahlGruppen }, () => []);
+  gemischt.forEach((tid, i) => buckets[i % anzahlGruppen].push(tid));
+  return buckets;
+}
+
+// Setzliste/Töpfe: Teams nach ratingSchnitt in Töpfe zu je `anzahlGruppen` Teams
+// teilen; jeder Topf wird gemischt und über die Gruppen verteilt (ein Team pro
+// Gruppe je Topf). So landen die stärksten Teams garantiert in verschiedenen
+// Gruppen (WM-Prinzip) – ausgewogenere Gruppen bei erhaltenem Losglück.
+function verteileNachToepfen(teams, anzahlGruppen) {
+  const sortiert = [...teams].sort((a, b) => (b.ratingSchnitt || 0) - (a.ratingSchnitt || 0));
+  const buckets = Array.from({ length: anzahlGruppen }, () => []);
+  for (let start = 0; start < sortiert.length; start += anzahlGruppen) {
+    const topf = mischeArray(sortiert.slice(start, start + anzahlGruppen));
+    topf.forEach((team, i) => buckets[i].push(team.id));
+  }
+  return buckets;
+}
+
+async function loseGruppen(modus) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
@@ -459,9 +481,9 @@ async function loseGruppen() {
   if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teams." };
 
   const anzahlGruppen = Math.min(meta.anzahlGruppen || 2, teams.length);
-  const gemischt = mischeArray(teams.map((t) => t.id));
-  const buckets = Array.from({ length: anzahlGruppen }, () => []);
-  gemischt.forEach((tid, i) => buckets[i % anzahlGruppen].push(tid));
+  const buckets = modus === "zufaellig"
+    ? verteileZufaellig(teams, anzahlGruppen)
+    : verteileNachToepfen(teams, anzahlGruppen);
 
   const updates = {};
   updates["gruppen"] = {};
