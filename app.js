@@ -520,3 +520,57 @@ function wireEvents() {
   wireEvents();
   turnierService.onZustandsAenderung(render);
 })();
+
+// ---------- Info-Tab / Versionshistorie ----------
+const APP_VERSION = "1.0";
+const APP_CHANGELOG = [
+  {
+    version: "1.0",
+    groups: [
+      { title: "Turnier aufsetzen", items: [
+          "Teams anlegen und auf Gruppen verteilen.",
+          "Gruppenphase mit automatischem Spielplan.",
+          "K.-o.-Runde aus den Gruppenergebnissen."
+      ]},
+      { title: "Während des Turniers", items: [
+          "Ergebnisse eintragen, Tabellen aktualisieren sich sofort.",
+          "Alle Geräte sehen denselben Stand live.",
+          "Eigener Veranstalter-Zugang für Änderungen am Turnier."
+      ]}
+    ]
+  }
+];
+
+function activateTab(name) {
+  document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
+}
+
+function renderVersionInfo() {
+  document.querySelectorAll("#version-badge, #version-badge-2").forEach((el) => { if (el) el.textContent = "v" + APP_VERSION; });
+  const box = document.getElementById("changelog-list");
+  if (!box) return;
+  box.innerHTML = APP_CHANGELOG.map((entry) => `
+    <div class="changelog-entry">
+      <div class="cv">Version ${entry.version}</div>
+      ${entry.groups.map((g) => `
+        <div class="cgt">${g.title}</div>
+        <ul>${g.items.map((i) => `<li>${i}</li>`).join("")}</ul>`).join("")}
+    </div>`).join("");
+}
+
+function setupInfoTab() {
+  document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
+    b.addEventListener("click", () => activateTab(b.dataset.tab));
+  });
+  const badge = document.getElementById("version-badge");
+  if (badge) {
+    badge.addEventListener("click", () => activateTab("info"));
+    badge.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activateTab("info"); }
+    });
+  }
+  renderVersionInfo();
+}
+
+document.addEventListener("DOMContentLoaded", setupInfoTab);
