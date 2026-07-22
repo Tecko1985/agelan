@@ -215,6 +215,7 @@ function renderGruppen(z) {
     btn.disabled = offen > 0;
     document.getElementById("gruppen-admin-hinweis").textContent =
       offen > 0 ? `Noch ${offen} unbestätigte(s) Gruppenspiel(e).` : "Alle Gruppenspiele bestätigt – bereit für die K.-o.-Runde.";
+    zeigeSimKnopf("btn-sim-gruppen", z.offeneSpieleAnzahl);
   }
   const warte = document.getElementById("gruppen-warte");
   warte.style.display = z.istAdmin ? "none" : "";
@@ -225,6 +226,16 @@ function renderGruppen(z) {
 function renderKo(z) {
   document.getElementById("ko-container").innerHTML = bracketHtml(z);
   document.getElementById("ko-admin").style.display = z.istAdmin ? "" : "none";
+  if (z.istAdmin) zeigeSimKnopf("btn-sim-ko", z.offeneSpieleAnzahl);
+}
+
+// Der Auswürfeln-Knopf trägt die Anzahl im Text und verschwindet, wenn nichts
+// mehr offen ist – in der K.-o.-Runde ändert sich beides nach jeder Runde.
+function zeigeSimKnopf(id, anzahl) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.style.display = anzahl > 0 ? "" : "none";
+  btn.textContent = anzahl === 1 ? "🧪 1 offenes Spiel auswürfeln" : `🧪 ${anzahl} offene Spiele auswürfeln`;
 }
 
 // --- BEENDET ---------------------------------------------------------------
@@ -430,6 +441,18 @@ function wireEvents() {
     zeigeFehler("test-fehler", res.erfolg ? "" : res.fehler);
   });
 
+  // Spiele auswürfeln (Veranstalter, zum Ausprobieren). Mit Rückfrage: bereits
+  // bestätigte Ergebnisse bleiben zwar unangetastet, aber die ausgewürfelten
+  // lassen sich nur über "Turnier zurücksetzen" wieder loswerden.
+  const simuliere = async (fehlerId) => {
+    const offen = zustand ? zustand.offeneSpieleAnzahl : 0;
+    if (!confirm(`${offen} offene(s) Spiel(e) mit Zufallsergebnissen füllen? Bereits bestätigte Ergebnisse bleiben stehen; die ausgewürfelten bekommst du nur über „Turnier zurücksetzen" wieder weg.`)) return;
+    const res = await turnierService.simuliereOffeneSpiele();
+    zeigeFehler(fehlerId, res.erfolg ? "" : res.fehler);
+  };
+  document.getElementById("btn-sim-gruppen").addEventListener("click", () => simuliere("sim-gruppen-fehler"));
+  document.getElementById("btn-sim-ko").addEventListener("click", () => simuliere("sim-ko-fehler"));
+
   // Teams
   document.getElementById("btn-teams-bilden").addEventListener("click", async () => {
     const res = await turnierService.bildeTeams();
@@ -560,7 +583,8 @@ const APP_CHANGELOG = [
       ]},
       { title: "Ausprobieren", items: [
           "Als Veranstalter kannst du in der Anmeldung Testspieler mit zufälligem Rating anlegen und den ganzen Ablauf allein durchspielen.",
-          "Die Testspieler lassen sich mit einem Klick wieder entfernen."
+          "Die Testspieler lassen sich mit einem Klick wieder entfernen.",
+          "Offene Spiele lassen sich auswürfeln – das stärkere Team gewinnt häufiger, aber nicht immer."
       ]},
       { title: "Turnier beenden oder neu starten", items: [
           "Zurücksetzen: Teams, Gruppen und Ergebnisse werden verworfen, alle Angemeldeten bleiben drin – ihr könnt sofort neu auslosen.",

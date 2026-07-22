@@ -260,6 +260,7 @@ function getZustand() {
     eigenesTeam,
     gruppen: gruppenMitTabellen(teams, spiele, meta),
     spiele,
+    offeneSpieleAnzahl: simulierbareSpiele().length,
     bracket: baueBracket(teams, spiele, meta),
   };
 }
@@ -787,6 +788,47 @@ async function entferneTestspieler() {
   return { erfolg: true, anzahl };
 }
 
+// --- Spiele simulieren (Admin, zum Ausprobieren) --------------------------
+// Würfelt alle offenen Spiele aus, damit sich Gruppentabellen, K.-o.-Baum und
+// Sieger-Ermittlung durchspielen lassen, ohne jedes Ergebnis von Hand zu melden.
+// Freilose (kein teamB) gelten schon als bestätigt und bleiben außen vor.
+// Die Gewinnchance kommt aus der ELO-Formel über den Team-Ratings: das stärkere
+// Team gewinnt häufiger, aber nicht immer – ohne Überraschungen wäre die
+// Gruppentabelle am Ende bloß die Setzliste und der Test wenig aussagekräftig.
+function simulierbareSpiele() {
+  return spielListe().filter((s) => s.status !== "bestaetigt" && s.teamA && s.teamB);
+}
+
+async function simuliereOffeneSpiele() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
+  const offene = simulierbareSpiele();
+  if (!offene.length) return { erfolg: false, fehler: "Es sind gerade keine Spiele offen." };
+
+  const noetig = noetigeSaetze(letzterZustand.meta.bestOf);
+  const rating = {};
+  teamListe().forEach((t) => { rating[t.id] = t.ratingSchnitt || RATING_DEFAULT; });
+
+  const updates = {};
+  offene.forEach((s) => {
+    const ra = rating[s.teamA] || RATING_DEFAULT;
+    const rb = rating[s.teamB] || RATING_DEFAULT;
+    const chanceA = 1 / (1 + Math.pow(10, (rb - ra) / 400));
+    const aGewinnt = Math.random() < chanceA;
+    const knapp = Math.floor(Math.random() * noetig); // Sätze des Verlierers: 0 .. noetig-1
+    updates["spiele/" + s.id + "/saetzeA"] = aGewinnt ? noetig : knapp;
+    updates["spiele/" + s.id + "/saetzeB"] = aGewinnt ? knapp : noetig;
+    updates["spiele/" + s.id + "/status"] = "bestaetigt";
+    updates["spiele/" + s.id + "/gemeldetVon"] = "simulation";
+  });
+  await db.ref(BASIS).update(updates);
+  // Wie bei adminSetzeErgebnis: die K.-o.-Progression selbst anstoßen, damit die
+  // nächste Runde entsteht (bzw. der Sieger feststeht).
+  await pruefeKoProgression();
+  return { erfolg: true, anzahl: offene.length };
+}
+
 // --- Turnier zurücksetzen / löschen (Admin) -------------------------------
 // Zurücksetzen: das Turnier bleibt bestehen und alle angemeldeten Spieler:innen
 // bleiben drin – nur Teams, Gruppen und Spiele fallen weg, die Phase geht zurück
@@ -836,6 +878,7 @@ const turnierService = {
   naechsteRundeManuell,
   legeTestspielerAn,
   entferneTestspieler,
+  simuliereOffeneSpiele,
   setzeTurnierZurueck,
   loescheTurnier,
   noetigeSaetze,

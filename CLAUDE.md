@@ -14,6 +14,12 @@ Ein aktives Turnier unter `turniere/aktuell`. Phasen: `anmeldung → teams → g
   Spieler mit gleichverteiltem Zufalls-Rating, `entferneTestspieler()` räumt sie wieder weg. Erkennungs-
   merkmal ist das UID-Präfix `test_` — deshalb nie über den Anzeigenamen filtern. Beide Aktionen sind nach
   der Anmeldephase gesperrt, weil dann schon Teams/Gruppen/Spiele an den UIDs hängen (erst zurücksetzen).
+- **Spiele auswürfeln** (Admin, Knopf in Gruppenphase und K.-o.-Runde): `simuliereOffeneSpiele()` füllt
+  alle offenen Spiele (Freilose ausgenommen) mit Zufallsergebnissen. Sieger bekommt `noetigeSaetze`,
+  Verlierer 0..n-1; wer gewinnt, entscheidet die ELO-Formel über `ratingSchnitt` — bewusst nicht immer
+  das stärkere Team, sonst wäre die Endtabelle nur die Setzliste. Stößt danach `pruefeKoProgression()`
+  an (gleiches Muster wie `adminSetzeErgebnis`), ein Klick = eine K.-o.-Runde. Zähler dafür kommt als
+  `offeneSpieleAnzahl` aus `getZustand()`.
 - **Zurücksetzen ≠ Löschen** (beide im Veranstalter-Modal): `setzeTurnierZurueck()` verwirft nur
   `teams`/`gruppen`/`spiele` und setzt `meta.phase` auf `anmeldung` + `siegerTeamId` auf null — die
   angemeldeten Spieler:innen, der PIN und die zuletzt gewählten Auslosungs-Optionen bleiben stehen
