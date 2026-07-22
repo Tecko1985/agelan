@@ -113,6 +113,8 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
 .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
 .btn-secondary { background: var(--card-bg); color: var(--primary); border: 1px solid var(--primary); }
 .btn-link { background: none; color: var(--muted); text-decoration: underline; margin-top: 8px; }
+.btn-danger { background: var(--card-bg); color: #dc2626; border: 1px solid #dc2626; }
+.btn-danger:active { background: #dc2626; color: #fff; }
 
 .hinweis-text { color: var(--muted); font-size: 14px; margin-top: 12px; min-height: 18px; }
 .hinweis-text.fehler { color: #dc2626; }

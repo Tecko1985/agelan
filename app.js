@@ -349,6 +349,7 @@ function oeffneAdmin() {
   login.style.display = istAdmin ? "none" : "";
   panel.style.display = istAdmin ? "" : "none";
   document.getElementById("admin-fehler").textContent = "";
+  document.getElementById("admin-panel-fehler").textContent = "";
   document.getElementById("admin-pin").value = "";
   document.getElementById("modal-admin").classList.add("aktiv");
 }
@@ -491,9 +492,19 @@ function wireEvents() {
     if (res.erfolg) oeffneAdmin();
     else zeigeFehler("admin-fehler", res.fehler);
   });
+  // Zurücksetzen: Angemeldete bleiben drin, nur Teams/Gruppen/Spiele fallen weg.
   document.getElementById("btn-admin-reset").addEventListener("click", async () => {
-    if (!confirm("Wirklich das komplette Turnier löschen? Das kann nicht rückgängig gemacht werden.")) return;
-    await turnierService.setzeTurnierZurueck();
+    if (!confirm("Turnier zurücksetzen? Teams, Gruppen und alle Ergebnisse werden verworfen. Die Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.")) return;
+    const res = await turnierService.setzeTurnierZurueck();
+    if (!res.erfolg) return zeigeFehler("admin-panel-fehler", res.fehler);
+    schliesseAdmin();
+  });
+  // Löschen: kompletter Turnierbaum weg, danach wieder "Turnier anlegen".
+  document.getElementById("btn-admin-loeschen").addEventListener("click", async () => {
+    const name = (zustand && zustand.meta && zustand.meta.name) || "Das Turnier";
+    if (!confirm(`„${name}" wirklich komplett löschen? Anmeldungen, Ergebnisse und der Admin-PIN sind dann weg. Das kann nicht rückgängig gemacht werden.`)) return;
+    const res = await turnierService.loescheTurnier();
+    if (!res.erfolg) return zeigeFehler("admin-panel-fehler", res.fehler);
     willMitmachen = false;
     schliesseAdmin();
   });
@@ -536,6 +547,11 @@ const APP_CHANGELOG = [
           "Ergebnisse eintragen, Tabellen aktualisieren sich sofort.",
           "Alle Geräte sehen denselben Stand live.",
           "Eigener Veranstalter-Zugang für Änderungen am Turnier."
+      ]},
+      { title: "Turnier beenden oder neu starten", items: [
+          "Zurücksetzen: Teams, Gruppen und Ergebnisse werden verworfen, alle Angemeldeten bleiben drin – ihr könnt sofort neu auslosen.",
+          "Löschen: das komplette Turnier wird entfernt, danach lässt sich ein neues anlegen.",
+          "Beides findest du als Veranstalter hinter dem Zahnrad oben rechts."
       ]}
     ]
   }

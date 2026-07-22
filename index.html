@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.5">
+<link rel="stylesheet" href="style.css?v=1.6">
 </head>
 <body>
 
@@ -251,7 +251,10 @@
     <div id="admin-panel" style="display:none">
       <p class="hinweis-text" id="admin-panel-info">Du bist als Veranstalter angemeldet.</p>
       <button class="btn btn-secondary btn-grow" id="btn-admin-reset">Turnier zurücksetzen</button>
-      <p class="hinweis-text">Löscht das komplette Turnier (nicht umkehrbar).</p>
+      <p class="hinweis-text">Teams, Gruppen und Spiele werden verworfen. Alle Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.</p>
+      <button class="btn btn-danger btn-grow" id="btn-admin-loeschen">Turnier löschen</button>
+      <p class="hinweis-text">Löscht das ganze Turnier samt Anmeldungen und PIN. Nicht umkehrbar.</p>
+      <p class="hinweis-text fehler" id="admin-panel-fehler"></p>
     </div>
     <button class="btn btn-link" id="btn-admin-schliessen">Schließen</button>
   </div>
@@ -260,9 +263,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="firebase-mock.js?v=1.5"></script>
-<script src="firebase-config.js?v=1.5"></script>
-<script src="turnier-service.js?v=1.5"></script>
-<script src="app.js?v=1.5"></script>
+<script src="firebase-mock.js?v=1.6"></script>
+<script src="firebase-config.js?v=1.6"></script>
+<script src="turnier-service.js?v=1.6"></script>
+<script src="app.js?v=1.6"></script>
 </body>
 </html>

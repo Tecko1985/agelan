@@ -9,7 +9,12 @@ Lokaler Dev-Server: Eintrag `agelan` in `E:\.claude\launch.json`, **Port 8791**.
 Ein aktives Turnier unter `turniere/aktuell`. Phasen: `anmeldung → teams → gruppen → ko → beendet`.
 - **Veranstalter/Admin** = Ersteller (`meta.hostId` == eigene UID) **oder** wer den `meta.adminPin` kennt
   (in localStorage `agelan_admin_pin`). Aktionen: Teams bilden, Gruppen auslosen, K.-o. auslosen,
-  Ergebnisse überschreiben (✎), Turnier zurücksetzen.
+  Ergebnisse überschreiben (✎), Turnier zurücksetzen, Turnier löschen.
+- **Zurücksetzen ≠ Löschen** (beide im Veranstalter-Modal): `setzeTurnierZurueck()` verwirft nur
+  `teams`/`gruppen`/`spiele` und setzt `meta.phase` auf `anmeldung` + `siegerTeamId` auf null — die
+  angemeldeten Spieler:innen, der PIN und die zuletzt gewählten Auslosungs-Optionen bleiben stehen
+  (zweiter Durchlauf ohne Neuanmeldung). `loescheTurnier()` entfernt den ganzen Baum (`BASIS.remove()`),
+  danach steht die App wieder auf „Turnier anlegen".
 - **Spieler** = meldet sich mit Name + Rating (500–3000) an; meldet/bestätigt Ergebnisse **seiner** Team-Spiele.
 - **Zuschauer** = jede:r mit Link sieht Lobby, Teams, Tabellen, Bracket live (read-only).
 
@@ -62,8 +67,8 @@ Round-Robin · Melde-Dialog · Zwei-Parteien-Bestätigung + Echtzeit-Sync zwisch
 (beteiligt/Gegner/Admin) · Gruppentabellen · K.-o.-Cross-Seeding · Auto-Progression bis Sieger ·
 XSS-Escaping · Dark-Mode + Mobile (kein H-Scroll). Keine Konsolenfehler.
 
-## Offen (vor/zum Release)
-- Firebase-Projekt anlegen + `firebase-config.js` füllen (`FIREBASE-SETUP.md`).
-- GitHub-Repo `Tecko1985/agelan` + Pages aktivieren (erst auf direkte Aufforderung, siehe Memory
-  `gh_repo_create_public_classifier`).
-- Optional: ToolsUebersicht-Kachel; mehrere parallele Turniere (Codes); Setzliste/Töpfe; Versions-Badge.
+## Offen
+- Optional: mehrere parallele Turniere über Codes (statt dem einen festen `turniere/aktuell`).
+- **Bewusst nicht gebaut:** ToolsUebersicht-Kachel (AgeLan ist eigenständig, Zielgruppe = Event-Teilnehmer)
+  und ein „PIN vergessen"-Weg (würde jeder Teilnehmer:in das Löschen erlauben — der PIN steht öffentlich
+  lesbar im `meta` und lässt sich im Notfall per Firebase-Abfrage nachschlagen).

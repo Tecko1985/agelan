@@ -728,8 +728,28 @@ async function naechsteRundeManuell() {
   return { erfolg: true };
 }
 
-// --- Turnier zurücksetzen (Admin) -----------------------------------------
+// --- Turnier zurücksetzen / löschen (Admin) -------------------------------
+// Zurücksetzen: das Turnier bleibt bestehen und alle angemeldeten Spieler:innen
+// bleiben drin – nur Teams, Gruppen und Spiele fallen weg, die Phase geht zurück
+// auf "anmeldung". Für einen zweiten Durchlauf mit derselben Runde, ohne dass
+// sich alle neu anmelden müssen. bestOf/anzahlGruppen/weiterProGruppe bleiben
+// als Vorbelegung fürs nächste Auslosen stehen.
 async function setzeTurnierZurueck() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  await db.ref(BASIS).update({
+    teams: null,
+    gruppen: null,
+    spiele: null,
+    "meta/phase": "anmeldung",
+    "meta/siegerTeamId": null,
+  });
+  return { erfolg: true };
+}
+
+// Löschen: kompletter Turnierbaum weg, inklusive Spieler:innen und Admin-PIN.
+// Danach steht die App wieder auf "Neues Turnier anlegen".
+async function loescheTurnier() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(BASIS).remove();
@@ -756,6 +776,7 @@ const turnierService = {
   starteKoAuslosung,
   naechsteRundeManuell,
   setzeTurnierZurueck,
+  loescheTurnier,
   noetigeSaetze,
   getGespeicherterName: () => { try { return localStorage.getItem(NAME_KEY) || ""; } catch (e) { return ""; } },
 };
