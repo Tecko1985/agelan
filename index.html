@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.6">
+<link rel="stylesheet" href="style.css?v=1.7">
 </head>
 <body>
 
@@ -107,6 +107,17 @@
       <div id="lobby-admin" style="display:none">
         <button class="btn btn-primary btn-grow" id="btn-teams-bilden">Teams bilden →</button>
         <p class="hinweis-text">Als Veranstalter: bildet ratingfaire 2er-Teams.</p>
+
+        <div class="karte-block">
+          <p class="feld-label">🧪 Zum Ausprobieren</p>
+          <div class="feld-zeile">
+            <input type="number" id="test-anzahl" class="eingabe" min="1" max="64" value="8" style="flex:0 0 90px">
+            <button class="btn btn-secondary" id="btn-test-spieler" style="flex:1">Testspieler anlegen</button>
+          </div>
+          <p class="hinweis-text">Erfindet Spieler mit zufälligem Rating, damit du den Ablauf allein durchspielen kannst.</p>
+          <button class="btn btn-link" id="btn-test-entfernen">Testspieler wieder entfernen</button>
+          <p class="hinweis-text fehler" id="test-fehler"></p>
+        </div>
       </div>
       <p class="hinweis-text" id="lobby-warte" style="display:none">Warte, bis der Veranstalter die Teams bildet …</p>
     </div>
@@ -263,9 +274,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="firebase-mock.js?v=1.6"></script>
-<script src="firebase-config.js?v=1.6"></script>
-<script src="turnier-service.js?v=1.6"></script>
-<script src="app.js?v=1.6"></script>
+<script src="firebase-mock.js?v=1.7"></script>
+<script src="firebase-config.js?v=1.7"></script>
+<script src="turnier-service.js?v=1.7"></script>
+<script src="app.js?v=1.7"></script>
 </body>
 </html>

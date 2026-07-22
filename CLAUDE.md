@@ -10,6 +10,10 @@ Ein aktives Turnier unter `turniere/aktuell`. Phasen: `anmeldung → teams → g
 - **Veranstalter/Admin** = Ersteller (`meta.hostId` == eigene UID) **oder** wer den `meta.adminPin` kennt
   (in localStorage `agelan_admin_pin`). Aktionen: Teams bilden, Gruppen auslosen, K.-o. auslosen,
   Ergebnisse überschreiben (✎), Turnier zurücksetzen, Turnier löschen.
+- **Testspieler** (Lobby, nur Admin, nur Phase `anmeldung`): `legeTestspielerAn(n)` erfindet bis zu 64
+  Spieler mit gleichverteiltem Zufalls-Rating, `entferneTestspieler()` räumt sie wieder weg. Erkennungs-
+  merkmal ist das UID-Präfix `test_` — deshalb nie über den Anzeigenamen filtern. Beide Aktionen sind nach
+  der Anmeldephase gesperrt, weil dann schon Teams/Gruppen/Spiele an den UIDs hängen (erst zurücksetzen).
 - **Zurücksetzen ≠ Löschen** (beide im Veranstalter-Modal): `setzeTurnierZurueck()` verwirft nur
   `teams`/`gruppen`/`spiele` und setzt `meta.phase` auf `anmeldung` + `siegerTeamId` auf null — die
   angemeldeten Spieler:innen, der PIN und die zuletzt gewählten Auslosungs-Optionen bleiben stehen

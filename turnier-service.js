@@ -728,6 +728,65 @@ async function naechsteRundeManuell() {
   return { erfolg: true };
 }
 
+// --- Testspieler (Admin, zum Ausprobieren) --------------------------------
+// Legt Spieler mit zufälligem Rating an, damit sich der komplette Ablauf
+// (Teams → Gruppen → K.-o.) allein durchspielen lässt, ohne dass sich echte
+// Leute anmelden müssen. Die UIDs tragen ein "test_"-Präfix und sind damit
+// gezielt wieder entfernbar. Das Rating ist über den ganzen erlaubten Bereich
+// gleichverteilt – das fordert Balanced-Pairing und Setzlisten-Töpfe am meisten.
+const TEST_UID_PREFIX = "test_";
+
+function zufallsRating() {
+  const stufen = (RATING_MAX - RATING_MIN) / 10;
+  return RATING_MIN + Math.floor(Math.random() * (stufen + 1)) * 10;
+}
+
+// Beide Testspieler-Aktionen nur während der Anmeldung: danach hängen an den
+// Spieler:innen bereits Teams, Gruppen und Spiele.
+function testspielerErlaubt() {
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
+  if (letzterZustand.meta.phase !== "anmeldung") {
+    return { erfolg: false, fehler: "Geht nur während der Anmeldung – setze das Turnier vorher zurück." };
+  }
+  return { erfolg: true };
+}
+
+async function legeTestspielerAn(anzahl) {
+  await authBereit;
+  const erlaubt = testspielerErlaubt();
+  if (!erlaubt.erfolg) return erlaubt;
+  const roh = parseInt(anzahl, 10);
+  if (!roh || roh < 1) return { erfolg: false, fehler: "Bitte eine Anzahl zwischen 1 und 64 angeben." };
+  const n = Math.min(64, roh);
+  const schon = Object.keys(letzterZustand.spieler || {}).length;
+  const marke = Date.now().toString(36);
+  const updates = {};
+  for (let i = 0; i < n; i++) {
+    updates["spieler/" + TEST_UID_PREFIX + marke + "_" + i] = {
+      name: "Testspieler " + (schon + i + 1),
+      rating: zufallsRating(),
+      beigetretenAm: Date.now() + i,
+    };
+  }
+  await db.ref(BASIS).update(updates);
+  return { erfolg: true, anzahl: n };
+}
+
+async function entferneTestspieler() {
+  await authBereit;
+  const erlaubt = testspielerErlaubt();
+  if (!erlaubt.erfolg) return erlaubt;
+  const updates = {};
+  Object.keys(letzterZustand.spieler || {})
+    .filter((uid) => uid.indexOf(TEST_UID_PREFIX) === 0)
+    .forEach((uid) => { updates["spieler/" + uid] = null; });
+  const anzahl = Object.keys(updates).length;
+  if (!anzahl) return { erfolg: false, fehler: "Es sind keine Testspieler angelegt." };
+  await db.ref(BASIS).update(updates);
+  return { erfolg: true, anzahl };
+}
+
 // --- Turnier zurücksetzen / löschen (Admin) -------------------------------
 // Zurücksetzen: das Turnier bleibt bestehen und alle angemeldeten Spieler:innen
 // bleiben drin – nur Teams, Gruppen und Spiele fallen weg, die Phase geht zurück
@@ -775,6 +834,8 @@ const turnierService = {
   adminSetzeErgebnis,
   starteKoAuslosung,
   naechsteRundeManuell,
+  legeTestspielerAn,
+  entferneTestspieler,
   setzeTurnierZurueck,
   loescheTurnier,
   noetigeSaetze,

@@ -420,6 +420,16 @@ function wireEvents() {
     render(zustand);
   });
 
+  // Testspieler (nur Veranstalter, nur während der Anmeldung)
+  document.getElementById("btn-test-spieler").addEventListener("click", async () => {
+    const res = await turnierService.legeTestspielerAn(document.getElementById("test-anzahl").value);
+    zeigeFehler("test-fehler", res.erfolg ? "" : res.fehler);
+  });
+  document.getElementById("btn-test-entfernen").addEventListener("click", async () => {
+    const res = await turnierService.entferneTestspieler();
+    zeigeFehler("test-fehler", res.erfolg ? "" : res.fehler);
+  });
+
   // Teams
   document.getElementById("btn-teams-bilden").addEventListener("click", async () => {
     const res = await turnierService.bildeTeams();
@@ -547,6 +557,10 @@ const APP_CHANGELOG = [
           "Ergebnisse eintragen, Tabellen aktualisieren sich sofort.",
           "Alle Geräte sehen denselben Stand live.",
           "Eigener Veranstalter-Zugang für Änderungen am Turnier."
+      ]},
+      { title: "Ausprobieren", items: [
+          "Als Veranstalter kannst du in der Anmeldung Testspieler mit zufälligem Rating anlegen und den ganzen Ablauf allein durchspielen.",
+          "Die Testspieler lassen sich mit einem Klick wieder entfernen."
       ]},
       { title: "Turnier beenden oder neu starten", items: [
           "Zurücksetzen: Teams, Gruppen und Ergebnisse werden verworfen, alle Angemeldeten bleiben drin – ihr könnt sofort neu auslosen.",
