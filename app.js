@@ -617,13 +617,6 @@ function setupInfoTab() {
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
     b.addEventListener("click", () => activateTab(b.dataset.tab));
   });
-  const badge = document.getElementById("version-badge");
-  if (badge) {
-    badge.addEventListener("click", () => activateTab("info"));
-    badge.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activateTab("info"); }
-    });
-  }
   renderVersionInfo();
 }
 

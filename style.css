@@ -222,8 +222,6 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
   background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35);
   color: #fff; border-radius: 999px; padding: 2px 8px; vertical-align: middle;
 }
-.version-badge-link { cursor: pointer; }
-.version-badge-link:hover, .version-badge-link:focus-visible { background: rgba(255,255,255,0.32); }
 nav.tabs {
   display: flex; gap: 4px; justify-content: center;
   background: var(--card-bg); border-bottom: 1px solid var(--border);
