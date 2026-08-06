@@ -26,11 +26,21 @@ const firebaseConfig = {
 let db, auth;
 const istPlatzhalterKonfig = !firebaseConfig.apiKey || firebaseConfig.apiKey.indexOf("DEIN_") === 0;
 
-if (istPlatzhalterKonfig) {
-  // Kein echtes Firebase-Projekt hinterlegt -> lokalen Mock aktivieren.
+// ?mock=1 erzwingt den lokalen Test-Modus auch bei hinterlegtem Firebase-Projekt.
+// Ohne diesen Schalter lässt sich nichts ausprobieren, ohne dabei in die echte
+// Datenbank des laufenden Turniers zu schreiben.
+const willTestModus = (function () {
+  try {
+    return /[?&]mock=1(?:&|$)/.test(window.location.search);
+  } catch (e) {
+    return false;
+  }
+})();
+
+if (istPlatzhalterKonfig || willTestModus) {
   window.firebase = window.createFirebaseMock();
   window.__AGELAN_MOCK__ = true;
-  console.warn("[AgeLan] Kein Firebase konfiguriert – lokaler Test-Modus (Daten bleiben in diesem Browser).");
+  console.warn("[AgeLan] Lokaler Test-Modus – Daten bleiben in diesem Browser.");
 }
 
 firebase.initializeApp(firebaseConfig);

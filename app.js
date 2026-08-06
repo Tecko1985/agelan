@@ -4,6 +4,11 @@
 // escaped, bevor sie per innerHTML eingesetzt werden (XSS-Schutz).
 // ===========================================================================
 
+// Der Turnierteil ist derzeit ausgeblendet: die Seite wird nur für den Streamplan
+// herausgegeben. Der Code bleibt vollständig erhalten – dieser eine Schalter auf
+// true zurück, und Tab, Screens und Veranstalter-Zahnrad sind wieder da.
+const TURNIER_SICHTBAR = false;
+
 let zustand = null;
 let willMitmachen = false;   // lokaler UI-Zustand: "Jetzt anmelden" geklickt
 let meldeSpielId = null;     // aktuell im Melde-Dialog bearbeitetes Spiel
@@ -70,8 +75,10 @@ function render(z) {
   if (screen === "screen-ko") renderKo(z);
   if (screen === "screen-beendet") renderBeendet(z);
 
-  // Admin-Zahnrad nur zeigen, wenn ein Turnier existiert
-  document.getElementById("btn-admin-oeffnen").style.display = z.vorhanden ? "" : "none";
+  // Admin-Zahnrad nur zeigen, wenn ein Turnier existiert – und gar nicht,
+  // solange der Turnierteil ausgeblendet ist (es öffnet nur Turnier-Aktionen;
+  // der Streamplan hat seinen eigenen Veranstalter-Bereich in seinem Tab).
+  document.getElementById("btn-admin-oeffnen").style.display = TURNIER_SICHTBAR && z.vorhanden ? "" : "none";
 }
 
 // --- START -----------------------------------------------------------------
@@ -569,6 +576,30 @@ function wireEvents() {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.1",
+    groups: [
+      { title: "Streamkalender", items: [
+          "Neuer Tab „Stream“: ein Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
+          "Eintragen heißt: Tag, Von, Bis, Name und wahlweise, was in der Zeit läuft. Der eigene Eintrag lässt sich jederzeit ändern oder wieder entfernen.",
+          "Es sendet immer nur einer: überschneidet sich eine Zeit mit einer schon eingetragenen, nimmt der Plan sie nicht an und sagt, wer da schon dran ist.",
+          "Am Handy zeigt der Kalender einen Tag, auf größeren Bildschirmen alle Tage nebeneinander.",
+          "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet."
+      ]},
+      { title: "Zugang zur Seite", items: [
+          "Die Seite ist mit einem Passwort geschützt. Wer es nicht hat, kommt an nichts heran – geladen wird erst nach der Freigabe.",
+          "Das Passwort gibt es bei Michel im Discord. Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen.",
+          "Geprüft wird das Passwort auf dem Server, nicht in der Seite – es steht nirgends im Quelltext.",
+          "Der Turnierteil ist vorerst ausgeblendet: die Seite zeigt nur den Streamplan."
+      ]},
+      { title: "Als Veranstalter", items: [
+          "Das Zeitfenster lässt sich für jeden Tag einzeln stellen – etwa ein Sonntag, an dem nur noch der Vormittag läuft.",
+          "Fremde Einträge lassen sich korrigieren oder entfernen, ebenso alle Einträge auf einmal.",
+          "Es gilt derselbe Veranstalter-PIN wie beim Turnier; beim Anlegen des Plans wird er übernommen.",
+          "Der Streamplan hängt nicht am Turnier: Zurücksetzen und Löschen des Turniers lassen ihn unberührt, und es braucht kein Turnier, damit es ihn gibt."
+      ]}
+    ]
+  },
+  {
     version: "1.0",
     groups: [
       { title: "Turnier aufsetzen", items: [
@@ -617,7 +648,16 @@ function setupInfoTab() {
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
     b.addEventListener("click", () => activateTab(b.dataset.tab));
   });
+  if (!TURNIER_SICHTBAR) {
+    const turnierKnopf = document.querySelector('nav.tabs button[data-tab="turnier"]');
+    if (turnierKnopf) turnierKnopf.style.display = "none";
+    document.getElementById("btn-admin-oeffnen").style.display = "none";
+    activateTab("stream");
+  }
   renderVersionInfo();
 }
 
-document.addEventListener("DOMContentLoaded", setupInfoTab);
+// Die Skripte werden vom Passwort-Gate erst nach der Freigabe nachgeladen –
+// dann ist DOMContentLoaded längst durch und würde nie mehr feuern.
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupInfoTab);
+else setupInfoTab();

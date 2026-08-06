@@ -3,13 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgeLan – Turnier</title>
+<title>AgeLan – Streamplan</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.9">
+<link rel="stylesheet" href="style.css?v=2.1">
 </head>
 <body>
+
+<!-- Passwort-Gate: die ganze Seite erst nach serverseitiger Prüfung freigeben (Scope agelan-zugang).
+     Die App-Skripte werden bewusst NICHT hier eingebunden, sondern unten vom Gate nachgeladen –
+     sonst stünde die Firebase-Verbindung schon, während das Overlay nur optisch davorliegt. -->
+<div id="pw-gate" style="position:fixed;inset:0;z-index:99999;background:#eef1f6;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.15);padding:28px 26px;max-width:360px;width:100%;text-align:center">
+    <div style="font-size:32px;line-height:1;margin-bottom:8px">🔒</div>
+    <h2 style="margin:0 0 6px;font-size:19px;color:#12325b">AgeLan – Streamplan</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#5a6b82">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
+    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" style="width:100%;box-sizing:border-box;padding:11px 12px;font-size:16px;border:1px solid #c7d0db;border-radius:8px;margin-bottom:10px" />
+    <button id="pw-gate-btn" type="button" style="width:100%;padding:11px 12px;font-size:15px;font-weight:600;color:#fff;background:#1a56a0;border:none;border-radius:8px;cursor:pointer">Öffnen</button>
+    <p id="pw-gate-msg" style="margin:10px 0 0;font-size:13px;min-height:16px"></p>
+  </div>
+</div>
 
 <header class="kopfzeile">
   <div class="kopfzeile-left">
@@ -24,6 +38,7 @@
 
 <nav class="tabs">
   <button data-tab="turnier" class="active">Turnier</button>
+  <button data-tab="stream">Stream</button>
   <button data-tab="info" style="margin-left:auto;">Info</button>
 </nav>
 
@@ -218,10 +233,99 @@
 
  </div>
 
+ <!-- ============ STREAMKALENDER ============ -->
+ <div class="tab-section" id="tab-stream">
+
+  <!-- noch kein Plan -> anlegen -->
+  <div class="sk-view aktiv" id="sk-kein-plan">
+    <div class="karte-block">
+      <h2>Streamplan anlegen</h2>
+      <p class="hinweis-text">Wer sendet wann vom Kanal? Jede:r mit dem Link trägt sich selbst ein – gesendet wird immer nur von einem gleichzeitig.</p>
+
+      <label class="feld-label" for="sk-neu-titel">Name des Plans</label>
+      <input type="text" id="sk-neu-titel" class="eingabe" placeholder="z. B. AgeLan 2026 – Streams" maxlength="60" autocomplete="off">
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="sk-neu-start">Erster Tag</label>
+          <input type="date" id="sk-neu-start" class="eingabe">
+        </div>
+        <div>
+          <label class="feld-label" for="sk-neu-tage">Tage</label>
+          <input type="number" id="sk-neu-tage" class="eingabe" min="1" max="7" value="4">
+        </div>
+      </div>
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="sk-neu-von">Sendebeginn je Tag</label>
+          <select id="sk-neu-von" class="eingabe"></select>
+        </div>
+        <div>
+          <label class="feld-label" for="sk-neu-bis">Sendeschluss</label>
+          <select id="sk-neu-bis" class="eingabe"></select>
+        </div>
+      </div>
+      <p class="hinweis-text">Zeiten nach Mitternacht sind mit „(Nacht)“ gekennzeichnet und gehören noch zum selben Tag. Einzelne Tage – etwa einen Sonntag, an dem nur vormittags etwas läuft – stellst du danach kürzer.</p>
+
+      <label class="feld-label" for="sk-neu-pin">Veranstalter-PIN</label>
+      <input type="text" id="sk-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <p class="hinweis-text" id="sk-neu-pin-hinweis"></p>
+
+      <button class="btn btn-primary btn-grow" id="sk-btn-erstellen">Streamplan anlegen</button>
+      <p class="hinweis-text fehler" id="sk-neu-fehler"></p>
+    </div>
+  </div>
+
+  <!-- Plan vorhanden -->
+  <div class="sk-view" id="sk-plan">
+    <div class="sk-kopf">
+      <h2 id="sk-titel">Streamplan</h2>
+      <p class="hinweis-text" id="sk-zeitraum"></p>
+    </div>
+
+    <button class="btn btn-primary btn-grow" id="sk-btn-belegen">＋ Zeit belegen</button>
+
+    <div class="sk-tagchips" id="sk-tagchips"></div>
+    <div id="sk-kalender"></div>
+
+    <h3>Alle Einträge</h3>
+    <div id="sk-liste"></div>
+
+    <div class="karte-block" id="sk-admin-login">
+      <p class="feld-label">Veranstalter</p>
+      <div class="feld-zeile">
+        <div>
+          <input type="text" id="sk-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn btn-secondary" id="sk-btn-admin-anmelden">Anmelden</button>
+        </div>
+      </div>
+      <p class="hinweis-text fehler" id="sk-admin-fehler"></p>
+    </div>
+
+    <div class="karte-block" id="sk-admin-panel" style="display:none">
+      <p class="feld-label">Zeitfenster je Tag</p>
+      <div id="sk-fenster-liste"></div>
+      <button class="btn btn-secondary btn-grow" id="sk-btn-fenster-speichern">Zeiten speichern</button>
+      <p class="hinweis-text">Nur innerhalb dieser Zeiten lässt sich etwas eintragen. Zwei Tage dürfen sich nicht überschneiden, und schon belegte Zeiten müssen im Fenster bleiben.</p>
+
+      <button class="btn btn-secondary btn-grow" id="sk-btn-leeren">Alle Einträge entfernen</button>
+      <p class="hinweis-text">Die Zeitfenster und der Plan bleiben stehen, nur die Belegungen fallen weg.</p>
+
+      <button class="btn btn-danger btn-grow" id="sk-btn-plan-loeschen">Streamplan löschen</button>
+      <p class="hinweis-text">Löscht den kompletten Plan. Das Turnier bleibt davon unberührt.</p>
+      <p class="hinweis-text fehler" id="sk-admin-panel-fehler"></p>
+    </div>
+  </div>
+
+ </div>
+
  <div class="tab-section" id="tab-info">
    <div class="info-card">
      <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
-     <p>Turnierverwaltung für Vereinsveranstaltungen: Teams anlegen, Gruppenphase auslosen, Spiele eintragen und die K.-o.-Runde ausspielen. Alle Geräte sehen den Stand live.</p>
+     <p>Streamplan für die Veranstaltungstage: wer sendet wann vom Kanal. Jede:r mit Zugang trägt sich selbst ein, alle Geräte sehen den Stand live. Der Turnierteil der App ist zurzeit ausgeblendet.</p>
    </div>
    <div class="info-card">
      <h2>Änderungen</h2>
@@ -294,12 +398,126 @@
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="firebase-mock.js?v=1.8"></script>
-<script src="firebase-config.js?v=1.8"></script>
-<script src="turnier-service.js?v=1.8"></script>
-<script src="app.js?v=1.9"></script>
+<!-- ============ Modal: Zeit belegen ============ -->
+<div class="modal-overlay" id="modal-stream">
+  <div class="modal">
+    <h3 id="sk-dlg-titel-text">Zeit belegen</h3>
+
+    <label class="feld-label" for="sk-dlg-tag">Tag</label>
+    <select id="sk-dlg-tag" class="eingabe"></select>
+
+    <div class="feld-zeile">
+      <div>
+        <label class="feld-label" for="sk-dlg-von">Von</label>
+        <select id="sk-dlg-von" class="eingabe"></select>
+      </div>
+      <div>
+        <label class="feld-label" for="sk-dlg-bis">Bis</label>
+        <select id="sk-dlg-bis" class="eingabe"></select>
+      </div>
+    </div>
+
+    <label class="feld-label" for="sk-dlg-name">Dein Name</label>
+    <input type="text" id="sk-dlg-name" class="eingabe" maxlength="40" autocomplete="off">
+
+    <label class="feld-label" for="sk-dlg-was">Was läuft in der Zeit?</label>
+    <input type="text" id="sk-dlg-was" class="eingabe" placeholder="z. B. Cast Gruppenphase" maxlength="60" autocomplete="off">
+
+    <label class="feld-label" for="sk-dlg-notiz">Notiz (freiwillig)</label>
+    <input type="text" id="sk-dlg-notiz" class="eingabe" maxlength="200" autocomplete="off">
+
+    <p class="hinweis-text" id="sk-dlg-hinweis"></p>
+    <p class="hinweis-text fehler" id="sk-dlg-fehler"></p>
+
+    <button class="btn btn-primary btn-grow" id="sk-dlg-speichern">Speichern</button>
+    <button class="btn btn-danger btn-grow" id="sk-dlg-loeschen" style="display:none">Belegung entfernen</button>
+    <button class="btn btn-link" id="sk-dlg-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
+<script>
+// Passwort-Gate. Prüft serverseitig gegen das Worker-Secret PW_AGELAN (Scope
+// agelan-zugang) und lädt die App-Skripte ERST nach der Freigabe. Damit steht
+// vor der Eingabe weder eine Firebase-Verbindung noch ein Datenabruf.
+//
+// Der Zugang wird in localStorage gemerkt, nicht in sessionStorage wie bei den
+// übrigen Seiten der Flotte: über vier Veranstaltungstage soll das Passwort
+// wirklich nur einmal je Gerät nötig sein.
+(function () {
+  var SCOPE = 'agelan-zugang';
+  var SPEICHER_KEY = 'agelan_gate_ok';
+  var GATEWAY = 'https://landingpage.michel-brunner.workers.dev';
+  var SKRIPTE = [
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
+    'firebase-mock.js?v=2.1',
+    'firebase-config.js?v=2.1',
+    'turnier-service.js?v=2.1',
+    'app.js?v=2.1',
+    'stream-service.js?v=2.1',
+    'stream-app.js?v=2.1'
+  ];
+
+  var input = document.getElementById('pw-gate-input');
+  var btn = document.getElementById('pw-gate-btn');
+  var msg = document.getElementById('pw-gate-msg');
+
+  // Nacheinander, nicht parallel: firebase-config braucht das Firebase-SDK,
+  // die Services brauchen die Konfiguration, die Oberflächen die Services.
+  function ladeSkripte(fertig) {
+    var i = 0;
+    (function weiter() {
+      if (i >= SKRIPTE.length) return fertig();
+      var s = document.createElement('script');
+      s.src = SKRIPTE[i++];
+      s.onload = weiter;
+      s.onerror = function () {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Die Seite konnte nicht vollständig geladen werden.';
+      };
+      document.body.appendChild(s);
+    })();
+  }
+
+  function freigeben(merken) {
+    if (merken) { try { localStorage.setItem(SPEICHER_KEY, '1'); } catch (e) {} }
+    ladeSkripte(function () {
+      var g = document.getElementById('pw-gate');
+      if (g) g.remove();
+    });
+  }
+
+  var schonFrei = false;
+  try { schonFrei = localStorage.getItem(SPEICHER_KEY) === '1'; } catch (e) {}
+  if (schonFrei) { freigeben(false); return; }
+
+  function pruefe() {
+    var pw = input.value;
+    if (!pw) { msg.style.color = '#c0392b'; msg.textContent = 'Bitte Passwort eingeben.'; return; }
+    btn.disabled = true; msg.style.color = '#5a6b82'; msg.textContent = 'Prüfe …';
+    fetch(GATEWAY, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-action-password', scope: SCOPE, password: pw })
+    }).then(function (resp) {
+      if (resp.ok) { msg.textContent = 'Einen Moment …'; freigeben(true); return; }
+      msg.style.color = '#c0392b';
+      if (resp.status === 403) { msg.textContent = 'Falsches Passwort.'; btn.disabled = false; input.select(); return; }
+      resp.json().catch(function () { return {}; }).then(function (b) {
+        msg.textContent = (b.error && /nicht konfiguriert/.test(b.error))
+          ? 'Der Zugang ist noch nicht eingerichtet.'
+          : 'Prüfung fehlgeschlagen (HTTP ' + resp.status + ').';
+        btn.disabled = false; input.select();
+      });
+    }).catch(function () {
+      msg.style.color = '#c0392b'; msg.textContent = 'Keine Verbindung zum Server.'; btn.disabled = false;
+    });
+  }
+
+  btn.addEventListener('click', pruefe);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
+  input.focus();
+})();
+</script>
 </body>
 </html>

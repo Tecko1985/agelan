@@ -207,6 +207,10 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
   background: var(--card-bg); color: var(--text);
   border-radius: var(--radius); padding: 20px; width: 100%; max-width: 380px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  /* Der Belege-Dialog ist auf kleinen Displays höher als der Bildschirm –
+     er muss in sich scrollen, sonst ist der Speichern-Knopf nicht erreichbar. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 .modal h3 { margin: 0 0 14px; }
 
@@ -247,3 +251,90 @@ nav.tabs button.active { color: var(--primary); border-bottom-color: var(--prima
 .changelog-entry .cv { font-weight: 700; color: var(--primary); margin-bottom: 8px; }
 .changelog-entry .cgt { font-weight: 600; font-size: 13px; margin: 8px 0 4px; }
 .changelog-entry ul { margin: 0; padding-left: 20px; color: var(--text); line-height: 1.6; }
+
+/* ---------- Streamkalender ---------- */
+/* Der Kalender braucht mehr Breite als die 560px der Turnier-Screens. Die Klasse
+   setzt stream-app.js beim Tabwechsel – bewusst nicht per :has(), das auf
+   älteren iPhones fehlt und die Regel dort komplett verschlucken würde. */
+main#app.sk-breit { max-width: 980px; }
+
+.sk-view { display: none; }
+.sk-view.aktiv { display: block; }
+
+.sk-kopf { padding-top: 20px; }
+.sk-kopf h2 { margin-bottom: 4px; }
+
+.sk-tagchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 10px; }
+.sk-chip {
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.sk-chip.aktiv { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sk-chip-zahl { opacity: 0.75; font-weight: 400; }
+
+.sk-raster { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; }
+.sk-zeitspalte { flex: 0 0 52px; }
+.sk-zeitmarke { font-size: 11px; color: var(--muted); text-align: right; padding-right: 6px; }
+/* Die Beschriftung sitzt auf der Stundenlinie, nicht mittig im Kasten. */
+.sk-zeitmarke span { position: relative; top: -7px; }
+.sk-zeitkopf { visibility: hidden; }
+
+/* Am Handy ist nur der über die Chips gewählte Tag sichtbar, ab Tablet-Breite
+   stehen alle Tage nebeneinander und die Chips verschwinden. */
+.sk-tag { flex: 1 1 0; min-width: 132px; display: none; }
+.sk-tag.aktiv { display: block; }
+@media (min-width: 760px) {
+  .sk-tagchips { display: none; }
+  .sk-tag { display: block; }
+}
+
+.sk-tagkopf {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 13px; font-weight: 700; text-align: center; padding: 6px 4px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.sk-tagzeit { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+.sk-tagflaeche {
+  position: relative;
+  background-color: var(--card-bg);
+  /* Stundenlinien; den Abstand setzt stream-app.js über background-size,
+     damit die Rasterhöhe nur an einer Stelle steht. */
+  background-image: linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px);
+  background-repeat: repeat-y;
+  border: 1px solid var(--border); border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  cursor: copy;
+}
+.sk-gesperrt {
+  position: absolute; left: 0; right: 0;
+  background: var(--bg); opacity: 0.75; pointer-events: none;
+}
+
+.sk-slot {
+  position: absolute; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--primary); color: #fff;
+  border: none; border-radius: 6px; padding: 3px 6px;
+  font-family: inherit; text-align: left; line-height: 1.25; cursor: pointer;
+}
+.sk-slot.eigen { background: var(--success); }
+.sk-slot-zeit { font-size: 10px; opacity: 0.85; }
+.sk-slot-name { font-size: 12px; font-weight: 700; }
+.sk-slot-titel { font-size: 11px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sk-zeile {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px;
+}
+.sk-zeile-zeit { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--muted); }
+.sk-zeile-wer { flex: 1 1 120px; font-weight: 600; }
+.sk-zeile-titel { font-weight: 400; color: var(--muted); }
+
+.sk-fenster-zeile { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sk-fenster-tag { flex: 0 0 58px; font-size: 14px; font-weight: 600; }
+/* min-width:0, sonst sprengen die langen Uhrzeit-Listen die Zeile auf. */
+.sk-fenster-zeile select { flex: 1 1 0; min-width: 0; padding: 10px 6px; }
+.sk-fenster-bis { flex: 0 0 auto; font-size: 13px; color: var(--muted); }
