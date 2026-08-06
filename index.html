@@ -510,7 +510,14 @@
         btn.disabled = false; input.select();
       });
     }).catch(function () {
-      msg.style.color = '#c0392b'; msg.textContent = 'Keine Verbindung zum Server.'; btn.disabled = false;
+      // Häufigster Grund ist nicht "kein Netz", sondern eine Adresse, die der
+      // Worker nicht kennt (CORS) – etwa ein anderer localhost-Port oder eine
+      // direkt geöffnete Datei. Deshalb die eigene Herkunft mit anzeigen, sonst
+      // ist das von außen nicht zu unterscheiden.
+      msg.style.color = '#c0392b';
+      msg.innerHTML = 'Keine Verbindung zum Server.<br><span style="font-size:11px;opacity:.8">Aufgerufen von: ' +
+        String(window.location.origin || 'unbekannt').replace(/[<>&"]/g, '') + '</span>';
+      btn.disabled = false;
     });
   }
 
