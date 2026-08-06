@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.1">
+<link rel="stylesheet" href="style.css?v=2.2">
 </head>
 <body>
 
@@ -285,6 +285,7 @@
     </div>
 
     <button class="btn btn-primary btn-grow" id="sk-btn-belegen">＋ Zeit belegen</button>
+    <button class="btn btn-secondary btn-grow" id="sk-btn-programm" style="display:none">＋ Programmpunkt</button>
 
     <div class="sk-tagchips" id="sk-tagchips"></div>
     <div id="sk-kalender"></div>
@@ -435,6 +436,40 @@
   </div>
 </div>
 
+<!-- ============ Modal: Programmpunkt ============ -->
+<div class="modal-overlay" id="modal-programm">
+  <div class="modal">
+    <h3 id="sk-prg-titel-text">Programmpunkt anlegen</h3>
+
+    <label class="feld-label" for="sk-prg-tag">Tag</label>
+    <select id="sk-prg-tag" class="eingabe"></select>
+
+    <div class="feld-zeile">
+      <div>
+        <label class="feld-label" for="sk-prg-von">Von</label>
+        <select id="sk-prg-von" class="eingabe"></select>
+      </div>
+      <div>
+        <label class="feld-label" for="sk-prg-bis">Bis</label>
+        <select id="sk-prg-bis" class="eingabe"></select>
+      </div>
+    </div>
+
+    <label class="feld-label" for="sk-prg-was">Was steht an?</label>
+    <input type="text" id="sk-prg-was" class="eingabe" placeholder="z. B. Gruppenphase" maxlength="60" autocomplete="off">
+
+    <label class="feld-label" for="sk-prg-notiz">Notiz (freiwillig)</label>
+    <input type="text" id="sk-prg-notiz" class="eingabe" maxlength="200" autocomplete="off">
+
+    <p class="hinweis-text" id="sk-prg-hinweis"></p>
+    <p class="hinweis-text fehler" id="sk-prg-fehler"></p>
+
+    <button class="btn btn-primary btn-grow" id="sk-prg-speichern">Speichern</button>
+    <button class="btn btn-danger btn-grow" id="sk-prg-loeschen" style="display:none">Programmpunkt entfernen</button>
+    <button class="btn btn-link" id="sk-prg-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
 <script>
 // Passwort-Gate. Prüft serverseitig gegen das Worker-Secret PW_AGELAN (Scope
 // agelan-zugang) und lädt die App-Skripte ERST nach der Freigabe. Damit steht
@@ -451,12 +486,12 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
-    'firebase-mock.js?v=2.1',
-    'firebase-config.js?v=2.1',
-    'turnier-service.js?v=2.1',
-    'app.js?v=2.1',
-    'stream-service.js?v=2.1',
-    'stream-app.js?v=2.1'
+    'firebase-mock.js?v=2.2',
+    'firebase-config.js?v=2.2',
+    'turnier-service.js?v=2.2',
+    'app.js?v=2.2',
+    'stream-service.js?v=2.2',
+    'stream-app.js?v=2.2'
   ];
 
   var input = document.getElementById('pw-gate-input');

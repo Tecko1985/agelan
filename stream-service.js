@@ -7,10 +7,16 @@
 // auch ganz ohne Turnier.
 //
 // Datenmodell (Realtime Database, ein aktiver Plan unter streamplan/aktuell):
-//   meta        : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
-//                   anzahlTage, standardVon, standardBis }
-//   tage/$datum : { von, bis }        // abweichendes Zeitfenster für einen Tag
-//   slots/$sid  : { datum, von, bis, streamer, uid, titel, notiz, erstelltAm }
+//   meta         : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
+//                    anzahlTage, standardVon, standardBis }
+//   tage/$datum  : { von, bis }        // abweichendes Zeitfenster für einen Tag
+//   slots/$sid   : { datum, von, bis, streamer, uid, titel, notiz, erstelltAm }
+//   programm/$id : { datum, von, bis, titel, notiz, erstelltAm }
+//
+// slots = was die Streamer für sich buchen, programm = was die Veranstaltung
+// selbst vorgibt (Turniere usw.). Zwei getrennte Spuren, die sich absichtlich
+// überlappen dürfen: ein Stream, der zeitgleich zum Turnier läuft, ist der
+// Normalfall und kein Konflikt. Nur innerhalb der Streams gilt "einer sendet".
 //
 // Alle Uhrzeiten sind Minuten seit 0:00 DES JEWEILIGEN TAGES. Werte über 1440
 // sind gewollt (LAN-Nächte): 1500 = 25:00 = 1:00 in der Nacht auf den Folgetag.
@@ -184,6 +190,36 @@ function skSlotListe(slotsRoh, tage) {
     .sort((a, b) => a.absVon - b.absVon || a.absBis - b.absBis);
 }
 
+// Programmpunkte der Veranstaltung. Gleiche Zeitrechnung wie die Slots, aber
+// ohne uid: sie gehören niemandem persönlich, nur der Veranstalter pflegt sie.
+function skProgrammListe(programmRoh, tage) {
+  const indexVon = {};
+  tage.forEach((t) => { indexVon[t.datum] = t.index; });
+
+  return Object.keys(programmRoh || {})
+    .map((id) => {
+      const p = programmRoh[id] || {};
+      const tagIndex = indexVon[p.datum];
+      if (tagIndex == null) return null;
+      const von = skZahl(p.von, 0);
+      const bis = skZahl(p.bis, 0);
+      return {
+        id,
+        datum: p.datum,
+        von,
+        bis,
+        tagIndex,
+        absVon: tagIndex * 1440 + von,
+        absBis: tagIndex * 1440 + bis,
+        titel: p.titel || "",
+        notiz: p.notiz || "",
+        erstelltAm: p.erstelltAm || 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.absVon - b.absVon || a.absBis - b.absBis);
+}
+
 function skGetZustand() {
   const meta = (skRoh && skRoh.meta) || null;
   if (!meta || !meta.startDatum) {
@@ -192,6 +228,7 @@ function skGetZustand() {
       meta: null,
       tage: [],
       slots: [],
+      programm: [],
       istAdmin: false,
       eigeneUid: skEigeneUid,
       turnierPin: skTurnierPin(),
@@ -199,14 +236,17 @@ function skGetZustand() {
   }
   const tage = skTageListe(meta, skRoh.tage);
   const slots = skSlotListe(skRoh.slots, tage);
+  const programm = skProgrammListe(skRoh.programm, tage);
   const admin = skIstAdmin();
   slots.forEach((s) => { s.darfBearbeiten = admin || s.istEigener; });
+  programm.forEach((p) => { p.darfBearbeiten = admin; });
 
   return {
     vorhanden: true,
     meta,
     tage,
     slots,
+    programm,
     istAdmin: admin,
     eigeneUid: skEigeneUid,
     turnierPin: skTurnierPin(),
@@ -346,13 +386,22 @@ async function skSetzeTagesfenster(liste) {
   }
 
   for (const tag of neu) {
-    const rausfallend = z.slots.filter((s) => s.datum === tag.datum && (s.von < tag.von || s.bis > tag.bis));
+    // Streams UND Programmpunkte prüfen – beide hängen am selben Tagesfenster,
+    // und ein herausfallender Programmpunkt wäre genauso unsichtbar.
+    const rausfallend = z.slots
+      .filter((s) => s.datum === tag.datum && (s.von < tag.von || s.bis > tag.bis))
+      .map((s) => ({ was: s.streamer || "ein Eintrag", von: s.von, bis: s.bis }))
+      .concat(
+        z.programm
+          .filter((p) => p.datum === tag.datum && (p.von < tag.von || p.bis > tag.bis))
+          .map((p) => ({ was: p.titel || "ein Programmpunkt", von: p.von, bis: p.bis }))
+      );
     if (rausfallend.length) {
-      const s = rausfallend[0];
+      const e = rausfallend[0];
       return {
         erfolg: false,
-        fehler: tag.label + ": " + rausfallend.length + " Belegung(en) liegen außerhalb, z. B. " +
-          (s.streamer || "ein Eintrag") + " von " + skZeitLabel(s.von) + " bis " + skZeitLabel(s.bis) +
+        fehler: tag.label + ": " + rausfallend.length + " Eintrag/Einträge liegen außerhalb, z. B. " +
+          e.was + " von " + skZeitLabel(e.von) + " bis " + skZeitLabel(e.bis) +
           ". Erst verschieben, dann das Fenster ändern.",
       };
     }
@@ -435,6 +484,67 @@ function skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, ausser
   };
 }
 
+// --- Programm der Veranstaltung (nur Veranstalter) -------------------------
+// Anders als bei den Streams wird hier NICHT auf Überschneidung geprüft: zwei
+// Turniere können parallel laufen, und das Programm konkurriert ohnehin nicht
+// um den einen Kanal. Überlappende Punkte stellt die Oberfläche nebeneinander.
+function skPruefeProgramm(z, { datum, von, bis, titel, notiz }) {
+  const tag = z.tage.find((t) => t.datum === datum);
+  if (!tag) return { erfolg: false, fehler: "Bitte wähle einen Tag aus dem Plan." };
+
+  const v = Math.round(skZahl(von, -1));
+  const b = Math.round(skZahl(bis, -1));
+  if (v % SK_SCHRITT || b % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle Viertelstunden." };
+  if (!(b - v >= SK_MIN_DAUER)) return { erfolg: false, fehler: "Das Ende muss mindestens " + SK_MIN_DAUER + " Minuten nach dem Beginn liegen." };
+  if (v < tag.von || b > tag.bis) {
+    return { erfolg: false, fehler: "An " + tag.label + " läuft der Plan von " + skZeitLabel(tag.von) + " bis " + skZeitLabel(tag.bis) + "." };
+  }
+
+  const t = skText(titel, 60);
+  if (!t) return { erfolg: false, fehler: "Bitte gib dem Programmpunkt einen Namen." };
+
+  return { erfolg: true, werte: { datum, von: v, bis: b, titel: t, notiz: skText(notiz, 200) } };
+}
+
+async function skLegeProgrammAn({ datum, von, bis, titel, notiz }) {
+  await skAuthBereit;
+  if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const z = skGetZustand();
+  if (!z.vorhanden) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
+
+  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz });
+  if (!geprueft.erfolg) return geprueft;
+
+  const id = skNeueId("prg");
+  await db.ref(SK_BASIS + "/programm/" + id).update(
+    Object.assign({}, geprueft.werte, { erstelltAm: firebase.database.ServerValue.TIMESTAMP })
+  );
+  return { erfolg: true, id };
+}
+
+async function skAendereProgramm(id, { datum, von, bis, titel, notiz }) {
+  await skAuthBereit;
+  if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const z = skGetZustand();
+  if (!z.programm.some((p) => p.id === id)) return { erfolg: false, fehler: "Diesen Programmpunkt gibt es nicht mehr." };
+
+  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz });
+  if (!geprueft.erfolg) return geprueft;
+
+  await db.ref(SK_BASIS + "/programm/" + id).update(geprueft.werte);
+  return { erfolg: true };
+}
+
+async function skLoescheProgramm(id) {
+  await skAuthBereit;
+  if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!skGetZustand().programm.some((p) => p.id === id)) {
+    return { erfolg: false, fehler: "Diesen Programmpunkt gibt es nicht mehr." };
+  }
+  await db.ref(SK_BASIS + "/programm/" + id).remove();
+  return { erfolg: true };
+}
+
 async function skLoescheSlot(id) {
   await skAuthBereit;
   const z = skGetZustand();
@@ -487,6 +597,9 @@ const streamService = {
   belegeZeit: skBelegeZeit,
   aendereSlot: skAendereSlot,
   loescheSlot: skLoescheSlot,
+  legeProgrammAn: skLegeProgrammAn,
+  aendereProgramm: skAendereProgramm,
+  loescheProgramm: skLoescheProgramm,
   leereBelegungen: skLeereBelegungen,
   loeschePlan: skLoeschePlan,
   authentifiziereAlsAdmin: skAuthentifiziereAlsAdmin,

@@ -576,6 +576,19 @@ function wireEvents() {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.2",
+    groups: [
+      { title: "Programm der Veranstaltung im Kalender", items: [
+          "Jeder Tag hat jetzt zwei Spalten: links das Programm der AgeLan, rechts die Streams.",
+          "So ist auf einen Blick zu sehen, worauf sich eine Streamzeit legt – etwa ob gerade die Gruppenphase läuft.",
+          "Programmpunkte legt nur der Veranstalter an. Alle anderen sehen sie und können sie zum Nachlesen öffnen.",
+          "Programm und Streams behindern sich nicht: ein Stream darf zeitgleich zu einem Turnier laufen, das ist ja der Zweck. Nur die Streams untereinander bleiben überschneidungsfrei.",
+          "Auch zwei Programmpunkte dürfen parallel liegen und stehen dann nebeneinander.",
+          "Unter dem Kalender stehen Programm und Streams in einer gemeinsamen Zeitleiste, jeweils gekennzeichnet."
+      ]}
+    ]
+  },
+  {
     version: "1.1",
     groups: [
       { title: "Streamkalender", items: [

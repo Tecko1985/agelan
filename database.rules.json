@@ -51,6 +51,17 @@
           }
         },
 
+        "programm": {
+          "$id": {
+            ".validate": "newData.hasChildren(['datum', 'von', 'bis', 'titel'])",
+            "datum": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+            "von":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1800" },
+            "bis":   { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" },
+            "titel": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+            "notiz": { ".validate": "newData.isString() && newData.val().length <= 200" }
+          }
+        },
+
         "slots": {
           "$sid": {
             ".validate": "newData.hasChildren(['datum', 'von', 'bis', 'streamer'])",

@@ -21,6 +21,8 @@ let skZustand = null;
 let skAktiverTag = null;      // Datum des am Handy sichtbaren Tages
 let skDialogSlotId = null;    // null = neue Belegung, sonst die bearbeitete
 let skDialogNurLesen = false;
+let skProgrammDialogId = null;
+let skProgrammNurLesen = false;
 
 // --- kleine Helfer ---------------------------------------------------------
 function skEl(id) {
@@ -98,7 +100,13 @@ function skRenderPlan(z) {
     ? streamService.datumLabel(ersterTag.datum, false) + " bis " + streamService.datumLabel(letzterTag.datum, true)
     : streamService.datumLabel(ersterTag.datum, true);
   const belegt = z.slots.length;
-  skEl("sk-zeitraum").textContent = spanne + " · " + (belegt === 1 ? "1 Stream eingetragen" : belegt + " Streams eingetragen");
+  const prg = z.programm.length;
+  skEl("sk-zeitraum").textContent = spanne + " · " +
+    (belegt === 1 ? "1 Stream" : belegt + " Streams") + " · " +
+    (prg === 1 ? "1 Programmpunkt" : prg + " Programmpunkte");
+
+  // Das Programm gibt die Veranstaltung vor – anlegen darf es nur der Veranstalter.
+  skEl("sk-btn-programm").style.display = z.istAdmin ? "" : "none";
 
   skRenderChips(z);
   skRenderKalender(z);
@@ -134,10 +142,10 @@ function skRenderKalender(z) {
       '<span>' + streamService.zeitLabel(m) + "</span></div>");
   }
 
+  // Je Tag zwei Spuren nebeneinander: links, was die Veranstaltung vorgibt,
+  // rechts, was sich die Streamer buchen. Getrennt, weil ein Stream zeitgleich
+  // zum Turnier laufen darf – nebeneinander, damit man genau das sieht.
   const spalten = z.tage.map((tag) => {
-    const slots = z.slots.filter((s) => s.datum === tag.datum);
-    skVerteileSpuren(slots);
-
     const gesperrt = [];
     if (tag.von > achseVon) {
       gesperrt.push('<div class="sk-gesperrt" style="top:0;height:' + skPx(tag.von - achseVon) + 'px"></div>');
@@ -146,38 +154,61 @@ function skRenderKalender(z) {
       gesperrt.push('<div class="sk-gesperrt" style="top:' + skPx(tag.bis - achseVon) + "px;height:" + skPx(achseBis - tag.bis) + 'px"></div>');
     }
 
-    const bloecke = slots.map((s) => {
-      const breite = 100 / s.spurAnzahl;
-      const stil = [
-        "top:" + skPx(s.von - achseVon) + "px",
-        "height:" + Math.max(18, skPx(s.bis - s.von)) + "px",
-        "left:" + (s.spur * breite) + "%",
-        "width:calc(" + breite + "% - 4px)",
-      ].join(";");
-      const klassen = ["sk-slot"];
-      if (s.istEigener) klassen.push("eigen");
-      if (s.darfBearbeiten) klassen.push("bearbeitbar");
-      const titel = s.titel ? '<span class="sk-slot-titel">' + escapeHtml(s.titel) + "</span>" : "";
-      return '<button type="button" class="' + klassen.join(" ") + '" data-slot="' + s.id + '" style="' + stil + '">' +
-        '<span class="sk-slot-zeit">' + streamService.zeitLabel(s.von) + "–" + streamService.zeitLabel(s.bis) + "</span>" +
-        '<span class="sk-slot-name">' + escapeHtml(s.streamer) + "</span>" +
-        titel +
-        "</button>";
-    });
+    const programm = z.programm.filter((p) => p.datum === tag.datum);
+    const slots = z.slots.filter((s) => s.datum === tag.datum);
+    skVerteileSpuren(programm);
+    skVerteileSpuren(slots);
+
+    const flaeche = (klasse, spur, inhalt) =>
+      '<div class="sk-tagflaeche ' + klasse + '" data-tag="' + tag.datum + '" data-spur="' + spur + '"' +
+      ' style="height:' + hoehe + "px;background-size:100% " + SK_STUNDE_PX + 'px">' +
+      gesperrt.join("") + inhalt + "</div>";
 
     return '<div class="sk-tag' + (tag.datum === skAktiverTag ? " aktiv" : "") + '" data-tag="' + tag.datum + '">' +
       '<div class="sk-tagkopf">' + escapeHtml(tag.label) +
       '<span class="sk-tagzeit">' + streamService.zeitLabel(tag.von) + "–" + streamService.zeitLabel(tag.bis) + "</span></div>" +
-      '<div class="sk-tagflaeche" data-tag="' + tag.datum + '" style="height:' + hoehe + "px;background-size:100% " + SK_STUNDE_PX + 'px">' +
-      gesperrt.join("") + bloecke.join("") +
+      '<div class="sk-spurkopf"><span class="sk-spurname programm">Programm</span><span class="sk-spurname streams">Streams</span></div>' +
+      '<div class="sk-spuren">' +
+      flaeche("sk-programmflaeche", "programm", programm.map((p) => skProgrammBlock(p, achseVon)).join("")) +
+      flaeche("sk-streamflaeche", "streams", slots.map((s) => skStreamBlock(s, achseVon)).join("")) +
       "</div></div>";
   });
 
   skEl("sk-kalender").innerHTML =
     '<div class="sk-raster">' +
-    '<div class="sk-zeitspalte"><div class="sk-tagkopf sk-zeitkopf"></div>' + marken.join("") + "</div>" +
+    '<div class="sk-zeitspalte"><div class="sk-tagkopf sk-zeitkopf"></div>' +
+    '<div class="sk-spurkopf sk-zeitkopf"><span class="sk-spurname">&nbsp;</span></div>' +
+    marken.join("") + "</div>" +
     spalten.join("") +
     "</div>";
+}
+
+function skBlockStil(eintrag, achseVon) {
+  const breite = 100 / eintrag.spurAnzahl;
+  return [
+    "top:" + skPx(eintrag.von - achseVon) + "px",
+    "height:" + Math.max(18, skPx(eintrag.bis - eintrag.von)) + "px",
+    "left:" + (eintrag.spur * breite) + "%",
+    "width:calc(" + breite + "% - 4px)",
+  ].join(";");
+}
+
+function skStreamBlock(s, achseVon) {
+  const klassen = ["sk-slot"];
+  if (s.istEigener) klassen.push("eigen");
+  const titel = s.titel ? '<span class="sk-slot-titel">' + escapeHtml(s.titel) + "</span>" : "";
+  return '<button type="button" class="' + klassen.join(" ") + '" data-slot="' + s.id + '" style="' + skBlockStil(s, achseVon) + '">' +
+    '<span class="sk-slot-zeit">' + streamService.zeitLabel(s.von) + "–" + streamService.zeitLabel(s.bis) + "</span>" +
+    '<span class="sk-slot-name">' + escapeHtml(s.streamer) + "</span>" +
+    titel +
+    "</button>";
+}
+
+function skProgrammBlock(p, achseVon) {
+  return '<button type="button" class="sk-slot programm" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
+    '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + "</span>" +
+    '<span class="sk-slot-name">' + escapeHtml(p.titel) + "</span>" +
+    "</button>";
 }
 
 function skPx(minuten) {
@@ -204,23 +235,38 @@ function skVerteileSpuren(slots) {
 }
 
 // --- Liste unter dem Kalender ----------------------------------------------
+// Programm und Streams in einer gemeinsamen Zeitleiste, damit man den Ablauf
+// des Tages am Stück lesen kann statt in zwei Listen zu springen.
 function skRenderListe(z) {
   const box = skEl("sk-liste");
-  if (!z.slots.length) {
-    box.innerHTML = '<p class="hinweis-text">Noch ist nichts belegt. Trag dich ein, wann du senden willst.</p>';
+  const alles = z.programm
+    .map((p) => ({ art: "programm", e: p }))
+    .concat(z.slots.map((s) => ({ art: "stream", e: s })))
+    .sort((a, b) => a.e.absVon - b.e.absVon || (a.art === "programm" ? -1 : 1));
+
+  if (!alles.length) {
+    box.innerHTML = '<p class="hinweis-text">Noch ist nichts eingetragen. Trag dich ein, wann du senden willst.</p>';
     return;
   }
-  box.innerHTML = z.slots
-    .map((s) => {
-      const wer = escapeHtml(s.streamer) + (s.istEigener ? ' <span class="spieler-badge">(du)</span>' : "");
-      const was = s.titel ? ' <span class="sk-zeile-titel">' + escapeHtml(s.titel) + "</span>" : "";
-      const knopf = s.darfBearbeiten
-        ? '<button type="button" class="mini-btn" data-slot="' + s.id + '">Ändern</button>'
+
+  box.innerHTML = alles
+    .map(({ art, e }) => {
+      const istProgramm = art === "programm";
+      const marke = istProgramm
+        ? '<span class="sk-marke programm">Programm</span>'
+        : '<span class="sk-marke stream">Stream</span>';
+      const wer = istProgramm
+        ? escapeHtml(e.titel)
+        : escapeHtml(e.streamer) + (e.istEigener ? ' <span class="spieler-badge">(du)</span>' : "") +
+          (e.titel ? ' <span class="sk-zeile-titel">' + escapeHtml(e.titel) + "</span>" : "");
+      const knopf = e.darfBearbeiten
+        ? '<button type="button" class="mini-btn" data-' + (istProgramm ? "programm" : "slot") + '="' + e.id + '">Ändern</button>'
         : "";
       return '<div class="sk-zeile">' +
-        '<span class="sk-zeile-zeit">' + escapeHtml(streamService.datumLabel(s.datum, false)) + " " +
-        streamService.zeitLabel(s.von) + "–" + streamService.zeitLabel(s.bis) + "</span>" +
-        '<span class="sk-zeile-wer">' + wer + was + "</span>" +
+        marke +
+        '<span class="sk-zeile-zeit">' + escapeHtml(streamService.datumLabel(e.datum, false)) + " " +
+        streamService.zeitLabel(e.von) + "–" + streamService.zeitLabel(e.bis) + "</span>" +
+        '<span class="sk-zeile-wer">' + wer + "</span>" +
         knopf +
         "</div>";
     })
@@ -258,7 +304,11 @@ function skRenderAdmin(z) {
 // Dialog "Zeit belegen"
 // ===========================================================================
 function skOeffneDialog(slotId, vorbelegung) {
-  const z = skZustand;
+  // Bewusst den frischen Zustand holen statt skZustand: der Zwischenspeicher
+  // wird nur bei einer Datenänderung neu gesetzt, der Veranstalter-Status hängt
+  // aber auch am localStorage-PIN. Sonst entscheidet die Maske über Rechte,
+  // die schon nicht mehr gelten.
+  const z = streamService.getZustand();
   if (!z || !z.vorhanden) return;
 
   const slot = slotId ? z.slots.find((s) => s.id === slotId) : null;
@@ -331,6 +381,64 @@ function skSchliesseDialog() {
 }
 
 // ===========================================================================
+// Dialog "Programmpunkt" (Veranstalter; für alle anderen nur zum Nachlesen)
+// ===========================================================================
+function skOeffneProgrammDialog(programmId, vorbelegung) {
+  const z = streamService.getZustand();   // frisch, siehe skOeffneDialog
+  if (!z || !z.vorhanden) return;
+
+  const punkt = programmId ? z.programm.find((p) => p.id === programmId) : null;
+  if (!punkt && !z.istAdmin) return;   // Anlegen ist Veranstaltersache
+  skProgrammDialogId = punkt ? punkt.id : null;
+  skProgrammNurLesen = !z.istAdmin;
+
+  const datum = punkt ? punkt.datum : ((vorbelegung && vorbelegung.datum) || skAktiverTag);
+  const tag = skTagVon(z, datum) || z.tage[0];
+
+  skEl("sk-prg-titel-text").textContent = punkt
+    ? (skProgrammNurLesen ? "Programmpunkt" : "Programmpunkt ändern")
+    : "Programmpunkt anlegen";
+
+  skEl("sk-prg-tag").innerHTML = z.tage
+    .map((t) => '<option value="' + t.datum + '">' + escapeHtml(t.label) + "</option>")
+    .join("");
+  skEl("sk-prg-tag").value = tag.datum;
+
+  const von = punkt ? punkt.von : skStartVorschlag(tag, vorbelegung);
+  const bis = punkt ? punkt.bis : Math.min(tag.bis, von + 120);
+  skFuelleProgrammZeiten(tag, von, bis);
+
+  skEl("sk-prg-was").value = punkt ? punkt.titel : "";
+  skEl("sk-prg-notiz").value = punkt ? punkt.notiz : "";
+
+  ["sk-prg-tag", "sk-prg-von", "sk-prg-bis", "sk-prg-was", "sk-prg-notiz"].forEach((id) => {
+    skEl(id).disabled = skProgrammNurLesen;
+  });
+  skEl("sk-prg-speichern").style.display = skProgrammNurLesen ? "none" : "";
+  skEl("sk-prg-loeschen").style.display = punkt && !skProgrammNurLesen ? "" : "none";
+  skEl("sk-prg-abbrechen").textContent = skProgrammNurLesen ? "Schließen" : "Abbrechen";
+  skZeigeFehler("sk-prg-fehler", "");
+  skEl("sk-prg-hinweis").textContent = skProgrammNurLesen
+    ? "Das Programm gibt die Veranstaltung vor."
+    : "Steht links neben den Streams. Programmpunkte dürfen sich überschneiden und blockieren keine Streamzeit.";
+
+  skEl("modal-programm").classList.add("aktiv");
+}
+
+function skFuelleProgrammZeiten(tag, von, bis) {
+  const gewaehltVon = Math.min(Math.max(skZahlAus(von, tag.von), tag.von), tag.bis - SK_SCHRITT_UI);
+  skFuelleZeiten(skEl("sk-prg-von"), tag.von, tag.bis - SK_SCHRITT_UI, gewaehltVon);
+  const gewaehltBis = Math.min(Math.max(skZahlAus(bis, gewaehltVon + SK_SCHRITT_UI), gewaehltVon + SK_SCHRITT_UI), tag.bis);
+  skFuelleZeiten(skEl("sk-prg-bis"), gewaehltVon + SK_SCHRITT_UI, tag.bis, gewaehltBis);
+}
+
+function skSchliesseProgrammDialog() {
+  skEl("modal-programm").classList.remove("aktiv");
+  skProgrammDialogId = null;
+  skProgrammNurLesen = false;
+}
+
+// ===========================================================================
 // Events
 // ===========================================================================
 function skWireEvents() {
@@ -360,11 +468,17 @@ function skWireEvents() {
 
   skEl("sk-btn-belegen").addEventListener("click", () => skOeffneDialog(null, null));
 
-  // Klick in den Kalender: auf einen Block -> öffnen, auf freie Fläche ->
-  // neue Belegung ab der angeklickten Viertelstunde.
+  skEl("sk-btn-programm").addEventListener("click", () => skOeffneProgrammDialog(null, null));
+
+  // Klick in den Kalender: auf einen Block -> öffnen, auf freie Fläche -> neuer
+  // Eintrag ab der angeklickten Viertelstunde. Welche der beiden Spuren getroffen
+  // wurde, steht an der Fläche – links Programm, rechts Streams.
   skEl("sk-kalender").addEventListener("click", (e) => {
     const block = e.target.closest(".sk-slot");
-    if (block) return skOeffneDialog(block.getAttribute("data-slot"), null);
+    if (block) {
+      const prg = block.getAttribute("data-programm");
+      return prg ? skOeffneProgrammDialog(prg, null) : skOeffneDialog(block.getAttribute("data-slot"), null);
+    }
 
     const flaeche = e.target.closest(".sk-tagflaeche");
     if (!flaeche || !skZustand) return;
@@ -375,13 +489,60 @@ function skWireEvents() {
     const rechteck = flaeche.getBoundingClientRect();
     const minute = achseVon + ((e.clientY - rechteck.top) / SK_STUNDE_PX) * 60;
     const gerundet = Math.round(minute / SK_SCHRITT_UI) * SK_SCHRITT_UI;
-    skOeffneDialog(null, { datum, von: gerundet });
+    if (flaeche.getAttribute("data-spur") === "programm") skOeffneProgrammDialog(null, { datum, von: gerundet });
+    else skOeffneDialog(null, { datum, von: gerundet });
   });
 
   // Liste: "Ändern"
   skEl("sk-liste").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-slot]");
-    if (btn) skOeffneDialog(btn.getAttribute("data-slot"), null);
+    const btn = e.target.closest("[data-slot],[data-programm]");
+    if (!btn) return;
+    const prg = btn.getAttribute("data-programm");
+    if (prg) skOeffneProgrammDialog(prg, null);
+    else skOeffneDialog(btn.getAttribute("data-slot"), null);
+  });
+
+  // Programm-Dialog
+  skEl("sk-prg-tag").addEventListener("change", () => {
+    if (!skZustand) return;
+    const tag = skTagVon(skZustand, skEl("sk-prg-tag").value);
+    if (tag) skFuelleProgrammZeiten(tag, tag.von, tag.von + 120);
+  });
+  skEl("sk-prg-von").addEventListener("change", () => {
+    if (!skZustand) return;
+    const tag = skTagVon(skZustand, skEl("sk-prg-tag").value);
+    if (!tag) return;
+    const von = Number(skEl("sk-prg-von").value);
+    const bisAlt = Number(skEl("sk-prg-bis").value);
+    skFuelleZeiten(skEl("sk-prg-bis"), von + SK_SCHRITT_UI, tag.bis, Math.max(bisAlt, von + SK_SCHRITT_UI));
+  });
+
+  skEl("sk-prg-speichern").addEventListener("click", async () => {
+    const werte = {
+      datum: skEl("sk-prg-tag").value,
+      von: skEl("sk-prg-von").value,
+      bis: skEl("sk-prg-bis").value,
+      titel: skEl("sk-prg-was").value,
+      notiz: skEl("sk-prg-notiz").value,
+    };
+    const res = skProgrammDialogId
+      ? await streamService.aendereProgramm(skProgrammDialogId, werte)
+      : await streamService.legeProgrammAn(werte);
+    if (res.erfolg) skSchliesseProgrammDialog();
+    else skZeigeFehler("sk-prg-fehler", res.fehler);
+  });
+
+  skEl("sk-prg-loeschen").addEventListener("click", async () => {
+    if (!skProgrammDialogId) return;
+    if (!confirm("Diesen Programmpunkt wirklich entfernen?")) return;
+    const res = await streamService.loescheProgramm(skProgrammDialogId);
+    if (res.erfolg) skSchliesseProgrammDialog();
+    else skZeigeFehler("sk-prg-fehler", res.fehler);
+  });
+
+  skEl("sk-prg-abbrechen").addEventListener("click", skSchliesseProgrammDialog);
+  skEl("modal-programm").addEventListener("click", (e) => {
+    if (e.target.id === "modal-programm") skSchliesseProgrammDialog();
   });
 
   // Dialog: Tageswechsel füllt die Zeiten neu (jeder Tag hat sein eigenes Fenster)
