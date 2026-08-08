@@ -576,45 +576,35 @@ function wireEvents() {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
-    version: "1.2",
+    version: "1.0",
     groups: [
-      { title: "Programm der Veranstaltung im Kalender", items: [
-          "Jeder Tag hat jetzt zwei Spalten: links das Programm der AgeLan, rechts die Streams.",
-          "So ist auf einen Blick zu sehen, worauf sich eine Streamzeit legt – etwa ob gerade die Gruppenphase läuft.",
-          "Programmpunkte legt nur der Veranstalter an. Alle anderen sehen sie und können sie zum Nachlesen öffnen.",
-          "Programm und Streams behindern sich nicht: ein Stream darf zeitgleich zu einem Turnier laufen, das ist ja der Zweck. Nur die Streams untereinander bleiben überschneidungsfrei.",
-          "Auch zwei Programmpunkte dürfen parallel liegen und stehen dann nebeneinander.",
-          "Unter dem Kalender stehen Programm und Streams in einer gemeinsamen Zeitleiste, jeweils gekennzeichnet."
-      ]}
-    ]
-  },
-  {
-    version: "1.1",
-    groups: [
-      { title: "Streamkalender", items: [
-          "Neuer Tab „Stream“: ein Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
-          "Eintragen heißt: Tag, Von, Bis, Name und wahlweise, was in der Zeit läuft. Der eigene Eintrag lässt sich jederzeit ändern oder wieder entfernen.",
-          "Es sendet immer nur einer: überschneidet sich eine Zeit mit einer schon eingetragenen, nimmt der Plan sie nicht an und sagt, wer da schon dran ist.",
-          "Am Handy zeigt der Kalender einen Tag, auf größeren Bildschirmen alle Tage nebeneinander.",
-          "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet."
-      ]},
       { title: "Zugang zur Seite", items: [
           "Die Seite ist mit einem Passwort geschützt. Wer es nicht hat, kommt an nichts heran – geladen wird erst nach der Freigabe.",
           "Das Passwort gibt es bei Michel im Discord. Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen.",
           "Geprüft wird das Passwort auf dem Server, nicht in der Seite – es steht nirgends im Quelltext.",
           "Der Turnierteil ist vorerst ausgeblendet: die Seite zeigt nur den Streamplan."
       ]},
+      { title: "Streamkalender", items: [
+          "Der Tab „Stream“ zeigt einen Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
+          "Eintragen heißt: Tag, Von, Bis, Name und wahlweise, was in der Zeit läuft. Der eigene Eintrag lässt sich jederzeit ändern oder wieder entfernen.",
+          "Es sendet immer nur einer: überschneidet sich eine Zeit mit einer schon eingetragenen, nimmt der Plan sie nicht an und sagt, wer da schon dran ist.",
+          "Am Handy zeigt der Kalender einen Tag, auf größeren Bildschirmen alle Tage nebeneinander.",
+          "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet."
+      ]},
+      { title: "Programm der Veranstaltung im Kalender", items: [
+          "Jeder Tag hat zwei Spalten: links das Programm der AgeLan, rechts die Streams.",
+          "So ist auf einen Blick zu sehen, worauf sich eine Streamzeit legt – etwa ob gerade die Gruppenphase läuft.",
+          "Programmpunkte legt nur der Veranstalter an. Alle anderen sehen sie und können sie zum Nachlesen öffnen.",
+          "Programm und Streams behindern sich nicht: ein Stream darf zeitgleich zu einem Turnier laufen, das ist ja der Zweck. Nur die Streams untereinander bleiben überschneidungsfrei.",
+          "Auch zwei Programmpunkte dürfen parallel liegen und stehen dann nebeneinander.",
+          "Unter dem Kalender stehen Programm und Streams in einer gemeinsamen Zeitleiste, jeweils gekennzeichnet."
+      ]},
       { title: "Als Veranstalter", items: [
           "Das Zeitfenster lässt sich für jeden Tag einzeln stellen – etwa ein Sonntag, an dem nur noch der Vormittag läuft.",
           "Fremde Einträge lassen sich korrigieren oder entfernen, ebenso alle Einträge auf einmal.",
           "Es gilt derselbe Veranstalter-PIN wie beim Turnier; beim Anlegen des Plans wird er übernommen.",
           "Der Streamplan hängt nicht am Turnier: Zurücksetzen und Löschen des Turniers lassen ihn unberührt, und es braucht kein Turnier, damit es ihn gibt."
-      ]}
-    ]
-  },
-  {
-    version: "1.0",
-    groups: [
+      ]},
       { title: "Turnier aufsetzen", items: [
           "Teams anlegen und auf Gruppen verteilen.",
           "Gruppenphase mit automatischem Spielplan.",
