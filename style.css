@@ -382,20 +382,30 @@ main#app.sk-breit { max-width: 980px; }
 }
 
 .turnier-karte {
-  display: block;
-  width: 100%;
-  text-align: left;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
   margin-bottom: 10px;
+  overflow: hidden;
+}
+.turnier-karte:hover { border-color: var(--primary); }
+.turnier-karte.dabei { border-left: 4px solid var(--success); }
+
+.turnier-karte .tk-oeffnen {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 14px 16px;
   cursor: pointer;
   color: var(--text);
   font: inherit;
 }
-.turnier-karte:hover { border-color: var(--primary); }
-.turnier-karte.dabei { border-left: 4px solid var(--success); }
 .turnier-karte .tk-name {
   display: block;
   font-weight: 600;
@@ -415,3 +425,16 @@ main#app.sk-breit { max-width: 980px; }
   font-size: 0.9rem;
 }
 .turnier-karte.dabei .tk-aktion { color: var(--success); }
+
+.turnier-karte .tk-loeschen {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 48px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.turnier-karte .tk-loeschen:hover { color: #c0392b; background: rgba(192,57,43,0.08); }

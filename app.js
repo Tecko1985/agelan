@@ -96,6 +96,18 @@ const PHASE_TEXT = {
   beendet: "Beendet",
 };
 
+const FORM_TEXT = { 1: "1 gegen 1", 2: "2 gegen 2" };
+const ABLAUF_TEXT = {
+  gruppen_ko: "Gruppen + K.-o.",
+  nur_ko: "Nur K.-o.",
+  nur_gruppen: "Jeder gegen jeden",
+};
+
+// Im Einzelturnier gibt es keine Teams – dann heißt alles "Teilnehmer".
+function einheitWort(teamGroesse) {
+  return teamGroesse === 1 ? "Teilnehmer" : "Teams";
+}
+
 function renderAuswahl(z) {
   const liste = z.liste || [];
   const box = document.getElementById("auswahl-liste");
@@ -104,20 +116,33 @@ function renderAuswahl(z) {
   leer.style.display = liste.length === 0 && z.listeGeladen ? "" : "none";
   box.innerHTML = liste
     .map((t) => {
-      const phase = PHASE_TEXT[t.phase] || (t.geladen ? "—" : "wird geladen …");
+      const phase = t.phase === "teams" && t.teamGroesse === 1
+        ? "Teilnehmer stehen fest"
+        : PHASE_TEXT[t.phase] || (t.geladen ? "—" : "wird geladen …");
       const zahl = t.spielerAnzahl === 1 ? "1 Angemeldete:r" : t.spielerAnzahl + " Angemeldete";
+      const art = (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "");
       const aktion = t.binIchDrin
         ? "Du bist dabei"
         : t.phase === "anmeldung"
         ? "Einschreiben"
         : "Ansehen";
-      return `<button class="turnier-karte${t.binIchDrin ? " dabei" : ""}" data-turnier="${escapeHtml(t.id)}">
-        <span class="tk-name">${escapeHtml(t.name)}</span>
-        <span class="tk-meta">${escapeHtml(phase)} · ${escapeHtml(zahl)}</span>
-        <span class="tk-aktion">${escapeHtml(aktion)}</span>
-      </button>`;
+      // Papierkorb nur für den Veranstalter DIESES Turniers – sonst führt der
+      // Knopf nur in eine Fehlermeldung.
+      const loeschen = t.binIchVeranstalter
+        ? `<button class="tk-loeschen" data-loeschen="${escapeHtml(t.id)}" title="Turnier löschen" aria-label="Turnier löschen">🗑</button>`
+        : "";
+      return `<div class="turnier-karte${t.binIchDrin ? " dabei" : ""}">
+        <button class="tk-oeffnen" data-turnier="${escapeHtml(t.id)}">
+          <span class="tk-name">${escapeHtml(t.name)}</span>
+          <span class="tk-meta">${escapeHtml(art)}</span>
+          <span class="tk-meta">${escapeHtml(phase)} · ${escapeHtml(zahl)}</span>
+          <span class="tk-aktion">${escapeHtml(aktion)}</span>
+        </button>
+        ${loeschen}
+      </div>`;
     })
     .join("");
+  zeigeFehler("auswahl-fehler", "");
 }
 
 // --- START -----------------------------------------------------------------
@@ -158,6 +183,31 @@ function renderLobby(z) {
   document.getElementById("btn-lobby-selbst-anmelden").style.display = z.eigenerSpieler ? "none" : "";
   document.getElementById("lobby-admin").style.display = z.istAdmin ? "" : "none";
   document.getElementById("lobby-warte").style.display = z.istAdmin || !z.eigenerSpieler ? "none" : "";
+
+  const einzel = z.teamGroesse === 1;
+  document.getElementById("lobby-warte").textContent = einzel
+    ? "Warte, bis der Veranstalter auslost …"
+    : "Warte, bis der Veranstalter die Teams bildet …";
+
+  if (z.istAdmin) {
+    document.getElementById("btn-teams-bilden").textContent = einzel
+      ? "Weiter zur Auslosung →"
+      : "Teams bilden →";
+    document.getElementById("lobby-teams-hinweis").textContent = einzel
+      ? "Als Veranstalter: alle Angemeldeten spielen einzeln gegeneinander."
+      : "Als Veranstalter: bildet ratingfaire 2er-Teams.";
+    // Die Auswahlfelder nur setzen, wenn sie sich geändert haben – sonst
+    // springt eine gerade angefasste Auswahl bei jedem Live-Update zurück.
+    setzeAuswahl("form-teamgroesse", String(z.teamGroesse));
+    setzeAuswahl("form-ablauf", z.ablauf);
+  }
+}
+
+// Setzt ein <select> nur, wenn es nicht gerade bearbeitet wird.
+function setzeAuswahl(id, wert) {
+  const el = document.getElementById(id);
+  if (!el || el === document.activeElement) return;
+  if (el.value !== wert) el.value = wert;
 }
 
 // --- TEAMS -----------------------------------------------------------------
@@ -177,19 +227,45 @@ function renderTeams(z) {
     })
     .join("");
 
+  const einzel = z.teamGroesse === 1;
+  const wort = einheitWort(z.teamGroesse);
+  document.getElementById("teams-titel").textContent = wort;
+
   const adminBlock = document.getElementById("teams-admin");
   adminBlock.style.display = z.istAdmin ? "" : "none";
   document.getElementById("teams-warte").style.display = z.istAdmin ? "none" : "";
 
   if (z.istAdmin) {
-    const optionen = z.teams
-      .flatMap((t) => t.mitgliederUids.map((uid) => ({ uid, name: spielerNameVon(z, uid), team: t.name })))
-      .map((o) => `<option value="${escapeHtml(o.uid)}">${escapeHtml(o.name)} — ${escapeHtml(o.team)}</option>`)
-      .join("");
-    document.getElementById("tausch-a").innerHTML = optionen;
-    document.getElementById("tausch-b").innerHTML = optionen;
+    // Tauschen und "Neu vorschlagen" ergeben nur Sinn, wenn es Paare gibt.
+    document.getElementById("teams-tausch-block").style.display = einzel ? "none" : "";
+    if (!einzel) {
+      const optionen = z.teams
+        .flatMap((t) => t.mitgliederUids.map((uid) => ({ uid, name: spielerNameVon(z, uid), team: t.name })))
+        .map((o) => `<option value="${escapeHtml(o.uid)}">${escapeHtml(o.name)} — ${escapeHtml(o.team)}</option>`)
+        .join("");
+      document.getElementById("tausch-a").innerHTML = optionen;
+      document.getElementById("tausch-b").innerHTML = optionen;
+    }
 
-    document.getElementById("los-teamzahl").textContent = "(" + z.teams.length + " Teams)";
+    document.getElementById("los-teamzahl").textContent = "(" + z.teams.length + " " + wort + ")";
+
+    // Gruppen und Weiterkommende gibt es nur, wenn eine Gruppenphase gespielt wird.
+    const mitGruppen = z.ablauf === "gruppen_ko";
+    document.getElementById("los-gruppenfelder").style.display = mitGruppen ? "" : "none";
+    document.getElementById("los-vorschau").style.display = mitGruppen ? "" : "none";
+    document.getElementById("los-ablauf-hinweis").textContent =
+      z.ablauf === "nur_ko"
+        ? "Nur K.-o.-Runde: alle " + z.teams.length + " " + wort + " kommen direkt ins Bracket, wer verliert ist raus."
+        : z.ablauf === "nur_gruppen"
+        ? "Jeder gegen jeden: alle " + z.teams.length + " " + wort + " spielen in einer Tabelle, danach entscheidet Platz 1."
+        : "Gruppenphase, danach K.-o.-Runde.";
+    // Bei "jeder gegen jeden" spielt ohnehin jede:r gegen jede:n – die
+    // Auslosungs-Art hätte dort keine Wirkung.
+    document.getElementById("los-art-block").style.display = z.ablauf === "nur_gruppen" ? "none" : "";
+    document.getElementById("losmodus-setzliste-text").textContent = mitGruppen
+      ? "— starke " + wort + " auf die Gruppen verteilt (fairere Gruppen)"
+      : "— starke " + wort + " treffen erst spät aufeinander";
+
     if (!losFelderInit) {
       losFelderInit = true;
       document.getElementById("los-gruppen").value = Math.max(1, Math.ceil(z.teams.length / 4));
@@ -209,13 +285,17 @@ function aktualisiereLosVorschau(teamAnzahl) {
   const groessen = [];
   for (let i = 0; i < gruppen; i++) groessen.push(basis + (i < rest ? 1 : 0));
   const alleGleich = groessen.every((g) => g === groessen[0]);
+  const wort = einheitWort(zustand ? zustand.teamGroesse : 2);
   vorschauEl.textContent = "→ " + (alleGleich
-    ? gruppen + " Gruppe" + (gruppen > 1 ? "n" : "") + " à " + groessen[0] + " Teams"
-    : gruppen + " Gruppen: " + groessen.join(", ") + " Teams");
+    ? gruppen + " Gruppe" + (gruppen > 1 ? "n" : "") + " à " + groessen[0] + " " + wort
+    : gruppen + " Gruppen: " + groessen.join(", ") + " " + wort);
 }
 
 // --- GRUPPEN ---------------------------------------------------------------
 function renderGruppen(z) {
+  // "Jeder gegen jeden" hat keine K.-o.-Runde danach: die Tabelle entscheidet.
+  const nurGruppen = z.ablauf === "nur_gruppen";
+  const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
   const container = document.getElementById("gruppen-container");
   container.innerHTML = z.gruppen
     .map((g) => {
@@ -234,9 +314,9 @@ function renderGruppen(z) {
         .join("");
       const spiele = g.spiele.map((s) => spielZeileHtml(z, s)).join("");
       return `<div class="gruppe">
-        <h3>Gruppe ${escapeHtml(g.name)}</h3>
+        ${nurGruppen ? "" : `<h3>Gruppe ${escapeHtml(g.name)}</h3>`}
         <table class="tabelle">
-          <thead><tr><th></th><th>Team</th><th>Sp</th><th>S-N</th><th>Sätze</th><th>Pkt</th></tr></thead>
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th><th>Pkt</th></tr></thead>
           <tbody>${zeilen}</tbody>
         </table>
         <div class="spiel-liste">${spiele}</div>
@@ -244,19 +324,30 @@ function renderGruppen(z) {
     })
     .join("");
 
+  document.getElementById("gruppen-titel").textContent = nurGruppen ? "Tabelle" : "Gruppenphase";
+
   const offen = z.spiele.filter((s) => s.phase === "gruppe" && s.status !== "bestaetigt").length;
   const adminBlock = document.getElementById("gruppen-admin");
   adminBlock.style.display = z.istAdmin ? "" : "none";
   if (z.istAdmin) {
     const btn = document.getElementById("btn-ko-losen");
     btn.disabled = offen > 0;
+    btn.textContent = nurGruppen ? "Turnier beenden →" : "K.o.-Auslosung starten →";
     document.getElementById("gruppen-admin-hinweis").textContent =
-      offen > 0 ? `Noch ${offen} unbestätigte(s) Gruppenspiel(e).` : "Alle Gruppenspiele bestätigt – bereit für die K.-o.-Runde.";
+      offen > 0
+        ? `Noch ${offen} unbestätigte(s) Spiel(e).`
+        : nurGruppen
+        ? "Alle Spiele bestätigt – Platz 1 der Tabelle gewinnt."
+        : "Alle Gruppenspiele bestätigt – bereit für die K.-o.-Runde.";
     zeigeSimKnopf("btn-sim-gruppen", z.offeneSpieleAnzahl);
   }
   const warte = document.getElementById("gruppen-warte");
   warte.style.display = z.istAdmin ? "none" : "";
-  warte.textContent = offen > 0 ? `Noch ${offen} Gruppenspiel(e) offen.` : "Alle Gruppenspiele fertig – warte auf die K.-o.-Auslosung.";
+  warte.textContent = offen > 0
+    ? `Noch ${offen} Spiel(e) offen.`
+    : nurGruppen
+    ? "Alle Spiele fertig – warte auf den Abschluss durch den Veranstalter."
+    : "Alle Gruppenspiele fertig – warte auf die K.-o.-Auslosung.";
 }
 
 // --- K.O. ------------------------------------------------------------------
@@ -277,9 +368,46 @@ function zeigeSimKnopf(id, anzahl) {
 
 // --- BEENDET ---------------------------------------------------------------
 function renderBeendet(z) {
-  const sieger = z.bracket && z.bracket.siegerTeamId ? teamNameVon(z, z.bracket.siegerTeamId) : "—";
-  document.getElementById("beendet-sieger").textContent = "🥇 " + sieger;
-  document.getElementById("beendet-bracket").innerHTML = bracketHtml(z);
+  // Bei "Jeder gegen jeden" gibt es kein Bracket – der Sieger steht nur in meta.
+  const siegerId = (z.bracket && z.bracket.siegerTeamId) || z.meta.siegerTeamId || null;
+  document.getElementById("beendet-sieger").textContent = "🥇 " + (siegerId ? teamNameVon(z, siegerId) : "—");
+
+  const hatBracket = !!(z.bracket && z.bracket.runden.length);
+  const bracketBox = document.getElementById("beendet-bracket");
+  bracketBox.style.display = hatBracket ? "" : "none";
+  bracketBox.innerHTML = hatBracket ? bracketHtml(z) : "";
+
+  // Ohne K.-o.-Runde ist die Endtabelle das Ergebnis.
+  const tabelleBox = document.getElementById("beendet-tabelle");
+  tabelleBox.style.display = hatBracket ? "none" : "";
+  tabelleBox.innerHTML = hatBracket ? "" : endtabelleHtml(z);
+}
+
+// Endstand als Tabelle – für Turniere, die ohne K.-o.-Runde enden.
+function endtabelleHtml(z) {
+  if (!z.gruppen || !z.gruppen.length) return '<p class="hinweis-text">Keine Tabelle vorhanden.</p>';
+  const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
+  return z.gruppen
+    .map((g) => {
+      const zeilen = g.tabelle
+        .map((r, i) => `<tr class="${i === 0 ? "qual" : ""}">
+          <td class="pos">${i + 1}</td>
+          <td class="tname">${escapeHtml(r.name)}</td>
+          <td>${r.spiele}</td>
+          <td>${r.siege}-${r.niederlagen}</td>
+          <td>${r.saetzePlus}:${r.saetzeMinus}</td>
+          <td class="punkte">${r.punkte}</td>
+        </tr>`)
+        .join("");
+      return `<div class="gruppe">
+        ${z.gruppen.length > 1 ? `<h3>Gruppe ${escapeHtml(g.name)}</h3>` : ""}
+        <table class="tabelle">
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th><th>Pkt</th></tr></thead>
+          <tbody>${zeilen}</tbody>
+        </table>
+      </div>`;
+    })
+    .join("");
 }
 
 function bracketHtml(z) {
@@ -425,6 +553,8 @@ function wireEvents() {
     const res = await turnierService.erstelleTurnier({
       name: document.getElementById("neu-name").value,
       adminPin: document.getElementById("neu-pin").value,
+      teamGroesse: document.getElementById("neu-form").value,
+      ablauf: document.getElementById("neu-ablauf").value,
     });
     zeigeFehler("neu-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) {
@@ -433,8 +563,27 @@ function wireEvents() {
     }
   });
 
-  // Turnier aus der Liste öffnen
-  document.getElementById("auswahl-liste").addEventListener("click", (e) => {
+  // Turnierform/Ablauf nachträglich ändern (nur während der Anmeldung)
+  document.getElementById("btn-form-speichern").addEventListener("click", async () => {
+    const res = await turnierService.setzeTurnierform({
+      teamGroesse: document.getElementById("form-teamgroesse").value,
+      ablauf: document.getElementById("form-ablauf").value,
+    });
+    zeigeFehler("form-fehler", res.erfolg ? "" : res.fehler);
+  });
+
+  // Turnier aus der Liste öffnen oder löschen
+  document.getElementById("auswahl-liste").addEventListener("click", async (e) => {
+    const papierkorb = e.target.closest("[data-loeschen]");
+    if (papierkorb) {
+      const id = papierkorb.dataset.loeschen;
+      const eintrag = (zustand && zustand.liste || []).find((t) => t.id === id);
+      const name = eintrag ? eintrag.name : "Das Turnier";
+      if (!confirm(`„${name}" wirklich löschen? Anmeldungen, Ergebnisse und der Veranstalter-PIN sind dann weg. Das lässt sich nicht rückgängig machen.`)) return;
+      const res = await turnierService.loescheTurnierMitId(id);
+      zeigeFehler("auswahl-fehler", res.erfolg ? "" : res.fehler);
+      return;
+    }
     const karte = e.target.closest("[data-turnier]");
     if (!karte) return;
     willMitmachen = false;
@@ -526,7 +675,9 @@ function wireEvents() {
   });
   document.getElementById("btn-gruppen-losen").addEventListener("click", async () => {
     const modusEl = document.querySelector('input[name="losmodus"]:checked');
-    const res = await turnierService.loseGruppen({
+    // loseTurnier entscheidet nach dem Ablauf, ob Gruppen entstehen oder das
+    // Bracket direkt gesetzt wird.
+    const res = await turnierService.loseTurnier({
       modus: modusEl ? modusEl.value : "setzliste",
       bestOf: document.getElementById("los-bestof").value,
       anzahlGruppen: document.getElementById("los-gruppen").value,
@@ -538,9 +689,12 @@ function wireEvents() {
     if (zustand) aktualisiereLosVorschau(zustand.teams.length);
   });
 
-  // Gruppen: K.o. auslosen
+  // Gruppen: K.o. auslosen – oder bei "Jeder gegen jeden" das Turnier beenden.
   document.getElementById("btn-ko-losen").addEventListener("click", async () => {
-    const res = await turnierService.starteKoAuslosung();
+    const nurGruppen = zustand && zustand.ablauf === "nur_gruppen";
+    const res = nurGruppen
+      ? await turnierService.beendeNachGruppen()
+      : await turnierService.starteKoAuslosung();
     if (!res.erfolg) zeigeFehler("gruppen-admin-hinweis", res.fehler);
   });
 
@@ -623,6 +777,26 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.2",
+    groups: [
+      { title: "Turnierform wählen", items: [
+          "Beim Anlegen legst du fest, ob „1 gegen 1“ oder „2 gegen 2“ gespielt wird.",
+          "Bei 1 gegen 1 gibt es keine Teambildung mehr – alle Angemeldeten gehen direkt in die Auslosung.",
+          "Beide Angaben stehen auf der Kachel in der Turnierliste, damit jede:r weiß, worauf sie oder er sich einschreibt."
+      ]},
+      { title: "Ablauf wählen", items: [
+          "„Gruppenphase, dann K.-o.-Runde“ wie bisher.",
+          "„Nur K.-o.-Runde“ – alle kommen sofort ins Bracket, wer verliert ist raus.",
+          "„Jeder gegen jeden“ – alle spielen in einer Tabelle, Platz 1 gewinnt, keine K.-o.-Runde.",
+          "Solange die Anmeldung läuft, kannst du Form und Ablauf als Veranstalter noch umstellen."
+      ]},
+      { title: "Turniere löschen", items: [
+          "In der Turnierliste hat jedes Turnier, das dir gehört, einen Papierkorb – Löschen geht jetzt ohne es vorher zu öffnen.",
+          "Es wird immer nachgefragt, und andere Turniere bleiben unberührt."
+      ]}
+    ]
+  },
   {
     version: "1.1",
     groups: [

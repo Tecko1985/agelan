@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.4">
+<link rel="stylesheet" href="style.css?v=2.5">
 </head>
 <body>
 
@@ -59,12 +59,26 @@
 
       <div id="auswahl-liste"></div>
       <p class="hinweis-text" id="auswahl-leer" style="display:none">Aktuell läuft kein Turnier.</p>
+      <p class="hinweis-text fehler" id="auswahl-fehler"></p>
 
       <div class="karte-block">
         <h2>Turnier anlegen</h2>
         <p class="hinweis-text">Mehrere Turniere laufen nebeneinander – ein zweites Turnier verdrängt das erste nicht.</p>
         <label class="feld-label" for="neu-name">Turniername</label>
         <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026 – 2vs2" maxlength="40" autocomplete="off">
+
+        <label class="feld-label" for="neu-form">Turnierform</label>
+        <select id="neu-form" class="eingabe">
+          <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
+          <option value="1">1 gegen 1 — jede:r spielt für sich</option>
+        </select>
+
+        <label class="feld-label" for="neu-ablauf">Ablauf</label>
+        <select id="neu-ablauf" class="eingabe">
+          <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
+          <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
+          <option value="nur_gruppen">Jeder gegen jeden — eine Tabelle entscheidet</option>
+        </select>
 
         <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
         <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
@@ -132,8 +146,24 @@
       <button class="btn btn-secondary btn-grow" id="btn-lobby-selbst-anmelden" style="display:none">＋ Selbst mitspielen</button>
 
       <div id="lobby-admin" style="display:none">
+        <div class="karte-block">
+          <p class="feld-label">Turnierform &amp; Ablauf</p>
+          <select id="form-teamgroesse" class="eingabe">
+            <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
+            <option value="1">1 gegen 1 — jede:r spielt für sich</option>
+          </select>
+          <select id="form-ablauf" class="eingabe">
+            <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
+            <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
+            <option value="nur_gruppen">Jeder gegen jeden — eine Tabelle entscheidet</option>
+          </select>
+          <button class="btn btn-secondary btn-grow" id="btn-form-speichern">Übernehmen</button>
+          <p class="hinweis-text">Änderbar, solange die Anmeldung läuft. Danach hängen Teams und Spiele daran.</p>
+          <p class="hinweis-text fehler" id="form-fehler"></p>
+        </div>
+
         <button class="btn btn-primary btn-grow" id="btn-teams-bilden">Teams bilden →</button>
-        <p class="hinweis-text">Als Veranstalter: bildet ratingfaire 2er-Teams.</p>
+        <p class="hinweis-text" id="lobby-teams-hinweis">Als Veranstalter: bildet ratingfaire 2er-Teams.</p>
 
         <div class="karte-block">
           <p class="feld-label">🧪 Zum Ausprobieren</p>
@@ -153,22 +183,25 @@
   <!-- ============ TEAMS ============ -->
   <section class="screen" id="screen-teams">
     <div class="screen-inhalt">
-      <h2>Teams</h2>
+      <h2 id="teams-titel">Teams</h2>
       <div class="team-liste" id="teams-liste"></div>
 
       <div id="teams-admin" style="display:none">
-        <div class="karte-block">
-          <p class="feld-label">Zwei Spieler tauschen</p>
-          <div class="feld-zeile">
-            <select id="tausch-a" class="eingabe"></select>
-            <select id="tausch-b" class="eingabe"></select>
+        <div id="teams-tausch-block">
+          <div class="karte-block">
+            <p class="feld-label">Zwei Spieler tauschen</p>
+            <div class="feld-zeile">
+              <select id="tausch-a" class="eingabe"></select>
+              <select id="tausch-b" class="eingabe"></select>
+            </div>
+            <button class="btn btn-secondary btn-grow" id="btn-tauschen">Tauschen</button>
           </div>
-          <button class="btn btn-secondary btn-grow" id="btn-tauschen">Tauschen</button>
+          <button class="btn btn-secondary btn-grow" id="btn-teams-neu">🎲 Neu vorschlagen</button>
         </div>
-        <button class="btn btn-secondary btn-grow" id="btn-teams-neu">🎲 Neu vorschlagen</button>
 
         <div class="karte-block">
           <p class="feld-label">Turnier auslosen <span class="los-teamzahl" id="los-teamzahl"></span></p>
+          <p class="hinweis-text" id="los-ablauf-hinweis"></p>
 
           <label class="feld-label" for="los-bestof">Modus je Spiel</label>
           <select id="los-bestof" class="eingabe">
@@ -177,7 +210,7 @@
             <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
           </select>
 
-          <div class="feld-zeile">
+          <div class="feld-zeile" id="los-gruppenfelder">
             <div>
               <label class="feld-label" for="los-gruppen">Gruppen</label>
               <input type="number" id="los-gruppen" class="eingabe" min="1" value="2">
@@ -189,15 +222,17 @@
           </div>
           <p class="hinweis-text" id="los-vorschau"></p>
 
-          <p class="feld-label">Auslosungs-Art</p>
-          <label class="radio-zeile">
-            <input type="radio" name="losmodus" value="setzliste" checked>
-            <span><strong>Nach Setzliste</strong> — starke Teams auf die Gruppen verteilt (fairere Gruppen)</span>
-          </label>
-          <label class="radio-zeile">
-            <input type="radio" name="losmodus" value="zufaellig">
-            <span><strong>Rein zufällig</strong> — reines Losglück</span>
-          </label>
+          <div id="los-art-block">
+            <p class="feld-label">Auslosungs-Art</p>
+            <label class="radio-zeile">
+              <input type="radio" name="losmodus" value="setzliste" checked>
+              <span><strong>Nach Setzliste</strong> <span id="losmodus-setzliste-text">— starke Teams auf die Gruppen verteilt (fairere Gruppen)</span></span>
+            </label>
+            <label class="radio-zeile">
+              <input type="radio" name="losmodus" value="zufaellig">
+              <span><strong>Rein zufällig</strong> — reines Losglück</span>
+            </label>
+          </div>
           <button class="btn btn-primary btn-grow" id="btn-gruppen-losen">Auslosen →</button>
         </div>
         <p class="hinweis-text" id="teams-fehler"></p>
@@ -209,7 +244,7 @@
   <!-- ============ GRUPPEN ============ -->
   <section class="screen" id="screen-gruppen">
     <div class="screen-inhalt">
-      <h2>Gruppenphase</h2>
+      <h2 id="gruppen-titel">Gruppenphase</h2>
       <div id="gruppen-container"></div>
 
       <div id="gruppen-admin" style="display:none">
@@ -240,6 +275,7 @@
     <div class="screen-inhalt zentriert">
       <h1 class="sieger-titel">🏆 Turnier beendet!</h1>
       <p class="sieger-name" id="beendet-sieger">—</p>
+      <div id="beendet-tabelle"></div>
       <div id="beendet-bracket" class="bracket"></div>
     </div>
   </section>
@@ -501,8 +537,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
-    'turnier-service.js?v=2.4',
-    'app.js?v=2.4',
+    'turnier-service.js?v=2.5',
+    'app.js?v=2.5',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];

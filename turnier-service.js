@@ -30,7 +30,7 @@ const ERSTES_TURNIER_ID = "aktuell";   // Altbestand: das erste Turnier lag fest
 const TURNIER_ID_KEY = "agelan_turnier_id";
 
 let turnierId = null;                  // aktuell geöffnetes Turnier (null = Auswahl)
-function basis() { return "turniere/" + turnierId; }
+function turnierBasis() { return "turniere/" + turnierId; }
 
 const RATING_MIN = 500;
 const RATING_MAX = 3000;
@@ -115,6 +115,20 @@ function rundenTitel(anzahlMatches) {
   return anzahlMatches * 2 + "er-Runde";
 }
 
+// --- Turnierform & Ablauf --------------------------------------------------
+// teamGroesse 1 = Einzel (jede:r spielt für sich), 2 = 2er-Teams.
+// ablauf: gruppen_ko (Gruppen, dann K.-o.) | nur_ko | nur_gruppen (eine Tabelle).
+// Alte Turniere haben die Felder nicht – Standard ist das bisherige Verhalten.
+const ABLAUF_ARTEN = ["gruppen_ko", "nur_ko", "nur_gruppen"];
+
+function metaTeamGroesse(meta) {
+  return Number(meta && meta.teamGroesse) === 1 ? 1 : 2;
+}
+function metaAblauf(meta) {
+  const a = meta && meta.ablauf;
+  return ABLAUF_ARTEN.indexOf(a) !== -1 ? a : "gruppen_ko";
+}
+
 // --- Admin-Status ----------------------------------------------------------
 // Jedes Turnier hat einen eigenen PIN, also auch einen eigenen Speicherplatz
 // (agelan_admin_pin_<id>). Der alte Schlüssel agelan_admin_pin wird weiter
@@ -132,10 +146,10 @@ function merkeAdminPin(id, pin) {
 
 // Beide Speicherplätze zurückgeben, nicht nur den ersten gefundenen: sonst
 // verdeckt ein veralteter turnierspezifischer Wert einen gültigen alten.
-function gespeichertePins() {
+function gespeichertePins(id) {
   const out = [];
   try {
-    const a = localStorage.getItem(adminPinKey());
+    const a = localStorage.getItem(adminPinKey(id));
     if (a) out.push(a);
     const b = localStorage.getItem(ADMIN_PIN_KEY);
     if (b) out.push(b);
@@ -143,12 +157,18 @@ function gespeichertePins() {
   return out;
 }
 
-function istAdmin() {
-  if (!letzterZustand || !letzterZustand.meta) return false;
-  const meta = letzterZustand.meta;
+// Veranstalter EINES bestimmten Turniers – auch für Turniere, die gerade nicht
+// geöffnet sind (Löschknopf auf der Kachel).
+function istVeranstalterVon(id, meta) {
+  if (!meta) return false;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
   if (!meta.adminPin) return false;
-  return gespeichertePins().indexOf(meta.adminPin) !== -1;
+  return gespeichertePins(id).indexOf(meta.adminPin) !== -1;
+}
+
+function istAdmin() {
+  if (!letzterZustand || !letzterZustand.meta) return false;
+  return istVeranstalterVon(turnierId, letzterZustand.meta);
 }
 
 // ===========================================================================
@@ -291,6 +311,8 @@ function getZustand() {
     turnierId,
     liste: getListe(),
     listeGeladen: indexGeladen,
+    teamGroesse: metaTeamGroesse(meta),
+    ablauf: metaAblauf(meta),
     vorhanden,
     phase: vorhanden ? meta.phase : null,
     meta,
@@ -333,9 +355,12 @@ function getListe() {
         name: (meta && meta.name) || eintrag.name || "Turnier",
         phase: meta ? meta.phase : null,
         geladen: id in uebersicht,
+        teamGroesse: metaTeamGroesse(meta),
+        ablauf: metaAblauf(meta),
         spielerAnzahl: baum && baum.spieler ? Object.keys(baum.spieler).length : 0,
         erstelltAm: (meta && meta.erstelltAm) || eintrag.erstelltAm || 0,
         binIchDrin: !!(baum && baum.spieler && eigeneUid && baum.spieler[eigeneUid]),
+        binIchVeranstalter: istVeranstalterVon(id, meta),
         istOffen: !meta || meta.phase === "anmeldung",
       };
     })
@@ -394,7 +419,7 @@ function waehleTurnier(id) {
     else localStorage.removeItem(TURNIER_ID_KEY);
   } catch (e) {}
   if (turnierId) {
-    turnierRef = db.ref(basis());
+    turnierRef = db.ref(turnierBasis());
     turnierCb = turnierRef.on("value", (snap) => {
       letzterZustand = snap.val();
       benachrichtige();
@@ -428,7 +453,7 @@ function onZustandsAenderung(callback) {
 
 // --- Turnier anlegen (Admin) ----------------------------------------------
 // Legt IMMER ein zusätzliches Turnier an – mehrere laufen nebeneinander.
-async function erstelleTurnier({ name, adminPin }) {
+async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   await authBereit;
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Turniernamen eingeben." };
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
@@ -436,12 +461,15 @@ async function erstelleTurnier({ name, adminPin }) {
   const id = neueTurnierId();
   // Modus (Best-of), Gruppen-Anzahl und Weiterkommende werden erst beim Auslosen
   // festgelegt – dann steht die Teilnehmerzahl fest. Hier nur Platzhalter-Defaults.
+  // Turnierform und Ablauf dagegen jetzt: sie sagen, worauf man sich einschreibt.
   await db.ref("turniere/" + id + "/meta").set({
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     hostId: eigeneUid,
     adminPin: pin,
     phase: "anmeldung",
+    teamGroesse: metaTeamGroesse({ teamGroesse }),
+    ablauf: metaAblauf({ ablauf }),
     bestOf: 3,
     anzahlGruppen: 2,
     weiterProGruppe: 2,
@@ -456,6 +484,23 @@ async function erstelleTurnier({ name, adminPin }) {
   merkeAdminPin(id, pin);
   waehleTurnier(id);
   return { erfolg: true, id };
+}
+
+// --- Turnierform & Ablauf ändern (Admin, nur während der Anmeldung) -------
+// Danach hängen Teams, Gruppen und Spiele daran – ein Wechsel würde sie
+// ungültig machen. Wer trotzdem umstellen will, setzt vorher zurück.
+async function setzeTurnierform({ teamGroesse, ablauf }) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand.meta;
+  if (meta.phase !== "anmeldung") {
+    return { erfolg: false, fehler: "Geht nur während der Anmeldung – setze das Turnier vorher zurück." };
+  }
+  await db.ref(turnierBasis() + "/meta").update({
+    teamGroesse: metaTeamGroesse({ teamGroesse }),
+    ablauf: metaAblauf({ ablauf }),
+  });
+  return { erfolg: true };
 }
 
 // --- als Admin auf einem weiteren Gerät anmelden --------------------------
@@ -479,7 +524,7 @@ async function tritBei({ name, rating }) {
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
     return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
-  await db.ref(basis() + "/spieler/" + eigeneUid).set({
+  await db.ref(turnierBasis() + "/spieler/" + eigeneUid).set({
     name: name.trim(),
     rating: r,
     beigetretenAm: firebase.database.ServerValue.TIMESTAMP,
@@ -500,7 +545,7 @@ async function aktualisiereRating(rating) {
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
     return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
-  await db.ref(basis() + "/spieler/" + eigeneUid + "/rating").set(r);
+  await db.ref(turnierBasis() + "/spieler/" + eigeneUid + "/rating").set(r);
   return { erfolg: true };
 }
 
@@ -509,7 +554,7 @@ async function meldeAb() {
   if (!letzterZustand || !letzterZustand.meta || letzterZustand.meta.phase !== "anmeldung") {
     return { erfolg: false, fehler: "Abmelden nicht mehr möglich." };
   }
-  await db.ref(basis() + "/spieler/" + eigeneUid).remove();
+  await db.ref(turnierBasis() + "/spieler/" + eigeneUid).remove();
   return { erfolg: true };
 }
 
@@ -552,16 +597,44 @@ function paareZuTeamsObjekt(paare) {
   return teams;
 }
 
+// Einzelturnier: jede:r ist eine eigene "Mannschaft" von einer Person. Damit
+// laufen Auslosung, Tabellen und Bracket unverändert weiter – die ganze Logik
+// darunter rechnet ohnehin mit Teams, nicht mit Spielern.
+function einzelTeamsObjekt(spieler) {
+  const teams = {};
+  spieler
+    .slice()
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .forEach((sp, idx) => {
+      teams["team_" + idx] = {
+        name: sp.name,
+        ratingSchnitt: Number(sp.rating) || 0,
+        mitglieder: { [sp.id]: true },
+        gruppe: null,
+      };
+    });
+  return teams;
+}
+
 async function bildeTeams() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter kann Teams bilden." };
   const meta = letzterZustand.meta;
   if (!["anmeldung", "teams"].includes(meta.phase)) return { erfolg: false, fehler: "Falsche Phase." };
   const spieler = spielerListe();
-  if (spieler.length < 4) return { erfolg: false, fehler: "Mindestens 4 Spieler nötig (für 2 Teams)." };
+  const einzel = metaTeamGroesse(meta) === 1;
+  const mindestens = einzel ? 2 : 4;
+  if (spieler.length < mindestens) {
+    return {
+      erfolg: false,
+      fehler: einzel
+        ? "Mindestens 2 Angemeldete nötig."
+        : "Mindestens 4 Spieler nötig (für 2 Teams).",
+    };
+  }
 
-  const teams = paareZuTeamsObjekt(balancedPaare(spieler));
-  await db.ref(basis()).update({
+  const teams = einzel ? einzelTeamsObjekt(spieler) : paareZuTeamsObjekt(balancedPaare(spieler));
+  await db.ref(turnierBasis()).update({
     teams: teams,
     "meta/phase": "teams",
   });
@@ -573,6 +646,9 @@ async function tauscheSpieler(uidA, uidB) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   if (letzterZustand.meta.phase !== "teams") return { erfolg: false, fehler: "Nur in der Team-Phase möglich." };
+  if (metaTeamGroesse(letzterZustand.meta) === 1) {
+    return { erfolg: false, fehler: "Im Einzelturnier gibt es keine Teams zum Tauschen." };
+  }
   if (uidA === uidB) return { erfolg: false };
   const teams = teamListe();
   const teamA = teams.find((t) => (t.mitglieder || {})[uidA]);
@@ -588,7 +664,7 @@ async function tauscheSpieler(uidA, uidB) {
   const nameVon = (mit) => Object.keys(mit).map(name).join(" & ");
   const schnittVon = (mit) => Math.round(Object.keys(mit).reduce((s, u) => s + rating(u), 0) / Object.keys(mit).length);
 
-  await db.ref(basis()).update({
+  await db.ref(turnierBasis()).update({
     [`teams/${teamA.id}/mitglieder`]: neuA,
     [`teams/${teamA.id}/name`]: nameVon(neuA),
     [`teams/${teamA.id}/ratingSchnitt`]: schnittVon(neuA),
@@ -622,18 +698,32 @@ function verteileNachToepfen(teams, anzahlGruppen) {
   return buckets;
 }
 
+// Einstieg für den Auslosungs-Knopf: je nach Ablauf Gruppen oder direkt Bracket.
+async function loseTurnier(optionen) {
+  const meta = letzterZustand && letzterZustand.meta;
+  if (!meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
+  return metaAblauf(meta) === "nur_ko" ? loseKoDirekt(optionen) : loseGruppen(optionen);
+}
+
 async function loseGruppen(optionen) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
   if (meta.phase !== "teams") return { erfolg: false, fehler: "Erst Teams bilden." };
   const teams = teamListe();
-  if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teams." };
+  if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teilnehmer." };
 
   const opt = optionen || {};
+  const nurGruppen = metaAblauf(meta) === "nur_gruppen";
   const bestOf = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
-  const anzahlGruppen = Math.max(1, Math.min(teams.length, Number(opt.anzahlGruppen) || meta.anzahlGruppen || 2));
-  const weiterProGruppe = Math.max(1, Math.min(teams.length, Number(opt.weiterProGruppe) || meta.weiterProGruppe || 2));
+  // "Jeder gegen jeden" ist genau eine Gruppe, und hervorgehoben wird nur, wer
+  // sie gewinnt – es kommt ja niemand irgendwohin weiter.
+  const anzahlGruppen = nurGruppen
+    ? 1
+    : Math.max(1, Math.min(teams.length, Number(opt.anzahlGruppen) || meta.anzahlGruppen || 2));
+  const weiterProGruppe = nurGruppen
+    ? 1
+    : Math.max(1, Math.min(teams.length, Number(opt.weiterProGruppe) || meta.weiterProGruppe || 2));
   const modus = opt.modus === "zufaellig" ? "zufaellig" : "setzliste";
   const buckets = modus === "zufaellig"
     ? verteileZufaellig(teams, anzahlGruppen)
@@ -668,7 +758,7 @@ async function loseGruppen(optionen) {
   updates["meta/bestOf"] = bestOf;
   updates["meta/anzahlGruppen"] = anzahlGruppen;
   updates["meta/weiterProGruppe"] = weiterProGruppe;
-  await db.ref(basis()).update(updates);
+  await db.ref(turnierBasis()).update(updates);
   return { erfolg: true };
 }
 
@@ -713,7 +803,7 @@ async function meldeErgebnis(spielId, saetzeA, saetzeB) {
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
 
   const meinTeamId = rolle.team ? rolle.team.id : (istAdmin() ? "admin" : null);
-  await db.ref(basis() + "/spiele/" + spielId).update({
+  await db.ref(turnierBasis() + "/spiele/" + spielId).update({
     saetzeA: v.a, saetzeB: v.b,
     status: "gemeldet",
     gemeldetVon: meinTeamId,
@@ -732,7 +822,7 @@ async function bestaetigeErgebnis(spielId) {
   if (!istGegner && !istAdmin()) {
     return { erfolg: false, fehler: "Nur das gegnerische Team (oder der Veranstalter) bestätigt." };
   }
-  await db.ref(basis() + "/spiele/" + spielId + "/status").set("bestaetigt");
+  await db.ref(turnierBasis() + "/spiele/" + spielId + "/status").set("bestaetigt");
   await pruefeKoProgression();
   return { erfolg: true };
 }
@@ -746,7 +836,7 @@ async function widersprichErgebnis(spielId) {
   if (!rolle.seiteA && !rolle.seiteB && !istAdmin()) {
     return { erfolg: false, fehler: "Nur beteiligte Teams." };
   }
-  await db.ref(basis() + "/spiele/" + spielId).update({
+  await db.ref(turnierBasis() + "/spiele/" + spielId).update({
     saetzeA: null, saetzeB: null, status: "offen", gemeldetVon: null,
   });
   return { erfolg: true };
@@ -760,7 +850,7 @@ async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
   if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
   const v = validiereSaetze(saetzeA, saetzeB, letzterZustand.meta.bestOf);
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
-  await db.ref(basis() + "/spiele/" + spielId).update({
+  await db.ref(turnierBasis() + "/spiele/" + spielId).update({
     saetzeA: v.a, saetzeB: v.b, status: "bestaetigt", gemeldetVon: "admin",
   });
   await pruefeKoProgression();
@@ -796,23 +886,31 @@ async function starteKoAuslosung() {
   }
   if (qualifizierte.length < 2) return { erfolg: false, fehler: "Zu wenige qualifizierte Teams." };
 
-  const bracketGroesse = naechsteZweierpotenz(qualifizierte.length);
-  const seedReihenfolge = bracketSeedReihenfolge(bracketGroesse); // 1-basierte Seeds
-  // Seed i (1-basiert) -> qualifizierte[i-1] oder null (Freilos)
-  const teamFuerSeed = (seed) => (seed <= qualifizierte.length ? qualifizierte[seed - 1].teamId : null);
-
+  const ersteRunde = koErsteRunde(qualifizierte.map((q) => q.teamId));
   const updates = {};
+  Object.keys(ersteRunde).forEach((sid) => { updates["spiele/" + sid] = ersteRunde[sid]; });
+  updates["meta/phase"] = "ko";
+  await db.ref(turnierBasis()).update(updates);
+  await pruefeKoProgression(); // falls Freilose sofort die nächste Runde erlauben
+  return { erfolg: true };
+}
+
+// Erste K.-o.-Runde als { spielId: spiel } – über Kreuz gesetzt, Freilose bei
+// nicht-2er-Potenz. Wird von der Auslosung nach der Gruppenphase UND vom
+// direkten Bracket (Ablauf "nur_ko") benutzt.
+function koErsteRunde(teamIdsNachSeed) {
+  const spiele = {};
+  const bracketGroesse = naechsteZweierpotenz(teamIdsNachSeed.length);
+  const seedReihenfolge = bracketSeedReihenfolge(bracketGroesse); // 1-basierte Seeds
+  const teamFuerSeed = (seed) => (seed <= teamIdsNachSeed.length ? teamIdsNachSeed[seed - 1] : null);
   const matches = bracketGroesse / 2;
   for (let p = 0; p < matches; p++) {
-    const seedA = seedReihenfolge[p * 2];
-    const seedB = seedReihenfolge[p * 2 + 1];
-    let teamA = teamFuerSeed(seedA);
-    let teamB = teamFuerSeed(seedB);
+    let teamA = teamFuerSeed(seedReihenfolge[p * 2]);
+    let teamB = teamFuerSeed(seedReihenfolge[p * 2 + 1]);
     // Falls A ein Freilos ist, B nach vorne ziehen
     if (!teamA && teamB) { teamA = teamB; teamB = null; }
-    const sid = `ko_r0_p${p}`;
     const istFreilos = teamA && !teamB;
-    updates["spiele/" + sid] = {
+    spiele["ko_r0_p" + p] = {
       phase: "ko", runde: 0, position: p,
       teamA: teamA, teamB: teamB,
       saetzeA: null, saetzeB: null,
@@ -820,9 +918,54 @@ async function starteKoAuslosung() {
       gemeldetVon: null,
     };
   }
+  return spiele;
+}
+
+// Ablauf "nur K.-o.": ohne Gruppenphase direkt ins Bracket, gesetzt nach Rating.
+async function loseKoDirekt(optionen) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand.meta;
+  if (meta.phase !== "teams") return { erfolg: false, fehler: "Erst die Teilnehmer festlegen." };
+  const teams = teamListe();
+  if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teilnehmer." };
+
+  const opt = optionen || {};
+  const bestOf = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
+  // Setzliste = nach Rating; "rein zufällig" mischt vorher durch.
+  const sortiert = opt.modus === "zufaellig"
+    ? mischeArray(teams)
+    : teams.slice().sort((a, b) => (b.ratingSchnitt || 0) - (a.ratingSchnitt || 0));
+
+  const updates = {};
+  updates["gruppen"] = null;
+  updates["spiele"] = koErsteRunde(sortiert.map((t) => t.id));
   updates["meta/phase"] = "ko";
-  await db.ref(basis()).update(updates);
-  await pruefeKoProgression(); // falls Freilose sofort die nächste Runde erlauben
+  updates["meta/bestOf"] = bestOf;
+  await db.ref(turnierBasis()).update(updates);
+  await pruefeKoProgression(); // Freilose sofort weiterziehen
+  return { erfolg: true };
+}
+
+// Ablauf "jeder gegen jeden": kein K.-o., die Tabelle entscheidet.
+async function beendeNachGruppen() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand.meta;
+  if (meta.phase !== "gruppen") return { erfolg: false, fehler: "Erst die Spiele." };
+  if (metaAblauf(meta) !== "nur_gruppen") {
+    return { erfolg: false, fehler: "Dieses Turnier endet mit der K.-o.-Runde." };
+  }
+  if (!alleGruppenspieleBestaetigt()) {
+    return { erfolg: false, fehler: "Es sind noch nicht alle Spiele bestätigt." };
+  }
+  const gruppen = gruppenMitTabellen(teamListe(), spielListe(), meta);
+  const erster = gruppen[0] && gruppen[0].tabelle[0];
+  if (!erster) return { erfolg: false, fehler: "Keine Tabelle vorhanden." };
+  await db.ref(turnierBasis()).update({
+    "meta/phase": "beendet",
+    "meta/siegerTeamId": erster.teamId,
+  });
   return { erfolg: true };
 }
 
@@ -830,7 +973,7 @@ async function starteKoAuslosung() {
 // die nächste erzeugt (bzw. der Sieger festgestellt). Deterministisch + mit
 // Existenz-Guard, damit mehrere Clients es gefahrlos anstoßen können.
 async function pruefeKoProgression() {
-  const snap = await db.ref(basis()).once("value");
+  const snap = await db.ref(turnierBasis()).once("value");
   const zustand = snap.val();
   if (!zustand || !zustand.meta || zustand.meta.phase !== "ko") return;
   const spiele = Object.keys(zustand.spiele || {}).map((sid) => ({ id: sid, ...zustand.spiele[sid] }));
@@ -847,7 +990,7 @@ async function pruefeKoProgression() {
   if (aktuelle.length === 1) {
     // Finale entschieden
     if (zustand.meta.siegerTeamId) return; // schon gesetzt
-    await db.ref(basis() + "/meta").update({ phase: "beendet", siegerTeamId: sieger(aktuelle[0]) });
+    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: sieger(aktuelle[0]) });
     return;
   }
 
@@ -865,7 +1008,7 @@ async function pruefeKoProgression() {
       status: "offen", gemeldetVon: null,
     };
   }
-  await db.ref(basis()).update(updates);
+  await db.ref(turnierBasis()).update(updates);
 }
 
 // Admin-Fallback, falls die Auto-Progression mal nicht griff.
@@ -917,7 +1060,7 @@ async function legeTestspielerAn(anzahl) {
       beigetretenAm: Date.now() + i,
     };
   }
-  await db.ref(basis()).update(updates);
+  await db.ref(turnierBasis()).update(updates);
   return { erfolg: true, anzahl: n };
 }
 
@@ -931,7 +1074,7 @@ async function entferneTestspieler() {
     .forEach((uid) => { updates["spieler/" + uid] = null; });
   const anzahl = Object.keys(updates).length;
   if (!anzahl) return { erfolg: false, fehler: "Es sind keine Testspieler angelegt." };
-  await db.ref(basis()).update(updates);
+  await db.ref(turnierBasis()).update(updates);
   return { erfolg: true, anzahl };
 }
 
@@ -969,7 +1112,7 @@ async function simuliereOffeneSpiele() {
     updates["spiele/" + s.id + "/status"] = "bestaetigt";
     updates["spiele/" + s.id + "/gemeldetVon"] = "simulation";
   });
-  await db.ref(basis()).update(updates);
+  await db.ref(turnierBasis()).update(updates);
   // Wie bei adminSetzeErgebnis: die K.-o.-Progression selbst anstoßen, damit die
   // nächste Runde entsteht (bzw. der Sieger feststeht).
   await pruefeKoProgression();
@@ -985,7 +1128,7 @@ async function simuliereOffeneSpiele() {
 async function setzeTurnierZurueck() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(basis()).update({
+  await db.ref(turnierBasis()).update({
     teams: null,
     gruppen: null,
     spiele: null,
@@ -997,17 +1140,28 @@ async function setzeTurnierZurueck() {
 
 // Löschen: kompletter Turnierbaum weg, inklusive Spieler:innen und Admin-PIN.
 // Danach steht die App wieder auf "Neues Turnier anlegen".
-async function loescheTurnier() {
+// Löscht ein BESTIMMTES Turnier – auch eins, das gerade nicht geöffnet ist
+// (Papierkorb auf der Kachel in der Turnierliste).
+async function loescheTurnierMitId(id) {
   await authBereit;
-  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  const id = turnierId;
+  if (!id) return { erfolg: false, fehler: "Kein Turnier angegeben." };
+  const baum = uebersicht[id];
+  const meta = baum && baum.meta;
+  if (!meta) return { erfolg: false, fehler: "Turnier nicht gefunden." };
+  if (!istVeranstalterVon(id, meta)) {
+    return { erfolg: false, fehler: "Nur der Veranstalter dieses Turniers kann es löschen." };
+  }
   // Erst der Baum, dann der Index-Eintrag: bleibt der Eintrag zurück, zeigt
   // getListe() ihn ohnehin nicht mehr an (Baum weg = keine Kachel).
   await db.ref("turniere/" + id).remove();
   await db.ref(INDEX_PFAD + "/" + id).remove();
   try { localStorage.removeItem(adminPinKey(id)); } catch (e) {}
-  waehleTurnier(null);
+  if (turnierId === id) waehleTurnier(null);
   return { erfolg: true };
+}
+
+async function loescheTurnier() {
+  return loescheTurnierMitId(turnierId);
 }
 
 // ===========================================================================
@@ -1019,13 +1173,16 @@ const turnierService = {
   getTurnierId: () => turnierId,
   waehleTurnier,
   erstelleTurnier,
+  setzeTurnierform,
   authentifiziereAlsAdmin,
   tritBei,
   aktualisiereRating,
   meldeAb,
   bildeTeams,
   tauscheSpieler,
+  loseTurnier,
   loseGruppen,
+  beendeNachGruppen,
   meldeErgebnis,
   bestaetigeErgebnis,
   widersprichErgebnis,
@@ -1037,6 +1194,7 @@ const turnierService = {
   simuliereOffeneSpiele,
   setzeTurnierZurueck,
   loescheTurnier,
+  loescheTurnierMitId,
   noetigeSaetze,
   getGespeicherterName: () => { try { return localStorage.getItem(NAME_KEY) || ""; } catch (e) { return ""; } },
 };
