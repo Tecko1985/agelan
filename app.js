@@ -8,6 +8,26 @@
 // Auf false wird die Seite nur für den Streamplan herausgegeben.
 const TURNIER_SICHTBAR = true;
 
+// Turniere ANLEGEN darf nur der Veranstalter. Geprüft wird serverseitig gegen
+// das Worker-Secret PW_AGELAN_VERANSTALTER (Scope agelan-veranstalter) – ein
+// zweites, engeres Passwort als das der Seite, das jeder Teilnehmer kennt.
+// ⚠️ Das ist eine Bedien-Sperre, kein Datenriegel: die Firebase-Regeln lassen
+// jeden angemeldeten (anonymen) Client schreiben. Wer die Datenbank-URL kennt,
+// kommt daran vorbei – genau wie am Passwort-Gate der Seite.
+const AGELAN_GATEWAY = "https://landingpage.michel-brunner.workers.dev";
+const VERANSTALTER_SCOPE = "agelan-veranstalter";
+const VERANSTALTER_KEY = "agelan_veranstalter_ok";
+
+function veranstalterFrei() {
+  try { return localStorage.getItem(VERANSTALTER_KEY) === "1"; } catch (e) { return false; }
+}
+function setzeVeranstalterFrei(frei) {
+  try {
+    if (frei) localStorage.setItem(VERANSTALTER_KEY, "1");
+    else localStorage.removeItem(VERANSTALTER_KEY);
+  } catch (e) {}
+}
+
 let zustand = null;
 let willMitmachen = false;   // lokaler UI-Zustand: "Jetzt anmelden" geklickt
 let meldeSpielId = null;     // aktuell im Melde-Dialog bearbeitetes Spiel
@@ -143,6 +163,10 @@ function renderAuswahl(z) {
     })
     .join("");
   zeigeFehler("auswahl-fehler", "");
+
+  const frei = veranstalterFrei();
+  document.getElementById("veranstalter-gate").style.display = frei ? "none" : "";
+  document.getElementById("anlegen-block").style.display = frei ? "" : "none";
 }
 
 // --- START -----------------------------------------------------------------
@@ -563,6 +587,50 @@ function wireEvents() {
     }
   });
 
+  // Veranstalter-Passwort prüfen und den Anlegen-Bereich freigeben
+  const pruefeVeranstalter = async () => {
+    const feld = document.getElementById("veranstalter-pw");
+    const knopf = document.getElementById("btn-veranstalter-oeffnen");
+    const pw = feld.value;
+    if (!pw) return zeigeFehler("veranstalter-fehler", "Bitte Passwort eingeben.");
+    knopf.disabled = true;
+    zeigeFehler("veranstalter-fehler", "Prüfe …");
+    try {
+      const resp = await fetch(AGELAN_GATEWAY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify-action-password", scope: VERANSTALTER_SCOPE, password: pw }),
+      });
+      if (resp.ok) {
+        setzeVeranstalterFrei(true);
+        feld.value = "";
+        zeigeFehler("veranstalter-fehler", "");
+        if (zustand) render(zustand);
+        return;
+      }
+      if (resp.status === 403) zeigeFehler("veranstalter-fehler", "Falsches Passwort.");
+      else if (resp.status === 429) zeigeFehler("veranstalter-fehler", "Zu viele Fehlversuche. Bitte später erneut versuchen.");
+      else {
+        const body = await resp.json().catch(() => ({}));
+        zeigeFehler("veranstalter-fehler", body.error && /nicht konfiguriert/.test(body.error)
+          ? "Der Veranstalter-Zugang ist noch nicht eingerichtet."
+          : "Prüfung fehlgeschlagen (HTTP " + resp.status + ").");
+      }
+    } catch (e) {
+      zeigeFehler("veranstalter-fehler", "Keine Verbindung zum Server.");
+    }
+    knopf.disabled = false;
+    feld.select();
+  };
+  document.getElementById("btn-veranstalter-oeffnen").addEventListener("click", pruefeVeranstalter);
+  document.getElementById("veranstalter-pw").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") pruefeVeranstalter();
+  });
+  document.getElementById("btn-veranstalter-sperren").addEventListener("click", () => {
+    setzeVeranstalterFrei(false);
+    if (zustand) render(zustand);
+  });
+
   // Turnierform/Ablauf nachträglich ändern (nur während der Anmeldung)
   document.getElementById("btn-form-speichern").addEventListener("click", async () => {
     const res = await turnierService.setzeTurnierform({
@@ -777,6 +845,18 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.3",
+    groups: [
+      { title: "Turniere anlegen nur noch als Veranstalter", items: [
+          "Vorher konnte jede:r mit dem Link Turniere anlegen. Der Bereich „Turnier anlegen“ ist jetzt hinter einem eigenen Veranstalter-Passwort.",
+          "Das ist ein anderes Passwort als das für die Seite – das kennt ja jede:r Teilnehmer:in.",
+          "Geprüft wird es auf dem Server, es steht nirgends im Quelltext.",
+          "Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen; über „Veranstalter-Zugang auf diesem Gerät beenden“ wird er wieder gesperrt.",
+          "Einschreiben, Ergebnisse melden und Zuschauen bleiben für alle offen wie bisher."
+      ]}
+    ]
+  },
   {
     version: "1.2",
     groups: [

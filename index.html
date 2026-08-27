@@ -61,7 +61,18 @@
       <p class="hinweis-text" id="auswahl-leer" style="display:none">Aktuell läuft kein Turnier.</p>
       <p class="hinweis-text fehler" id="auswahl-fehler"></p>
 
-      <div class="karte-block">
+      <!-- Turniere anlegen darf nur der Veranstalter. Das Seiten-Passwort kennt
+           jeder Teilnehmer, deshalb hier ein zweites, engeres (Scope
+           agelan-veranstalter, serverseitig gegen PW_AGELAN_VERANSTALTER). -->
+      <div class="karte-block" id="veranstalter-gate">
+        <h2>🔒 Turnier anlegen</h2>
+        <p class="hinweis-text">Turniere legt nur der Veranstalter an. Zum Öffnen das Veranstalter-Passwort eingeben – das ist ein anderes als das Passwort für die Seite.</p>
+        <input type="password" id="veranstalter-pw" class="eingabe" placeholder="Veranstalter-Passwort" autocomplete="current-password">
+        <button class="btn btn-secondary btn-grow" id="btn-veranstalter-oeffnen">Öffnen</button>
+        <p class="hinweis-text fehler" id="veranstalter-fehler"></p>
+      </div>
+
+      <div class="karte-block" id="anlegen-block" style="display:none">
         <h2>Turnier anlegen</h2>
         <p class="hinweis-text">Mehrere Turniere laufen nebeneinander – ein zweites Turnier verdrängt das erste nicht.</p>
         <label class="feld-label" for="neu-name">Turniername</label>
@@ -86,6 +97,7 @@
         <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
         <p class="hinweis-text">Modus und Gruppen legst du später beim Auslosen fest – dann steht die Teilnehmerzahl fest.</p>
         <p class="hinweis-text fehler" id="neu-fehler"></p>
+        <button class="btn btn-link" id="btn-veranstalter-sperren">Veranstalter-Zugang auf diesem Gerät beenden</button>
       </div>
     </div>
   </section>
@@ -538,7 +550,7 @@
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
     'turnier-service.js?v=2.5',
-    'app.js?v=2.5',
+    'app.js?v=2.6',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];
