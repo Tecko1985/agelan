@@ -438,3 +438,10 @@ main#app.sk-breit { max-width: 980px; }
   cursor: pointer;
 }
 .turnier-karte .tk-loeschen:hover { color: #c0392b; background: rgba(192,57,43,0.08); }
+
+/* Rundenüberschrift im Schweizer System */
+.runden-titel {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}

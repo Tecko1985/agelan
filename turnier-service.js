@@ -119,7 +119,8 @@ function rundenTitel(anzahlMatches) {
 // teamGroesse 1 = Einzel (jede:r spielt für sich), 2 = 2er-Teams.
 // ablauf: gruppen_ko (Gruppen, dann K.-o.) | nur_ko | nur_gruppen (eine Tabelle).
 // Alte Turniere haben die Felder nicht – Standard ist das bisherige Verhalten.
-const ABLAUF_ARTEN = ["gruppen_ko", "nur_ko", "nur_gruppen"];
+const ABLAUF_ARTEN = ["gruppen_ko", "nur_ko", "nur_gruppen", "schweizer", "schweizer_ko"];
+const TIEBREAK_ARTEN = ["satzdifferenz", "direktes_duell", "buchholz"];
 
 function metaTeamGroesse(meta) {
   return Number(meta && meta.teamGroesse) === 1 ? 1 : 2;
@@ -127,6 +128,38 @@ function metaTeamGroesse(meta) {
 function metaAblauf(meta) {
   const a = meta && meta.ablauf;
   return ABLAUF_ARTEN.indexOf(a) !== -1 ? a : "gruppen_ko";
+}
+// Läuft vor der K.-o.-Runde eine Tabellenphase (Gruppen, Round Robin, Schweizer)?
+function hatVorrunde(meta) {
+  return metaAblauf(meta) !== "nur_ko";
+}
+function istSchweizer(meta) {
+  const a = metaAblauf(meta);
+  return a === "schweizer" || a === "schweizer_ko";
+}
+// Endet das Turnier mit einer K.-o.-Runde oder mit der Tabelle?
+function hatKoRunde(meta) {
+  const a = metaAblauf(meta);
+  return a === "gruppen_ko" || a === "nur_ko" || a === "schweizer_ko";
+}
+function metaTiebreak(meta) {
+  const t = meta && meta.tiebreak;
+  if (TIEBREAK_ARTEN.indexOf(t) !== -1) return t;
+  return istSchweizer(meta) ? "buchholz" : "satzdifferenz";
+}
+function metaPunkteSieg(meta) {
+  const p = Math.round(Number(meta && meta.punkteSieg));
+  return Number.isFinite(p) && p >= 1 && p <= 5 ? p : 3;
+}
+// Best-of des Finales kann vom Rest abweichen ("Finale Best of 5").
+function bestOfFuer(spiel, meta) {
+  const standard = meta.bestOf || 3;
+  if (!spiel || spiel.phase !== "ko" || spiel.platz3) return standard;
+  const finale = Number(meta.bestOfFinale);
+  if (![3, 5, 7].includes(finale)) return standard;
+  // Finale = letzte Runde des Brackets. Ohne Kenntnis der Rundenzahl reicht der
+  // Marker, den die Progression beim Anlegen setzt.
+  return spiel.istFinale ? finale : standard;
 }
 
 // --- Admin-Status ----------------------------------------------------------
@@ -207,7 +240,7 @@ function teamAnzeigename(teamId, teams) {
 
 // Gruppentabelle aus den bestätigten Gruppenspielen einer Gruppe berechnen.
 function berechneTabelle(gruppenTeamIds, teams, spiele, meta) {
-  const punkteSieg = meta.punkteSieg || 3;
+  const punkteSieg = metaPunkteSieg(meta);
   const zeilen = {};
   gruppenTeamIds.forEach((tid) => {
     zeilen[tid] = {
@@ -215,39 +248,75 @@ function berechneTabelle(gruppenTeamIds, teams, spiele, meta) {
       name: teamAnzeigename(tid, teams),
       spiele: 0, siege: 0, niederlagen: 0,
       saetzePlus: 0, saetzeMinus: 0, punkte: 0,
+      buchholz: 0, freilose: 0,
+      gegner: [],
     };
   });
 
   const bestaetigte = spiele.filter(
-    (s) => s.phase === "gruppe" && s.status === "bestaetigt" && zeilen[s.teamA] && zeilen[s.teamB]
+    (s) => s.phase === "gruppe" && s.status === "bestaetigt" && zeilen[s.teamA]
   );
 
   bestaetigte.forEach((s) => {
-    const a = zeilen[s.teamA], b = zeilen[s.teamB];
+    const a = zeilen[s.teamA];
+    // Freilos im Schweizer System: zählt als Sieg, hat aber keinen Gegner und
+    // darf deshalb weder in die Buchholz-Summe noch in ein direktes Duell.
+    if (!s.teamB || !zeilen[s.teamB]) {
+      if (!s.teamB) {
+        a.spiele++; a.siege++; a.freilose++;
+        a.punkte += punkteSieg;
+        a.saetzePlus += Number(s.saetzeA) || 0;
+      }
+      return;
+    }
+    const b = zeilen[s.teamB];
     a.spiele++; b.spiele++;
+    a.gegner.push(s.teamB); b.gegner.push(s.teamA);
     a.saetzePlus += s.saetzeA; a.saetzeMinus += s.saetzeB;
     b.saetzePlus += s.saetzeB; b.saetzeMinus += s.saetzeA;
     if (s.saetzeA > s.saetzeB) { a.siege++; a.punkte += punkteSieg; b.niederlagen++; }
     else { b.siege++; b.punkte += punkteSieg; a.niederlagen++; }
   });
 
+  // Buchholz: Summe der Punkte aller Gegner, die man wirklich gespielt hat.
+  // Zwingend ein ZWEITER Durchlauf – vorher stehen die Gegnerpunkte nicht fest.
+  Object.values(zeilen).forEach((z) => {
+    z.buchholz = z.gegner.reduce((summe, gid) => summe + (zeilen[gid] ? zeilen[gid].punkte : 0), 0);
+  });
+
+  // ALLE Begegnungen der beiden zusammenzaehlen, nicht nur die erste: bei Hin-
+  // und Rueckrunde entschiede sonst allein das Hinspiel.
   const direktesDuell = (x, y) => {
-    const s = bestaetigte.find(
-      (m) => (m.teamA === x && m.teamB === y) || (m.teamA === y && m.teamB === x)
-    );
-    if (!s) return 0;
-    const xSaetze = s.teamA === x ? s.saetzeA : s.saetzeB;
-    const ySaetze = s.teamA === x ? s.saetzeB : s.saetzeA;
+    let xSaetze = 0, ySaetze = 0;
+    bestaetigte.forEach((m) => {
+      if (m.teamA === x && m.teamB === y) { xSaetze += m.saetzeA; ySaetze += m.saetzeB; }
+      else if (m.teamA === y && m.teamB === x) { xSaetze += m.saetzeB; ySaetze += m.saetzeA; }
+    });
     return ySaetze - xSaetze; // >0 wenn y besser -> x weiter unten
   };
 
-  return Object.values(zeilen).sort((a, b) => {
-    if (b.punkte !== a.punkte) return b.punkte - a.punkte;
+  const satzWeg = (a, b) => {
     const dA = a.saetzePlus - a.saetzeMinus, dB = b.saetzePlus - b.saetzeMinus;
     if (dB !== dA) return dB - dA;
     if (b.saetzePlus !== a.saetzePlus) return b.saetzePlus - a.saetzePlus;
-    const dd = direktesDuell(a.teamId, b.teamId);
-    if (dd !== 0) return dd;
+    return 0;
+  };
+
+  // Reihenfolge der Kriterien nach der eingestellten Wertung. Punkte stehen
+  // immer vorn, der Name immer hinten (damit die Sortierung stabil bleibt).
+  const tiebreak = metaTiebreak(meta);
+  const kriterien = tiebreak === "buchholz"
+    ? [(a, b) => b.buchholz - a.buchholz, satzWeg, (a, b) => direktesDuell(a.teamId, b.teamId)]
+    : tiebreak === "direktes_duell"
+    ? [(a, b) => direktesDuell(a.teamId, b.teamId), satzWeg]
+    : [satzWeg, (a, b) => direktesDuell(a.teamId, b.teamId)];
+
+  return Object.values(zeilen).sort((a, b) => {
+    if (b.punkte !== a.punkte) return b.punkte - a.punkte;
+    for (const kriterium of kriterien) {
+      const wert = kriterium(a, b);
+      if (wert !== 0) return wert;
+    }
     return a.name.localeCompare(b.name);
   });
 }
@@ -257,12 +326,19 @@ function gruppenMitTabellen(teams, spiele, meta) {
   return Object.keys(roh)
     .map((gid) => {
       const teamIds = Object.keys(roh[gid].teamIds || {});
+      const eigene = spiele.filter((s) => s.phase === "gruppe" && s.gruppe === roh[gid].name);
+      // Schweizer System spielt in Runden – für die Anzeige nach Runde bündeln.
+      const rundenNummern = [...new Set(eigene.map((s) => Number(s.runde) || 0))].sort((a, b) => a - b);
       return {
         id: gid,
         name: roh[gid].name,
         teamIds,
         tabelle: berechneTabelle(teamIds, teams, spiele, meta),
-        spiele: spiele.filter((s) => s.phase === "gruppe" && s.gruppe === roh[gid].name),
+        spiele: eigene,
+        runden: rundenNummern.map((r) => ({
+          runde: r,
+          spiele: eigene.filter((s) => (Number(s.runde) || 0) === r).sort((a, b) => (a.position || 0) - (b.position || 0)),
+        })),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -270,8 +346,12 @@ function gruppenMitTabellen(teams, spiele, meta) {
 
 // K.o.-Bracket (Runden -> Matches) für die Anzeige.
 function baueBracket(teams, spiele, meta) {
-  const koSpiele = spiele.filter((s) => s.phase === "ko");
-  if (koSpiele.length === 0) return null;
+  const alleKo = spiele.filter((s) => s.phase === "ko");
+  if (alleKo.length === 0) return null;
+  // Das Spiel um Platz 3 gehoert nicht in die Rundenfolge, sonst waere die
+  // letzte Runde zweimal besetzt und hiesse "Halbfinale".
+  const koSpiele = alleKo.filter((s) => !s.platz3);
+  const platz3Spiel = alleKo.find((s) => s.platz3) || null;
   const rundenNummern = [...new Set(koSpiele.map((s) => s.runde))].sort((a, b) => a - b);
   const runden = rundenNummern.map((r) => {
     const matches = koSpiele
@@ -288,7 +368,16 @@ function baueBracket(teams, spiele, meta) {
       }));
     return { runde: r, name: rundenTitel(matches.length), matches };
   });
-  return { runden, siegerTeamId: meta.siegerTeamId || null };
+  const platz3 = platz3Spiel ? {
+    id: platz3Spiel.id,
+    teamA: platz3Spiel.teamA, teamB: platz3Spiel.teamB || null,
+    teamAName: platz3Spiel.teamA ? teamAnzeigename(platz3Spiel.teamA, teams) : "—",
+    teamBName: platz3Spiel.teamB ? teamAnzeigename(platz3Spiel.teamB, teams) : "—",
+    saetzeA: platz3Spiel.saetzeA, saetzeB: platz3Spiel.saetzeB,
+    status: platz3Spiel.status, gemeldetVon: platz3Spiel.gemeldetVon || null,
+    siegerTeamId: platz3Spiel.status === "bestaetigt" ? matchSieger(platz3Spiel) : null,
+  } : null;
+  return { runden, platz3, siegerTeamId: meta.siegerTeamId || null };
 }
 
 function matchSieger(spiel) {
@@ -313,6 +402,13 @@ function getZustand() {
     listeGeladen: indexGeladen,
     teamGroesse: metaTeamGroesse(meta),
     ablauf: metaAblauf(meta),
+    istSchweizer: istSchweizer(meta),
+    hatKoRunde: hatKoRunde(meta),
+    hatVorrunde: hatVorrunde(meta),
+    tiebreak: metaTiebreak(meta),
+    punkteSieg: metaPunkteSieg(meta),
+    schweizerRunden: Number(meta.schweizerRunden) || 0,
+    schweizerGespielt: vorhanden && istSchweizer(meta) ? schweizerGespielteRunden(spiele) : 0,
     vorhanden,
     phase: vorhanden ? meta.phase : null,
     meta,
@@ -702,7 +798,22 @@ function verteileNachToepfen(teams, anzahlGruppen) {
 async function loseTurnier(optionen) {
   const meta = letzterZustand && letzterZustand.meta;
   if (!meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
-  return metaAblauf(meta) === "nur_ko" ? loseKoDirekt(optionen) : loseGruppen(optionen);
+  if (metaAblauf(meta) === "nur_ko") return loseKoDirekt(optionen);
+  if (istSchweizer(meta)) return starteSchweizer(optionen);
+  return loseGruppen(optionen);
+}
+
+// Werte, die bei jeder Auslosungs-Art gleich aus den Optionen kommen.
+function gemeinsameLosMeta(opt, meta) {
+  const updates = {};
+  updates["meta/bestOf"] = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
+  updates["meta/bestOfFinale"] = [3, 5, 7].includes(Number(opt.bestOfFinale)) ? Number(opt.bestOfFinale) : null;
+  updates["meta/punkteSieg"] = metaPunkteSieg({ punkteSieg: opt.punkteSieg });
+  updates["meta/tiebreak"] = TIEBREAK_ARTEN.indexOf(opt.tiebreak) !== -1
+    ? opt.tiebreak
+    : metaTiebreak(meta);
+  updates["meta/spielUmPlatz3"] = hatKoRunde(meta) ? !!opt.spielUmPlatz3 : false;
+  return updates;
 }
 
 async function loseGruppen(optionen) {
@@ -715,7 +826,7 @@ async function loseGruppen(optionen) {
 
   const opt = optionen || {};
   const nurGruppen = metaAblauf(meta) === "nur_gruppen";
-  const bestOf = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
+  const doppelrunde = !!opt.doppelrunde;
   // "Jeder gegen jeden" ist genau eine Gruppe, und hervorgehoben wird nur, wer
   // sie gewinnt – es kommt ja niemand irgendwohin weiter.
   const anzahlGruppen = nurGruppen
@@ -741,25 +852,184 @@ async function loseGruppen(optionen) {
       updates[`teams/${tid}/gruppe`] = gName;
     });
     updates["gruppen"][gid] = { name: gName, teamIds: teamIdsMap };
-    // Round-Robin: jede Paarung genau einmal
-    for (let a = 0; a < teamIds.length; a++) {
-      for (let b = a + 1; b < teamIds.length; b++) {
-        const sid = `g_${gName}_${a}_${b}`;
-        updates["spiele"][sid] = {
-          phase: "gruppe", gruppe: gName,
-          teamA: teamIds[a], teamB: teamIds[b],
-          saetzeA: null, saetzeB: null,
-          status: "offen", gemeldetVon: null,
-        };
+    // Round-Robin: jede Paarung genau einmal – mit Hin- und Rückrunde zweimal,
+    // beim zweiten Mal mit vertauschten Seiten.
+    const durchgaenge = doppelrunde ? 2 : 1;
+    for (let d = 0; d < durchgaenge; d++) {
+      for (let a = 0; a < teamIds.length; a++) {
+        for (let b = a + 1; b < teamIds.length; b++) {
+          const sid = `g_${gName}_${a}_${b}` + (d ? "_r" : "");
+          updates["spiele"][sid] = {
+            phase: "gruppe", gruppe: gName, runde: d,
+            teamA: d ? teamIds[b] : teamIds[a],
+            teamB: d ? teamIds[a] : teamIds[b],
+            saetzeA: null, saetzeB: null,
+            status: "offen", gemeldetVon: null,
+          };
+        }
       }
     }
   });
+  Object.assign(updates, gemeinsameLosMeta(opt, meta));
   updates["meta/phase"] = "gruppen";
-  updates["meta/bestOf"] = bestOf;
   updates["meta/anzahlGruppen"] = anzahlGruppen;
   updates["meta/weiterProGruppe"] = weiterProGruppe;
+  updates["meta/doppelrunde"] = doppelrunde;
+  updates["meta/schweizerRunden"] = null;
   await db.ref(turnierBasis()).update(updates);
   return { erfolg: true };
+}
+
+// ===========================================================================
+// Schweizer System
+// ===========================================================================
+// Jede Runde spielt jede:r gegen eine:n mit möglichst gleicher Punktzahl, und
+// nie zweimal gegen dieselbe Person. Nach der letzten Runde entscheidet die
+// Tabelle – bei Punktgleichstand üblicherweise Buchholz (Summe der Punkte
+// aller eigenen Gegner: wer die stärkeren Gegner hatte, steht vorn).
+const SCHWEIZER_GRUPPE = "S";
+
+function schweizerVorschlagRunden(anzahl) {
+  if (anzahl < 2) return 1;
+  return Math.max(3, Math.ceil(Math.log2(anzahl)));
+}
+
+// Wer hat schon gegen wen gespielt? Freilose zählen nicht als Begegnung.
+function bisherigePaarungen(spiele) {
+  const gespielt = {};
+  spiele.filter((s) => s.phase === "gruppe" && s.teamA && s.teamB).forEach((s) => {
+    (gespielt[s.teamA] = gespielt[s.teamA] || {})[s.teamB] = true;
+    (gespielt[s.teamB] = gespielt[s.teamB] || {})[s.teamA] = true;
+  });
+  return gespielt;
+}
+
+// Greedy von oben nach unten: der oder die Erste bekommt den nächsten noch
+// freien Gegner, gegen den noch nicht gespielt wurde. Findet sich keiner, wird
+// als letztes Mittel eine Wiederholung erlaubt – lieber ein zweites Duell als
+// eine Runde, die gar nicht zustande kommt.
+function schweizerPaare(reihenfolge, gespielt) {
+  const offen = reihenfolge.slice();
+  const paare = [];
+  while (offen.length > 1) {
+    const a = offen.shift();
+    let idx = offen.findIndex((b) => !(gespielt[a] && gespielt[a][b]));
+    if (idx === -1) idx = 0;
+    paare.push([a, offen[idx]]);
+    offen.splice(idx, 1);
+  }
+  return { paare, freilos: offen.length ? offen[0] : null };
+}
+
+// Freilos an die/den Letzte:n, die/der noch keins hatte – sonst sammelt immer
+// dieselbe Person die Geschenkpunkte.
+function schweizerFreilosKandidat(reihenfolge, tabelle) {
+  const hatteFreilos = {};
+  tabelle.forEach((z) => { if (z.freilose > 0) hatteFreilos[z.teamId] = true; });
+  for (let i = reihenfolge.length - 1; i >= 0; i--) {
+    if (!hatteFreilos[reihenfolge[i]]) return reihenfolge[i];
+  }
+  return reihenfolge[reihenfolge.length - 1];
+}
+
+function schweizerRundenSpiele(runde, paare, freilos, meta) {
+  const spiele = {};
+  paare.forEach(([a, b], i) => {
+    spiele[`s_r${runde}_p${i}`] = {
+      phase: "gruppe", gruppe: SCHWEIZER_GRUPPE, runde, position: i,
+      teamA: a, teamB: b,
+      saetzeA: null, saetzeB: null,
+      status: "offen", gemeldetVon: null,
+    };
+  });
+  if (freilos) {
+    spiele[`s_r${runde}_frei`] = {
+      phase: "gruppe", gruppe: SCHWEIZER_GRUPPE, runde, position: paare.length,
+      teamA: freilos, teamB: null,
+      saetzeA: noetigeSaetze(meta.bestOf), saetzeB: 0,
+      status: "bestaetigt", gemeldetVon: "freilos",
+    };
+  }
+  return spiele;
+}
+
+async function starteSchweizer(optionen) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand.meta;
+  if (meta.phase !== "teams") return { erfolg: false, fehler: "Erst die Teilnehmer festlegen." };
+  const teams = teamListe();
+  if (teams.length < 3) return { erfolg: false, fehler: "Schweizer System braucht mindestens 3 Teilnehmer." };
+
+  const opt = optionen || {};
+  const gemeinsam = gemeinsameLosMeta(opt, meta);
+  const bestOf = gemeinsam["meta/bestOf"];
+  const maxRunden = Math.max(1, teams.length - 1);
+  const runden = Math.max(1, Math.min(maxRunden, Number(opt.schweizerRunden) || schweizerVorschlagRunden(teams.length)));
+  const weiter = Math.max(2, Math.min(teams.length, Number(opt.weiterInsgesamt) || 4));
+
+  // Runde 1: Setzliste = obere Hälfte gegen untere Hälfte (Stärkste treffen
+  // erst später aufeinander), sonst reines Los.
+  const sortiert = opt.modus === "zufaellig"
+    ? mischeArray(teams).map((t) => t.id)
+    : teams.slice().sort((a, b) => (b.ratingSchnitt || 0) - (a.ratingSchnitt || 0)).map((t) => t.id);
+  const haelfte = Math.floor(sortiert.length / 2);
+  const paare = [];
+  for (let i = 0; i < haelfte; i++) paare.push([sortiert[i], sortiert[haelfte + i]]);
+  const freilos = sortiert.length % 2 ? sortiert[sortiert.length - 1] : null;
+
+  const teamIdsMap = {};
+  sortiert.forEach((tid) => { teamIdsMap[tid] = true; });
+
+  const updates = Object.assign({}, gemeinsam);
+  updates["gruppen"] = { ["gruppe_" + SCHWEIZER_GRUPPE]: { name: SCHWEIZER_GRUPPE, teamIds: teamIdsMap } };
+  updates["spiele"] = schweizerRundenSpiele(0, paare, freilos, { bestOf });
+  updates["meta/phase"] = "gruppen";
+  updates["meta/anzahlGruppen"] = 1;
+  updates["meta/schweizerRunden"] = runden;
+  updates["meta/weiterInsgesamt"] = weiter;
+  updates["meta/weiterProGruppe"] = weiter;
+  updates["meta/doppelrunde"] = false;
+  await db.ref(turnierBasis()).update(updates);
+  return { erfolg: true };
+}
+
+function schweizerGespielteRunden(spiele) {
+  const nummern = spiele.filter((s) => s.phase === "gruppe").map((s) => Number(s.runde) || 0);
+  return nummern.length ? Math.max(...nummern) + 1 : 0;
+}
+
+async function naechsteSchweizerRunde() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand.meta;
+  if (meta.phase !== "gruppen" || !istSchweizer(meta)) {
+    return { erfolg: false, fehler: "Kein laufendes Schweizer System." };
+  }
+  if (!alleGruppenspieleBestaetigt()) {
+    return { erfolg: false, fehler: "Es sind noch nicht alle Spiele bestätigt." };
+  }
+  const spiele = spielListe();
+  const gespielt = schweizerGespielteRunden(spiele);
+  const gesamt = Number(meta.schweizerRunden) || 0;
+  if (gespielt >= gesamt) return { erfolg: false, fehler: "Alle Runden sind gespielt." };
+
+  const teams = teamListe();
+  const gruppen = gruppenMitTabellen(teams, spiele, meta);
+  const tabelle = (gruppen[0] && gruppen[0].tabelle) || [];
+  if (tabelle.length < 2) return { erfolg: false, fehler: "Zu wenige Teilnehmer." };
+
+  const reihenfolge = tabelle.map((z) => z.teamId);
+  const ungerade = reihenfolge.length % 2 === 1;
+  const freilos = ungerade ? schweizerFreilosKandidat(reihenfolge, tabelle) : null;
+  const zuPaaren = ungerade ? reihenfolge.filter((id) => id !== freilos) : reihenfolge;
+  const { paare } = schweizerPaare(zuPaaren, bisherigePaarungen(spiele));
+
+  const neue = schweizerRundenSpiele(gespielt, paare, freilos, meta);
+  const updates = {};
+  Object.keys(neue).forEach((sid) => { updates["spiele/" + sid] = neue[sid]; });
+  await db.ref(turnierBasis()).update(updates);
+  return { erfolg: true, runde: gespielt + 1 };
 }
 
 // --- Ergebnis melden / bestätigen -----------------------------------------
@@ -799,7 +1069,7 @@ async function meldeErgebnis(spielId, saetzeA, saetzeB) {
     return { erfolg: false, fehler: "Nur die beteiligten Teams dürfen melden." };
   }
   if (spiel.status === "bestaetigt") return { erfolg: false, fehler: "Ergebnis ist bereits bestätigt." };
-  const v = validiereSaetze(saetzeA, saetzeB, meta.bestOf);
+  const v = validiereSaetze(saetzeA, saetzeB, bestOfFuer(spiel, meta));
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
 
   const meinTeamId = rolle.team ? rolle.team.id : (istAdmin() ? "admin" : null);
@@ -848,7 +1118,7 @@ async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const spiel = findeSpiel(spielId);
   if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
-  const v = validiereSaetze(saetzeA, saetzeB, letzterZustand.meta.bestOf);
+  const v = validiereSaetze(saetzeA, saetzeB, bestOfFuer(spiel, letzterZustand.meta));
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
   await db.ref(turnierBasis() + "/spiele/" + spielId).update({
     saetzeA: v.a, saetzeB: v.b, status: "bestaetigt", gemeldetVon: "admin",
@@ -871,20 +1141,33 @@ async function starteKoAuslosung() {
   if (!alleGruppenspieleBestaetigt()) {
     return { erfolg: false, fehler: "Es sind noch nicht alle Gruppenspiele bestätigt." };
   }
+  if (istSchweizer(meta) && schweizerGespielteRunden(spielListe()) < (Number(meta.schweizerRunden) || 0)) {
+    return { erfolg: false, fehler: "Es fehlen noch Runden im Schweizer System." };
+  }
 
   const teams = teamListe();
   const spiele = spielListe();
   const gruppen = gruppenMitTabellen(teams, spiele, meta).sort((a, b) => a.name.localeCompare(b.name));
-  const weiter = Math.min(meta.weiterProGruppe || 2, Math.max(...gruppen.map((g) => g.teamIds.length)));
 
   // Qualifizierte einsammeln: platz-major (alle Platz 1, dann alle Platz 2, ...)
+  // Beim Schweizer System gibt es nur eine Tabelle – dort zählt schlicht die
+  // eingestellte Zahl von oben.
   const qualifizierte = [];
-  for (let platz = 0; platz < weiter; platz++) {
-    gruppen.forEach((g, gi) => {
-      if (g.tabelle[platz]) qualifizierte.push({ teamId: g.tabelle[platz].teamId, gruppenIndex: gi, platz });
-    });
+  if (istSchweizer(meta)) {
+    const tabelle = (gruppen[0] && gruppen[0].tabelle) || [];
+    const weiter = Math.min(Number(meta.weiterInsgesamt) || 4, tabelle.length);
+    for (let platz = 0; platz < weiter; platz++) {
+      qualifizierte.push({ teamId: tabelle[platz].teamId, gruppenIndex: 0, platz });
+    }
+  } else {
+    const weiter = Math.min(meta.weiterProGruppe || 2, Math.max(...gruppen.map((g) => g.teamIds.length)));
+    for (let platz = 0; platz < weiter; platz++) {
+      gruppen.forEach((g, gi) => {
+        if (g.tabelle[platz]) qualifizierte.push({ teamId: g.tabelle[platz].teamId, gruppenIndex: gi, platz });
+      });
+    }
   }
-  if (qualifizierte.length < 2) return { erfolg: false, fehler: "Zu wenige qualifizierte Teams." };
+  if (qualifizierte.length < 2) return { erfolg: false, fehler: "Zu wenige qualifizierte Teilnehmer." };
 
   const ersteRunde = koErsteRunde(qualifizierte.map((q) => q.teamId));
   const updates = {};
@@ -916,6 +1199,7 @@ function koErsteRunde(teamIdsNachSeed) {
       saetzeA: null, saetzeB: null,
       status: istFreilos ? "bestaetigt" : "offen",
       gemeldetVon: null,
+      istFinale: matches === 1,
     };
   }
   return spiele;
@@ -931,17 +1215,16 @@ async function loseKoDirekt(optionen) {
   if (teams.length < 2) return { erfolg: false, fehler: "Zu wenige Teilnehmer." };
 
   const opt = optionen || {};
-  const bestOf = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
   // Setzliste = nach Rating; "rein zufällig" mischt vorher durch.
   const sortiert = opt.modus === "zufaellig"
     ? mischeArray(teams)
     : teams.slice().sort((a, b) => (b.ratingSchnitt || 0) - (a.ratingSchnitt || 0));
 
-  const updates = {};
+  const updates = Object.assign({}, gemeinsameLosMeta(opt, meta));
   updates["gruppen"] = null;
   updates["spiele"] = koErsteRunde(sortiert.map((t) => t.id));
   updates["meta/phase"] = "ko";
-  updates["meta/bestOf"] = bestOf;
+  updates["meta/schweizerRunden"] = null;
   await db.ref(turnierBasis()).update(updates);
   await pruefeKoProgression(); // Freilose sofort weiterziehen
   return { erfolg: true };
@@ -953,11 +1236,14 @@ async function beendeNachGruppen() {
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
   if (meta.phase !== "gruppen") return { erfolg: false, fehler: "Erst die Spiele." };
-  if (metaAblauf(meta) !== "nur_gruppen") {
+  if (hatKoRunde(meta)) {
     return { erfolg: false, fehler: "Dieses Turnier endet mit der K.-o.-Runde." };
   }
   if (!alleGruppenspieleBestaetigt()) {
     return { erfolg: false, fehler: "Es sind noch nicht alle Spiele bestätigt." };
+  }
+  if (istSchweizer(meta) && schweizerGespielteRunden(spielListe()) < (Number(meta.schweizerRunden) || 0)) {
+    return { erfolg: false, fehler: "Es fehlen noch Runden im Schweizer System." };
   }
   const gruppen = gruppenMitTabellen(teamListe(), spielListe(), meta);
   const erster = gruppen[0] && gruppen[0].tabelle[0];
@@ -977,7 +1263,10 @@ async function pruefeKoProgression() {
   const zustand = snap.val();
   if (!zustand || !zustand.meta || zustand.meta.phase !== "ko") return;
   const spiele = Object.keys(zustand.spiele || {}).map((sid) => ({ id: sid, ...zustand.spiele[sid] }));
-  const koSpiele = spiele.filter((s) => s.phase === "ko");
+  // ⚠️ Das Spiel um Platz 3 liegt in derselben Runde wie das Finale, entscheidet
+  // aber nichts über den Turniersieg – es MUSS aus der Progression heraus, sonst
+  // zählt es als zweites Match der Runde und erzeugt eine Runde danach.
+  const koSpiele = spiele.filter((s) => s.phase === "ko" && !s.platz3);
   if (koSpiele.length === 0) return;
 
   const maxRunde = Math.max(...koSpiele.map((s) => s.runde));
@@ -986,6 +1275,7 @@ async function pruefeKoProgression() {
   if (!alleBestaetigt) return;
 
   const sieger = (s) => (!s.teamB ? s.teamA : s.saetzeA > s.saetzeB ? s.teamA : s.teamB);
+  const verlierer = (s) => (!s.teamB ? null : s.saetzeA > s.saetzeB ? s.teamB : s.teamA);
 
   if (aktuelle.length === 1) {
     // Finale entschieden
@@ -997,8 +1287,9 @@ async function pruefeKoProgression() {
   // Nächste Runde erzeugen, falls noch nicht vorhanden
   const naechste = maxRunde + 1;
   if (koSpiele.some((s) => s.runde === naechste)) return; // Guard: schon angelegt
+  const anzahlNaechste = aktuelle.length / 2;
   const updates = {};
-  for (let p = 0; p < aktuelle.length / 2; p++) {
+  for (let p = 0; p < anzahlNaechste; p++) {
     const sid = `ko_r${naechste}_p${p}`;
     updates["spiele/" + sid] = {
       phase: "ko", runde: naechste, position: p,
@@ -1006,7 +1297,24 @@ async function pruefeKoProgression() {
       teamB: sieger(aktuelle[p * 2 + 1]),
       saetzeA: null, saetzeB: null,
       status: "offen", gemeldetVon: null,
+      // Marker fürs abweichende Best-of des Finales – aus dem Spiel allein wäre
+      // später nicht erkennbar, dass es das letzte ist.
+      istFinale: anzahlNaechste === 1,
     };
+  }
+  // Halbfinale gerade beendet und "Spiel um Platz 3" eingeschaltet: die beiden
+  // Verlierer spielen den dritten Platz aus.
+  if (anzahlNaechste === 1 && zustand.meta.spielUmPlatz3) {
+    const dritte = [verlierer(aktuelle[0]), verlierer(aktuelle[1])].filter(Boolean);
+    if (dritte.length === 2 && !spiele.some((s) => s.platz3)) {
+      updates["spiele/ko_platz3"] = {
+        phase: "ko", runde: naechste, position: 1,
+        teamA: dritte[0], teamB: dritte[1],
+        saetzeA: null, saetzeB: null,
+        status: "offen", gemeldetVon: null,
+        platz3: true,
+      };
+    }
   }
   await db.ref(turnierBasis()).update(updates);
 }
@@ -1096,7 +1404,7 @@ async function simuliereOffeneSpiele() {
   const offene = simulierbareSpiele();
   if (!offene.length) return { erfolg: false, fehler: "Es sind gerade keine Spiele offen." };
 
-  const noetig = noetigeSaetze(letzterZustand.meta.bestOf);
+  const meta = letzterZustand.meta;
   const rating = {};
   teamListe().forEach((t) => { rating[t.id] = t.ratingSchnitt || RATING_DEFAULT; });
 
@@ -1106,6 +1414,7 @@ async function simuliereOffeneSpiele() {
     const rb = rating[s.teamB] || RATING_DEFAULT;
     const chanceA = 1 / (1 + Math.pow(10, (rb - ra) / 400));
     const aGewinnt = Math.random() < chanceA;
+    const noetig = noetigeSaetze(bestOfFuer(s, meta));
     const knapp = Math.floor(Math.random() * noetig); // Sätze des Verlierers: 0 .. noetig-1
     updates["spiele/" + s.id + "/saetzeA"] = aGewinnt ? noetig : knapp;
     updates["spiele/" + s.id + "/saetzeB"] = aGewinnt ? knapp : noetig;
@@ -1182,6 +1491,8 @@ const turnierService = {
   tauscheSpieler,
   loseTurnier,
   loseGruppen,
+  naechsteSchweizerRunde,
+  schweizerVorschlagRunden,
   beendeNachGruppen,
   meldeErgebnis,
   bestaetigeErgebnis,

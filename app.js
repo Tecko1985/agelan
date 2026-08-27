@@ -121,6 +121,8 @@ const ABLAUF_TEXT = {
   gruppen_ko: "Gruppen + K.-o.",
   nur_ko: "Nur K.-o.",
   nur_gruppen: "Jeder gegen jeden",
+  schweizer: "Schweizer System",
+  schweizer_ko: "Schweizer + K.-o.",
 };
 
 // Im Einzelturnier gibt es keine Teams – dann heißt alles "Teilnehmer".
@@ -136,11 +138,17 @@ function renderAuswahl(z) {
   leer.style.display = liste.length === 0 && z.listeGeladen ? "" : "none";
   box.innerHTML = liste
     .map((t) => {
+      // "Gruppenphase" stimmt nur da, wo es wirklich Gruppen gibt.
+      const eineTabelle = t.ablauf === "nur_gruppen" || t.ablauf === "schweizer" || t.ablauf === "schweizer_ko";
       const phase = t.phase === "teams" && t.teamGroesse === 1
         ? "Teilnehmer stehen fest"
+        : t.phase === "gruppen" && eineTabelle
+        ? "Spiele laufen"
         : PHASE_TEXT[t.phase] || (t.geladen ? "—" : "wird geladen …");
       const zahl = t.spielerAnzahl === 1 ? "1 Angemeldete:r" : t.spielerAnzahl + " Angemeldete";
-      const art = (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "");
+      // Solange der Turnierbaum nicht da ist, stehen in teamGroesse/ablauf nur
+      // die Standardwerte – die dürfen nicht als Tatsache auf der Kachel landen.
+      const art = t.geladen ? (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "") : "";
       const aktion = t.binIchDrin
         ? "Du bist dabei"
         : t.phase === "anmeldung"
@@ -275,13 +283,30 @@ function renderTeams(z) {
 
     // Gruppen und Weiterkommende gibt es nur, wenn eine Gruppenphase gespielt wird.
     const mitGruppen = z.ablauf === "gruppen_ko";
+    const tabellenphase = z.ablauf === "nur_gruppen" || z.istSchweizer || mitGruppen;
     document.getElementById("los-gruppenfelder").style.display = mitGruppen ? "" : "none";
     document.getElementById("los-vorschau").style.display = mitGruppen ? "" : "none";
+    document.getElementById("los-schweizerfelder").style.display = z.istSchweizer ? "" : "none";
+    document.getElementById("los-schweizer-hinweis").style.display = z.istSchweizer ? "" : "none";
+    document.getElementById("los-weiter-gesamt-feld").style.display = z.istSchweizer && z.hatKoRunde ? "" : "none";
+    document.getElementById("los-finalfeld").style.display = z.hatKoRunde ? "" : "none";
+    document.getElementById("los-platz3-zeile").style.display = z.hatKoRunde ? "" : "none";
+    // Hin- und Rückrunde ergibt nur da Sinn, wo feste Paarungen entstehen –
+    // im Schweizer System werden die Gegner ja erst je Runde ausgelost.
+    document.getElementById("los-doppelrunde-zeile").style.display =
+      mitGruppen || z.ablauf === "nur_gruppen" ? "" : "none";
+    // Punkte und Gleichstand betreffen nur eine Tabelle.
+    document.getElementById("los-wertungfelder").style.display = tabellenphase ? "" : "none";
+
     document.getElementById("los-ablauf-hinweis").textContent =
       z.ablauf === "nur_ko"
         ? "Nur K.-o.-Runde: alle " + z.teams.length + " " + wort + " kommen direkt ins Bracket, wer verliert ist raus."
         : z.ablauf === "nur_gruppen"
         ? "Jeder gegen jeden: alle " + z.teams.length + " " + wort + " spielen in einer Tabelle, danach entscheidet Platz 1."
+        : z.ablauf === "schweizer"
+        ? "Schweizer System: feste Rundenzahl, jede Runde neue Gegner mit ähnlicher Punktzahl. Danach entscheidet die Tabelle."
+        : z.ablauf === "schweizer_ko"
+        ? "Schweizer System, danach kommen die Besten in die K.-o.-Runde."
         : "Gruppenphase, danach K.-o.-Runde.";
     // Bei "jeder gegen jeden" spielt ohnehin jede:r gegen jede:n – die
     // Auslosungs-Art hätte dort keine Wirkung.
@@ -293,9 +318,28 @@ function renderTeams(z) {
     if (!losFelderInit) {
       losFelderInit = true;
       document.getElementById("los-gruppen").value = Math.max(1, Math.ceil(z.teams.length / 4));
+      document.getElementById("los-runden").value = turnierService.schweizerVorschlagRunden(z.teams.length);
+      document.getElementById("los-weiter-gesamt").value = Math.min(z.teams.length, 4);
+      document.getElementById("los-tiebreak").value = z.tiebreak;
+      document.getElementById("los-punkte").value = z.punkteSieg;
     }
+    if (z.istSchweizer) aktualisiereSchweizerHinweis(z.teams.length);
     aktualisiereLosVorschau(z.teams.length);
   }
+}
+
+// Sagt an, wie viele Spiele bei der gewählten Rundenzahl je Person anfallen.
+function aktualisiereSchweizerHinweis(anzahl) {
+  const feld = document.getElementById("los-runden");
+  const box = document.getElementById("los-schweizer-hinweis");
+  if (!feld || !box) return;
+  const max = Math.max(1, anzahl - 1);
+  const runden = Math.max(1, Math.min(max, Number(feld.value) || 1));
+  const ungerade = anzahl % 2 === 1;
+  box.textContent = "→ " + runden + " Runde" + (runden > 1 ? "n" : "") + ", also " + runden +
+    " Spiel" + (runden > 1 ? "e" : "") + " je Teilnehmer" +
+    (ungerade ? " (ungerade Zahl: je Runde bekommt eine:r ein Freilos und damit einen Sieg geschenkt)." : ".") +
+    " Höchstens " + max + " Runden möglich, sonst gäbe es Wiederholungen.";
 }
 
 // Zeigt an, wie groß die Gruppen bei der aktuell gewählten Gruppenzahl würden.
@@ -317,61 +361,86 @@ function aktualisiereLosVorschau(teamAnzahl) {
 
 // --- GRUPPEN ---------------------------------------------------------------
 function renderGruppen(z) {
-  // "Jeder gegen jeden" hat keine K.-o.-Runde danach: die Tabelle entscheidet.
-  const nurGruppen = z.ablauf === "nur_gruppen";
+  // Eine Tabelle statt Gruppen: "Jeder gegen jeden" und Schweizer System.
+  const eineTabelle = z.ablauf === "nur_gruppen" || z.istSchweizer;
   const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
+  // Buchholz nur zeigen, wenn danach auch gewertet wird – sonst ist es eine
+  // Zahl, die niemand einordnen kann.
+  const zeigeBuchholz = z.tiebreak === "buchholz";
+  // Hervorheben, wer weiterkommt. Ohne K.-o.-Runde ist das nur Platz 1.
+  const qualBis = !z.hatKoRunde ? 1 : z.istSchweizer ? (z.meta.weiterInsgesamt || 4) : (z.meta.weiterProGruppe || 2);
+
   const container = document.getElementById("gruppen-container");
   container.innerHTML = z.gruppen
     .map((g) => {
       const zeilen = g.tabelle
         .map((r, i) => {
-          const qual = i < (z.meta.weiterProGruppe || 2) ? " qual" : "";
-          return `<tr class="${qual.trim()}">
+          const frei = r.freilose > 0 ? ' <span class="spieler-badge">Freilos</span>' : "";
+          return `<tr class="${i < qualBis ? "qual" : ""}">
             <td class="pos">${i + 1}</td>
-            <td class="tname">${escapeHtml(r.name)}</td>
+            <td class="tname">${escapeHtml(r.name)}${frei}</td>
             <td>${r.spiele}</td>
             <td>${r.siege}-${r.niederlagen}</td>
             <td>${r.saetzePlus}:${r.saetzeMinus}</td>
+            ${zeigeBuchholz ? `<td>${r.buchholz}</td>` : ""}
             <td class="punkte">${r.punkte}</td>
           </tr>`;
         })
         .join("");
-      const spiele = g.spiele.map((s) => spielZeileHtml(z, s)).join("");
+      // Im Schweizer System nach Runden bündeln – sonst steht alles in einem Block.
+      const spiele = z.istSchweizer
+        ? g.runden.map((r) => `<h4 class="runden-titel">Runde ${r.runde + 1}</h4>
+            <div class="spiel-liste">${r.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`).join("")
+        : `<div class="spiel-liste">${g.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`;
       return `<div class="gruppe">
-        ${nurGruppen ? "" : `<h3>Gruppe ${escapeHtml(g.name)}</h3>`}
+        ${eineTabelle ? "" : `<h3>Gruppe ${escapeHtml(g.name)}</h3>`}
         <table class="tabelle">
-          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th><th>Pkt</th></tr></thead>
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? "<th>BH</th>" : ""}<th>Pkt</th></tr></thead>
           <tbody>${zeilen}</tbody>
         </table>
-        <div class="spiel-liste">${spiele}</div>
+        ${spiele}
       </div>`;
     })
     .join("");
 
-  document.getElementById("gruppen-titel").textContent = nurGruppen ? "Tabelle" : "Gruppenphase";
+  const rundenText = z.istSchweizer ? ` – Runde ${Math.max(1, z.schweizerGespielt)} von ${z.schweizerRunden}` : "";
+  document.getElementById("gruppen-titel").textContent =
+    (z.istSchweizer ? "Schweizer System" : eineTabelle ? "Tabelle" : "Gruppenphase") + rundenText;
 
   const offen = z.spiele.filter((s) => s.phase === "gruppe" && s.status !== "bestaetigt").length;
+  // Im Schweizer System kommt erst die nächste Runde, und erst nach der letzten
+  // die K.-o.-Runde bzw. der Abschluss.
+  const fehlendeRunden = z.istSchweizer && z.schweizerGespielt < z.schweizerRunden;
+
   const adminBlock = document.getElementById("gruppen-admin");
   adminBlock.style.display = z.istAdmin ? "" : "none";
   if (z.istAdmin) {
     const btn = document.getElementById("btn-ko-losen");
     btn.disabled = offen > 0;
-    btn.textContent = nurGruppen ? "Turnier beenden →" : "K.o.-Auslosung starten →";
+    btn.textContent = fehlendeRunden
+      ? `Runde ${z.schweizerGespielt + 1} auslosen →`
+      : z.hatKoRunde
+      ? "K.o.-Auslosung starten →"
+      : "Turnier beenden →";
     document.getElementById("gruppen-admin-hinweis").textContent =
       offen > 0
         ? `Noch ${offen} unbestätigte(s) Spiel(e).`
-        : nurGruppen
-        ? "Alle Spiele bestätigt – Platz 1 der Tabelle gewinnt."
-        : "Alle Gruppenspiele bestätigt – bereit für die K.-o.-Runde.";
+        : fehlendeRunden
+        ? `Runde ${z.schweizerGespielt} fertig – die nächste wird nach dem aktuellen Stand ausgelost.`
+        : z.hatKoRunde
+        ? "Alle Spiele bestätigt – bereit für die K.-o.-Runde."
+        : "Alle Spiele bestätigt – Platz 1 der Tabelle gewinnt.";
     zeigeSimKnopf("btn-sim-gruppen", z.offeneSpieleAnzahl);
   }
   const warte = document.getElementById("gruppen-warte");
   warte.style.display = z.istAdmin ? "none" : "";
   warte.textContent = offen > 0
     ? `Noch ${offen} Spiel(e) offen.`
-    : nurGruppen
-    ? "Alle Spiele fertig – warte auf den Abschluss durch den Veranstalter."
-    : "Alle Gruppenspiele fertig – warte auf die K.-o.-Auslosung.";
+    : fehlendeRunden
+    ? "Runde fertig – warte auf die Auslosung der nächsten Runde."
+    : z.hatKoRunde
+    ? "Alles fertig – warte auf die K.-o.-Auslosung."
+    : "Alle Spiele fertig – warte auf den Abschluss durch den Veranstalter.";
 }
 
 // --- K.O. ------------------------------------------------------------------
@@ -411,6 +480,7 @@ function renderBeendet(z) {
 function endtabelleHtml(z) {
   if (!z.gruppen || !z.gruppen.length) return '<p class="hinweis-text">Keine Tabelle vorhanden.</p>';
   const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
+  const zeigeBuchholz = z.tiebreak === "buchholz";
   return z.gruppen
     .map((g) => {
       const zeilen = g.tabelle
@@ -420,13 +490,14 @@ function endtabelleHtml(z) {
           <td>${r.spiele}</td>
           <td>${r.siege}-${r.niederlagen}</td>
           <td>${r.saetzePlus}:${r.saetzeMinus}</td>
+          ${zeigeBuchholz ? `<td>${r.buchholz}</td>` : ""}
           <td class="punkte">${r.punkte}</td>
         </tr>`)
         .join("");
       return `<div class="gruppe">
         ${z.gruppen.length > 1 ? `<h3>Gruppe ${escapeHtml(g.name)}</h3>` : ""}
         <table class="tabelle">
-          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th><th>Pkt</th></tr></thead>
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? "<th>BH</th>" : ""}<th>Pkt</th></tr></thead>
           <tbody>${zeilen}</tbody>
         </table>
       </div>`;
@@ -454,7 +525,24 @@ function bracketHtml(z) {
         .join("");
       return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${matches}</div>`;
     })
-    .join("");
+    .join("") + platz3Html(z);
+}
+
+// Das Spiel um Platz 3 haengt unter dem Bracket, nicht in der Rundenfolge –
+// es entscheidet nichts ueber den Turniersieg.
+function platz3Html(z) {
+  const m = z.bracket && z.bracket.platz3;
+  if (!m) return "";
+  const spiel = z.spiele.find((s) => s.id === m.id);
+  const aktionen = spiel ? spielAktionenHtml(z, spiel) : "";
+  const aWin = m.siegerTeamId && m.siegerTeamId === m.teamA ? " sieger" : "";
+  const bWin = m.siegerTeamId && m.siegerTeamId === m.teamB ? " sieger" : "";
+  return `<div class="bracket-runde"><h3>Spiel um Platz 3</h3>
+    <div class="match">
+      <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
+      <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
+      ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
+    </div></div>`;
 }
 
 // --- Spiel-Zeile (Gruppe) + Aktionen --------------------------------------
@@ -463,8 +551,10 @@ function spielZeileHtml(z, s) {
     s.status === "offen"
       ? '<span class="spiel-status">offen</span>'
       : `<span class="spiel-ergebnis${s.status === "bestaetigt" ? " ok" : ""}">${s.saetzeA}:${s.saetzeB}${s.status === "gemeldet" ? " ?" : " ✓"}</span>`;
+  // Freilos: kein Gegner, aber ein gewerteter Sieg – "vs —" liest sich wie ein Fehler.
+  const gegner = s.teamB ? escapeHtml(teamNameVon(z, s.teamB)) : "Freilos";
   return `<div class="spiel-zeile">
-    <div class="spiel-teams"><span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${escapeHtml(teamNameVon(z, s.teamB))}</span></div>
+    <div class="spiel-teams"><span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${gegner}</span></div>
     <div class="spiel-rechts">${ergebnis}</div>
     <div class="spiel-aktionen">${spielAktionenHtml(z, s)}</div>
   </div>`;
@@ -748,21 +838,36 @@ function wireEvents() {
     const res = await turnierService.loseTurnier({
       modus: modusEl ? modusEl.value : "setzliste",
       bestOf: document.getElementById("los-bestof").value,
+      bestOfFinale: document.getElementById("los-bestof-finale").value,
       anzahlGruppen: document.getElementById("los-gruppen").value,
       weiterProGruppe: document.getElementById("los-weiter").value,
+      schweizerRunden: document.getElementById("los-runden").value,
+      weiterInsgesamt: document.getElementById("los-weiter-gesamt").value,
+      punkteSieg: document.getElementById("los-punkte").value,
+      tiebreak: document.getElementById("los-tiebreak").value,
+      doppelrunde: document.getElementById("los-doppelrunde").checked,
+      spielUmPlatz3: document.getElementById("los-platz3").checked,
     });
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
   });
   document.getElementById("los-gruppen").addEventListener("input", () => {
     if (zustand) aktualisiereLosVorschau(zustand.teams.length);
   });
+  document.getElementById("los-runden").addEventListener("input", () => {
+    if (zustand) aktualisiereSchweizerHinweis(zustand.teams.length);
+  });
 
   // Gruppen: K.o. auslosen – oder bei "Jeder gegen jeden" das Turnier beenden.
   document.getElementById("btn-ko-losen").addEventListener("click", async () => {
-    const nurGruppen = zustand && zustand.ablauf === "nur_gruppen";
-    const res = nurGruppen
-      ? await turnierService.beendeNachGruppen()
-      : await turnierService.starteKoAuslosung();
+    if (!zustand) return;
+    // Ein Knopf, drei Bedeutungen: naechste Schweizer Runde, K.-o.-Auslosung
+    // oder Abschluss ueber die Tabelle.
+    const fehlendeRunden = zustand.istSchweizer && zustand.schweizerGespielt < zustand.schweizerRunden;
+    const res = fehlendeRunden
+      ? await turnierService.naechsteSchweizerRunde()
+      : zustand.hatKoRunde
+      ? await turnierService.starteKoAuslosung()
+      : await turnierService.beendeNachGruppen();
     if (!res.erfolg) zeigeFehler("gruppen-admin-hinweis", res.fehler);
   });
 
@@ -845,6 +950,26 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.4",
+    groups: [
+      { title: "Schweizer System mit Buchholz", items: [
+          "Neuer Ablauf: feste Rundenzahl, und in jeder Runde spielst du gegen jemanden mit ähnlicher Punktzahl – nie zweimal gegen dieselbe Person.",
+          "Passt, wenn viele mitspielen, aber nicht jede:r gegen jede:n antreten soll.",
+          "Bei ungerader Teilnehmerzahl bekommt je Runde eine Person ein Freilos, also einen geschenkten Sieg. Wer schon eins hatte, bekommt kein zweites.",
+          "Bei Punktgleichstand entscheidet Buchholz: die Summe der Punkte aller eigenen Gegner. Wer die stärkeren Gegner hatte, steht vorn. Die Spalte „BH“ zeigt den Wert.",
+          "Wahlweise endet das Turnier mit der Tabelle oder die Besten kommen noch in eine K.-o.-Runde."
+      ]},
+      { title: "Mehr Stellschrauben beim Auslosen", items: [
+          "Punkte je Sieg frei einstellbar.",
+          "Bei Punktgleichstand wählbar: Satzdifferenz, direktes Duell oder Buchholz.",
+          "Hin- und Rückrunde: jede Paarung zweimal, beim zweiten Mal mit getauschten Seiten.",
+          "Spiel um Platz 3: die beiden Halbfinal-Verlierer spielen den dritten Platz aus.",
+          "Das Finale kann einen eigenen Modus haben, zum Beispiel Best of 5 statt Best of 3.",
+          "„Jeder gegen jeden“ heißt jetzt auch im Text „Round Robin“ – das ist dasselbe."
+      ]}
+    ]
+  },
   {
     version: "1.3",
     groups: [

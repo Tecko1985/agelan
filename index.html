@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.5">
+<link rel="stylesheet" href="style.css?v=2.7">
 </head>
 <body>
 
@@ -88,7 +88,9 @@
         <select id="neu-ablauf" class="eingabe">
           <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
           <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
-          <option value="nur_gruppen">Jeder gegen jeden — eine Tabelle entscheidet</option>
+          <option value="nur_gruppen">Jeder gegen jeden (Round Robin) — eine Tabelle entscheidet</option>
+          <option value="schweizer">Schweizer System — feste Rundenzahl, Tabelle entscheidet</option>
+          <option value="schweizer_ko">Schweizer System, dann K.-o.-Runde</option>
         </select>
 
         <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
@@ -167,7 +169,9 @@
           <select id="form-ablauf" class="eingabe">
             <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
             <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
-            <option value="nur_gruppen">Jeder gegen jeden — eine Tabelle entscheidet</option>
+            <option value="nur_gruppen">Jeder gegen jeden (Round Robin) — eine Tabelle entscheidet</option>
+            <option value="schweizer">Schweizer System — feste Rundenzahl, Tabelle entscheidet</option>
+            <option value="schweizer_ko">Schweizer System, dann K.-o.-Runde</option>
           </select>
           <button class="btn btn-secondary btn-grow" id="btn-form-speichern">Übernehmen</button>
           <p class="hinweis-text">Änderbar, solange die Anmeldung läuft. Danach hängen Teams und Spiele daran.</p>
@@ -222,6 +226,16 @@
             <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
           </select>
 
+          <div id="los-finalfeld">
+            <label class="feld-label" for="los-bestof-finale">Finale</label>
+            <select id="los-bestof-finale" class="eingabe">
+              <option value="">wie die anderen Spiele</option>
+              <option value="3">Best of 3</option>
+              <option value="5">Best of 5</option>
+              <option value="7">Best of 7</option>
+            </select>
+          </div>
+
           <div class="feld-zeile" id="los-gruppenfelder">
             <div>
               <label class="feld-label" for="los-gruppen">Gruppen</label>
@@ -233,6 +247,42 @@
             </div>
           </div>
           <p class="hinweis-text" id="los-vorschau"></p>
+
+          <div class="feld-zeile" id="los-schweizerfelder" style="display:none">
+            <div>
+              <label class="feld-label" for="los-runden">Runden</label>
+              <input type="number" id="los-runden" class="eingabe" min="1" value="4">
+            </div>
+            <div id="los-weiter-gesamt-feld">
+              <label class="feld-label" for="los-weiter-gesamt">Weiter in die K.-o.-Runde</label>
+              <input type="number" id="los-weiter-gesamt" class="eingabe" min="2" value="4">
+            </div>
+          </div>
+          <p class="hinweis-text" id="los-schweizer-hinweis" style="display:none"></p>
+
+          <div class="feld-zeile" id="los-wertungfelder">
+            <div>
+              <label class="feld-label" for="los-punkte">Punkte je Sieg</label>
+              <input type="number" id="los-punkte" class="eingabe" min="1" max="5" value="3">
+            </div>
+            <div>
+              <label class="feld-label" for="los-tiebreak">Bei Punktgleichstand</label>
+              <select id="los-tiebreak" class="eingabe">
+                <option value="satzdifferenz">Satzdifferenz</option>
+                <option value="direktes_duell">Direktes Duell</option>
+                <option value="buchholz">Buchholz (Stärke der Gegner)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="radio-zeile" id="los-doppelrunde-zeile">
+            <input type="checkbox" id="los-doppelrunde">
+            <span><strong>Hin- und Rückrunde</strong> — jede Paarung zweimal, mit getauschten Seiten</span>
+          </label>
+          <label class="radio-zeile" id="los-platz3-zeile">
+            <input type="checkbox" id="los-platz3">
+            <span><strong>Spiel um Platz 3</strong> — die beiden Halbfinal-Verlierer spielen den dritten Platz aus</span>
+          </label>
 
           <div id="los-art-block">
             <p class="feld-label">Auslosungs-Art</p>
@@ -549,8 +599,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
-    'turnier-service.js?v=2.5',
-    'app.js?v=2.6',
+    'turnier-service.js?v=2.7',
+    'app.js?v=2.7',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];
