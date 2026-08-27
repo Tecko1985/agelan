@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgeLan – Streamplan</title>
+<title>AgeLan – Turnier & Streamplan</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.2">
+<link rel="stylesheet" href="style.css?v=2.4">
 </head>
 <body>
 
@@ -17,7 +17,7 @@
 <div id="pw-gate" style="position:fixed;inset:0;z-index:99999;background:#eef1f6;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif">
   <div style="background:#fff;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.15);padding:28px 26px;max-width:360px;width:100%;text-align:center">
     <div style="font-size:32px;line-height:1;margin-bottom:8px">🔒</div>
-    <h2 style="margin:0 0 6px;font-size:19px;color:#12325b">AgeLan – Streamplan</h2>
+    <h2 style="margin:0 0 6px;font-size:19px;color:#12325b">AgeLan – Turnier &amp; Streamplan</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#5a6b82">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
     <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" style="width:100%;box-sizing:border-box;padding:11px 12px;font-size:16px;border:1px solid #c7d0db;border-radius:8px;margin-bottom:10px" />
     <button id="pw-gate-btn" type="button" style="width:100%;padding:11px 12px;font-size:15px;font-weight:600;color:#fff;background:#1a56a0;border:none;border-radius:8px;cursor:pointer">Öffnen</button>
@@ -45,30 +45,43 @@
 <main id="app">
  <div class="tab-section active" id="tab-turnier">
 
+  <!-- Rückweg aus einem geöffneten Turnier in die Turnierliste -->
+  <div class="turnier-leiste" id="turnier-leiste" style="display:none">
+    <button class="btn btn-link" id="btn-turnier-wechseln">← Alle Turniere</button>
+    <span class="turnier-leiste-name" id="turnier-leiste-name"></span>
+  </div>
+
+  <!-- ============ AUSWAHL (mehrere Turniere nebeneinander) ============ -->
+  <section class="screen active" id="screen-auswahl">
+    <div class="screen-inhalt zentriert">
+      <h1 class="logo">🏆 AgeLan</h1>
+      <p class="untertitel">Turniere</p>
+
+      <div id="auswahl-liste"></div>
+      <p class="hinweis-text" id="auswahl-leer" style="display:none">Aktuell läuft kein Turnier.</p>
+
+      <div class="karte-block">
+        <h2>Turnier anlegen</h2>
+        <p class="hinweis-text">Mehrere Turniere laufen nebeneinander – ein zweites Turnier verdrängt das erste nicht.</p>
+        <label class="feld-label" for="neu-name">Turniername</label>
+        <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026 – 2vs2" maxlength="40" autocomplete="off">
+
+        <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
+        <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+
+        <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
+        <p class="hinweis-text">Modus und Gruppen legst du später beim Auslosen fest – dann steht die Teilnehmerzahl fest.</p>
+        <p class="hinweis-text fehler" id="neu-fehler"></p>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ START ============ -->
-  <section class="screen active" id="screen-start">
+  <section class="screen" id="screen-start">
     <div class="screen-inhalt zentriert">
 
-      <!-- kein Turnier -> anlegen (Veranstalter) -->
-      <div id="start-kein-turnier">
-        <h1 class="logo">🏆 AgeLan</h1>
-        <p class="untertitel">Aktuell läuft kein Turnier.</p>
-        <div class="karte-block">
-          <h2>Turnier anlegen</h2>
-          <label class="feld-label" for="neu-name">Turniername</label>
-          <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026" maxlength="40" autocomplete="off">
-
-          <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
-          <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
-
-          <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
-          <p class="hinweis-text">Modus und Gruppen legst du später beim Auslosen fest – dann steht die Teilnehmerzahl fest.</p>
-          <p class="hinweis-text fehler" id="neu-fehler"></p>
-        </div>
-      </div>
-
       <!-- Turnier läuft, Anmeldung offen -> mitmachen -->
-      <div id="start-turnier-laeuft" style="display:none">
+      <div id="start-turnier-laeuft">
         <h1 class="logo" id="start-turniername">🏆</h1>
         <p class="untertitel" id="start-phase-text">Anmeldung läuft</p>
         <p class="spieler-zaehler" id="start-zaehler"></p>
@@ -326,7 +339,7 @@
  <div class="tab-section" id="tab-info">
    <div class="info-card">
      <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
-     <p>Streamplan für die Veranstaltungstage: wer sendet wann vom Kanal. Jede:r mit Zugang trägt sich selbst ein, alle Geräte sehen den Stand live. Der Turnierteil der App ist zurzeit ausgeblendet.</p>
+     <p>Turniere und Streamplan für die Veranstaltungstage. Im Tab „Turnier“ stehen alle Turniere nebeneinander – du schreibst dich in jedes einzeln ein. Im Tab „Stream“ trägst du ein, wer wann vom Kanal sendet. Alle Geräte sehen den Stand live.</p>
    </div>
    <div class="info-card">
      <h2>Änderungen</h2>
@@ -488,8 +501,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
-    'turnier-service.js?v=2.2',
-    'app.js?v=2.3',
+    'turnier-service.js?v=2.4',
+    'app.js?v=2.4',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];

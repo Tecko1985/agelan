@@ -4,10 +4,9 @@
 // escaped, bevor sie per innerHTML eingesetzt werden (XSS-Schutz).
 // ===========================================================================
 
-// Der Turnierteil ist derzeit ausgeblendet: die Seite wird nur für den Streamplan
-// herausgegeben. Der Code bleibt vollständig erhalten – dieser eine Schalter auf
-// true zurück, und Tab, Screens und Veranstalter-Zahnrad sind wieder da.
-const TURNIER_SICHTBAR = false;
+// Schalter für den ganzen Turnierteil (Tab, Screens, Veranstalter-Zahnrad).
+// Auf false wird die Seite nur für den Streamplan herausgegeben.
+const TURNIER_SICHTBAR = true;
 
 let zustand = null;
 let willMitmachen = false;   // lokaler UI-Zustand: "Jetzt anmelden" geklickt
@@ -52,7 +51,8 @@ function spielerNameVon(z, uid) {
 
 // --- Routing ---------------------------------------------------------------
 function bestimmeScreen(z) {
-  if (!z.vorhanden) return "screen-start";
+  // Kein Turnier geöffnet (oder das gemerkte gibt es nicht mehr) -> Turnierliste.
+  if (!z.turnierId || !z.vorhanden) return "screen-auswahl";
   if (z.phase === "anmeldung") {
     if (willMitmachen && !z.eigenerSpieler) return "screen-login";
     if (z.eigenerSpieler || z.istAdmin) return "screen-lobby";
@@ -68,6 +68,7 @@ function render(z) {
   showScreen(screen);
   if (z.phase !== "teams") losFelderInit = false;
 
+  if (screen === "screen-auswahl") renderAuswahl(z);
   if (screen === "screen-start") renderStart(z);
   if (screen === "screen-lobby") renderLobby(z);
   if (screen === "screen-teams") renderTeams(z);
@@ -75,23 +76,52 @@ function render(z) {
   if (screen === "screen-ko") renderKo(z);
   if (screen === "screen-beendet") renderBeendet(z);
 
+  // Rückweg in die Turnierliste nur, solange ein Turnier geöffnet ist.
+  const leiste = document.getElementById("turnier-leiste");
+  leiste.style.display = screen === "screen-auswahl" ? "none" : "";
+  document.getElementById("turnier-leiste-name").textContent = z.vorhanden ? z.meta.name : "";
+
   // Admin-Zahnrad nur zeigen, wenn ein Turnier existiert – und gar nicht,
   // solange der Turnierteil ausgeblendet ist (es öffnet nur Turnier-Aktionen;
   // der Streamplan hat seinen eigenen Veranstalter-Bereich in seinem Tab).
   document.getElementById("btn-admin-oeffnen").style.display = TURNIER_SICHTBAR && z.vorhanden ? "" : "none";
 }
 
+// --- AUSWAHL: alle Turniere nebeneinander ----------------------------------
+const PHASE_TEXT = {
+  anmeldung: "Anmeldung läuft",
+  teams: "Teams stehen fest",
+  gruppen: "Gruppenphase",
+  ko: "K.-o.-Runde",
+  beendet: "Beendet",
+};
+
+function renderAuswahl(z) {
+  const liste = z.liste || [];
+  const box = document.getElementById("auswahl-liste");
+  const leer = document.getElementById("auswahl-leer");
+
+  leer.style.display = liste.length === 0 && z.listeGeladen ? "" : "none";
+  box.innerHTML = liste
+    .map((t) => {
+      const phase = PHASE_TEXT[t.phase] || (t.geladen ? "—" : "wird geladen …");
+      const zahl = t.spielerAnzahl === 1 ? "1 Angemeldete:r" : t.spielerAnzahl + " Angemeldete";
+      const aktion = t.binIchDrin
+        ? "Du bist dabei"
+        : t.phase === "anmeldung"
+        ? "Einschreiben"
+        : "Ansehen";
+      return `<button class="turnier-karte${t.binIchDrin ? " dabei" : ""}" data-turnier="${escapeHtml(t.id)}">
+        <span class="tk-name">${escapeHtml(t.name)}</span>
+        <span class="tk-meta">${escapeHtml(phase)} · ${escapeHtml(zahl)}</span>
+        <span class="tk-aktion">${escapeHtml(aktion)}</span>
+      </button>`;
+    })
+    .join("");
+}
+
 // --- START -----------------------------------------------------------------
 function renderStart(z) {
-  const keins = document.getElementById("start-kein-turnier");
-  const laeuft = document.getElementById("start-turnier-laeuft");
-  if (!z.vorhanden) {
-    keins.style.display = "";
-    laeuft.style.display = "none";
-    return;
-  }
-  keins.style.display = "none";
-  laeuft.style.display = "";
   document.getElementById("start-turniername").textContent = "🏆 " + z.meta.name;
   document.getElementById("start-phase-text").textContent =
     z.phase === "anmeldung" ? "Anmeldung läuft – mach mit!" : "Turnier läuft";
@@ -390,13 +420,31 @@ function wireEvents() {
   koppleRating("login-rating-slider", "login-rating");
   koppleRating("lobby-rating-slider", "lobby-rating");
 
-  // Turnier erstellen
+  // Turnier erstellen (legt immer ein zusätzliches an)
   document.getElementById("btn-turnier-erstellen").addEventListener("click", async () => {
     const res = await turnierService.erstelleTurnier({
       name: document.getElementById("neu-name").value,
       adminPin: document.getElementById("neu-pin").value,
     });
     zeigeFehler("neu-fehler", res.erfolg ? "" : res.fehler);
+    if (res.erfolg) {
+      document.getElementById("neu-name").value = "";
+      document.getElementById("neu-pin").value = "";
+    }
+  });
+
+  // Turnier aus der Liste öffnen
+  document.getElementById("auswahl-liste").addEventListener("click", (e) => {
+    const karte = e.target.closest("[data-turnier]");
+    if (!karte) return;
+    willMitmachen = false;
+    turnierService.waehleTurnier(karte.dataset.turnier);
+  });
+
+  // Zurück in die Turnierliste
+  document.getElementById("btn-turnier-wechseln").addEventListener("click", () => {
+    willMitmachen = false;
+    turnierService.waehleTurnier(null);
   });
 
   // Mitmachen / Zuschauen
@@ -575,6 +623,21 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.1",
+    groups: [
+      { title: "Mehrere Turniere nebeneinander", items: [
+          "Der Tab „Turnier“ beginnt jetzt mit einer Liste aller Turniere – jedes mit Stand und Zahl der Angemeldeten.",
+          "Ein zweites Turnier verdrängt das erste nicht mehr: „Turnier anlegen“ legt immer ein zusätzliches an.",
+          "Einschreiben geht in jedes Turnier einzeln; wo du schon dabei bist, steht „Du bist dabei“.",
+          "Über „← Alle Turniere“ oben wechselst du jederzeit zurück zur Liste.",
+          "Jedes Turnier hat seinen eigenen Veranstalter-PIN."
+      ]},
+      { title: "Turnierteil wieder sichtbar", items: [
+          "Der Tab „Turnier“ und das Veranstalter-Zahnrad sind wieder eingeblendet."
+      ]}
+    ]
+  },
   {
     version: "1.0",
     groups: [

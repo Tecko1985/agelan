@@ -6,7 +6,7 @@
 // (inkl. berechneter Gruppentabellen und K.o.-Bracket); onZustandsAenderung()
 // meldet jede Live-Änderung.
 //
-// Datenmodell (Realtime Database, ein aktives Turnier unter turniere/aktuell):
+// Datenmodell (Realtime Database, je Turnier ein Knoten unter turniere/<id>):
 //   meta    : { name, erstelltAm, hostId, adminPin, phase, bestOf,
 //               anzahlGruppen, weiterProGruppe, punkteSieg, siegerTeamId }
 //   spieler/$uid  : { name, rating, beigetretenAm }
@@ -16,10 +16,21 @@
 //                     teamA, teamB, saetzeA, saetzeB, status, gemeldetVon }
 //
 // Phasen: anmeldung -> teams -> gruppen -> ko -> beendet
+//
+// MEHRERE TURNIERE NEBENEINANDER: jedes Turnier hat einen eigenen Knoten
+// turniere/<id>. Die Firebase-Regeln erlauben Lesen nur auf einem KONKRETEN
+// turniere/$tid, nicht auf der Sammlung – ein Client kann die vorhandenen
+// Turniere also nicht auflisten. Deshalb führt turniere/_index die Liste der
+// IDs. Dieser Knoten fällt unter dieselbe $tid-Regel (.read: true,
+// .write: auth != null) und braucht KEINE neue Regel in der Firebase-Konsole.
 // ===========================================================================
 
-const TURNIER_ID = "aktuell";
-const BASIS = "turniere/" + TURNIER_ID;
+const INDEX_PFAD = "turniere/_index";
+const ERSTES_TURNIER_ID = "aktuell";   // Altbestand: das erste Turnier lag fest hier
+const TURNIER_ID_KEY = "agelan_turnier_id";
+
+let turnierId = null;                  // aktuell geöffnetes Turnier (null = Auswahl)
+function basis() { return "turniere/" + turnierId; }
 
 const RATING_MIN = 500;
 const RATING_MAX = 3000;
@@ -35,6 +46,13 @@ let eigeneUid = null;
 let letzterZustand = null;   // roher meta/spieler/teams/gruppen/spiele-Snapshot
 let listener = null;
 let turnierRef = null;
+let turnierCb = null;        // Callback des Haupt-Listeners – zum gezielten Abhängen
+
+// Turnierliste
+let indexRoh = {};           // { id: { name, erstelltAm } } aus turniere/_index
+let indexGeladen = false;
+let uebersicht = {};         // { id: roher Baum }  – undefined = noch nicht geladen
+let uebersichtRefs = {};     // { id: { ref, cb } } – zum gezielten Abhängen
 
 const istMock = !!window.__AGELAN_MOCK__;
 
@@ -98,19 +116,39 @@ function rundenTitel(anzahlMatches) {
 }
 
 // --- Admin-Status ----------------------------------------------------------
-function gespeicherterAdminPin() {
+// Jedes Turnier hat einen eigenen PIN, also auch einen eigenen Speicherplatz
+// (agelan_admin_pin_<id>). Der alte Schlüssel agelan_admin_pin wird weiter
+// mitgeschrieben und mitgeprüft: der Streamkalender liest genau diesen.
+function adminPinKey(id) {
+  return ADMIN_PIN_KEY + "_" + (id || turnierId);
+}
+
+function merkeAdminPin(id, pin) {
   try {
-    return localStorage.getItem(ADMIN_PIN_KEY);
-  } catch (e) {
-    return null;
-  }
+    localStorage.setItem(adminPinKey(id), pin);
+    localStorage.setItem(ADMIN_PIN_KEY, pin);
+  } catch (e) {}
+}
+
+// Beide Speicherplätze zurückgeben, nicht nur den ersten gefundenen: sonst
+// verdeckt ein veralteter turnierspezifischer Wert einen gültigen alten.
+function gespeichertePins() {
+  const out = [];
+  try {
+    const a = localStorage.getItem(adminPinKey());
+    if (a) out.push(a);
+    const b = localStorage.getItem(ADMIN_PIN_KEY);
+    if (b) out.push(b);
+  } catch (e) {}
+  return out;
 }
 
 function istAdmin() {
   if (!letzterZustand || !letzterZustand.meta) return false;
   const meta = letzterZustand.meta;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
-  return !!meta.adminPin && gespeicherterAdminPin() === meta.adminPin;
+  if (!meta.adminPin) return false;
+  return gespeichertePins().indexOf(meta.adminPin) !== -1;
 }
 
 // ===========================================================================
@@ -250,6 +288,9 @@ function getZustand() {
   return {
     eigeneUid,
     istMock,
+    turnierId,
+    liste: getListe(),
+    listeGeladen: indexGeladen,
     vorhanden,
     phase: vorhanden ? meta.phase : null,
     meta,
@@ -269,14 +310,115 @@ function benachrichtige() {
   if (listener) listener(getZustand());
 }
 
-function onZustandsAenderung(callback) {
-  listener = callback;
-  authBereit.then(() => {
-    turnierRef = db.ref(BASIS);
-    turnierRef.on("value", (snap) => {
+// ===========================================================================
+// Turnierliste: welche Turniere gibt es, und was ist gerade ihr Stand?
+// ===========================================================================
+function neueTurnierId() {
+  // Kein push() – firebase-mock.js kennt es nicht. Zeit + Zufall reicht hier
+  // vollkommen: Turniere werden von Hand angelegt, nicht im Sekundentakt.
+  return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Ein Eintrag steht im Index, aber unter turniere/<id> liegt nichts mehr:
+// wird nicht angezeigt. undefined = noch nicht geladen, null = wirklich weg.
+function getListe() {
+  return Object.keys(indexRoh)
+    .filter((id) => !(id in uebersicht) || (uebersicht[id] && uebersicht[id].meta))
+    .map((id) => {
+      const baum = uebersicht[id];
+      const meta = (baum && baum.meta) || null;
+      const eintrag = indexRoh[id] || {};
+      return {
+        id,
+        name: (meta && meta.name) || eintrag.name || "Turnier",
+        phase: meta ? meta.phase : null,
+        geladen: id in uebersicht,
+        spielerAnzahl: baum && baum.spieler ? Object.keys(baum.spieler).length : 0,
+        erstelltAm: (meta && meta.erstelltAm) || eintrag.erstelltAm || 0,
+        binIchDrin: !!(baum && baum.spieler && eigeneUid && baum.spieler[eigeneUid]),
+        istOffen: !meta || meta.phase === "anmeldung",
+      };
+    })
+    .sort((a, b) => (a.erstelltAm || 0) - (b.erstelltAm || 0));
+}
+
+function synchronisiereUebersicht() {
+  Object.keys(indexRoh).forEach((id) => {
+    if (uebersichtRefs[id]) return;
+    const ref = db.ref("turniere/" + id);
+    const cb = ref.on("value", (snap) => {
+      uebersicht[id] = snap.val();
+      benachrichtige();
+    });
+    uebersichtRefs[id] = { ref, cb };
+  });
+  Object.keys(uebersichtRefs).forEach((id) => {
+    if (indexRoh[id]) return;
+    // Mit Callback abhängen: der Haupt-Listener liegt auf demselben Pfad und
+    // würde von einem off("value") ohne Callback mit abgeräumt.
+    uebersichtRefs[id].ref.off("value", uebersichtRefs[id].cb);
+    delete uebersichtRefs[id];
+    delete uebersicht[id];
+  });
+}
+
+// Das erste Turnier lag fest unter turniere/aktuell und kannte den Index noch
+// nicht. Steht es da, ohne im Index zu stehen, wird es einmalig nachgetragen.
+async function heileIndex() {
+  const vorhandenerIndex = await db.ref(INDEX_PFAD).once("value");
+  if (vorhandenerIndex.val()) return;
+  const alt = await db.ref("turniere/" + ERSTES_TURNIER_ID + "/meta").once("value");
+  const meta = alt.val();
+  if (!meta) return;
+  await db.ref(INDEX_PFAD + "/" + ERSTES_TURNIER_ID).set({
+    name: meta.name || "Turnier",
+    erstelltAm: meta.erstelltAm || 0,
+  });
+}
+
+function gespeicherteTurnierId() {
+  try { return localStorage.getItem(TURNIER_ID_KEY); } catch (e) { return null; }
+}
+
+// Turnier öffnen (id) oder zurück zur Auswahl (null).
+function waehleTurnier(id) {
+  const neu = id || null;
+  if (neu === turnierId) return;
+  if (turnierRef && turnierCb) turnierRef.off("value", turnierCb);
+  turnierRef = null;
+  turnierCb = null;
+  letzterZustand = null;
+  turnierId = neu;
+  try {
+    if (turnierId) localStorage.setItem(TURNIER_ID_KEY, turnierId);
+    else localStorage.removeItem(TURNIER_ID_KEY);
+  } catch (e) {}
+  if (turnierId) {
+    turnierRef = db.ref(basis());
+    turnierCb = turnierRef.on("value", (snap) => {
       letzterZustand = snap.val();
       benachrichtige();
     });
+  }
+  benachrichtige();
+}
+
+function onZustandsAenderung(callback) {
+  listener = callback;
+  authBereit.then(async () => {
+    try { await heileIndex(); } catch (e) { console.error("Index-Abgleich fehlgeschlagen:", e); }
+    db.ref(INDEX_PFAD).on("value", (snap) => {
+      indexRoh = snap.val() || {};
+      indexGeladen = true;
+      synchronisiereUebersicht();
+      // Gemerktes Turnier gelöscht? Dann zurück in die Auswahl, statt auf einem
+      // leeren Screen zu landen.
+      if (turnierId && !indexRoh[turnierId]) waehleTurnier(null);
+      else benachrichtige();
+    });
+    const gemerkt = gespeicherteTurnierId();
+    if (gemerkt) waehleTurnier(gemerkt);
+    else benachrichtige();
   });
 }
 
@@ -285,17 +427,16 @@ function onZustandsAenderung(callback) {
 // ===========================================================================
 
 // --- Turnier anlegen (Admin) ----------------------------------------------
+// Legt IMMER ein zusätzliches Turnier an – mehrere laufen nebeneinander.
 async function erstelleTurnier({ name, adminPin }) {
   await authBereit;
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Turniernamen eingeben." };
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
-  if (letzterZustand && letzterZustand.meta) {
-    return { erfolg: false, fehler: "Es läuft bereits ein Turnier. Erst zurücksetzen." };
-  }
   const pin = String(adminPin).trim();
+  const id = neueTurnierId();
   // Modus (Best-of), Gruppen-Anzahl und Weiterkommende werden erst beim Auslosen
   // festgelegt – dann steht die Teilnehmerzahl fest. Hier nur Platzhalter-Defaults.
-  await db.ref(BASIS + "/meta").set({
+  await db.ref("turniere/" + id + "/meta").set({
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     hostId: eigeneUid,
@@ -307,8 +448,14 @@ async function erstelleTurnier({ name, adminPin }) {
     punkteSieg: 3,
     siegerTeamId: null,
   });
-  try { localStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
-  return { erfolg: true };
+  // Erst danach in den Index: ein Eintrag ohne Baum wäre eine tote Kachel.
+  await db.ref(INDEX_PFAD + "/" + id).set({
+    name: name.trim(),
+    erstelltAm: firebase.database.ServerValue.TIMESTAMP,
+  });
+  merkeAdminPin(id, pin);
+  waehleTurnier(id);
+  return { erfolg: true, id };
 }
 
 // --- als Admin auf einem weiteren Gerät anmelden --------------------------
@@ -317,7 +464,7 @@ function authentifiziereAlsAdmin(pin) {
   if (String(pin).trim() !== letzterZustand.meta.adminPin) {
     return { erfolg: false, fehler: "Falscher PIN." };
   }
-  try { localStorage.setItem(ADMIN_PIN_KEY, String(pin).trim()); } catch (e) {}
+  merkeAdminPin(turnierId, String(pin).trim());
   benachrichtige();
   return { erfolg: true };
 }
@@ -332,7 +479,7 @@ async function tritBei({ name, rating }) {
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
     return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
-  await db.ref(BASIS + "/spieler/" + eigeneUid).set({
+  await db.ref(basis() + "/spieler/" + eigeneUid).set({
     name: name.trim(),
     rating: r,
     beigetretenAm: firebase.database.ServerValue.TIMESTAMP,
@@ -353,7 +500,7 @@ async function aktualisiereRating(rating) {
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
     return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
-  await db.ref(BASIS + "/spieler/" + eigeneUid + "/rating").set(r);
+  await db.ref(basis() + "/spieler/" + eigeneUid + "/rating").set(r);
   return { erfolg: true };
 }
 
@@ -362,7 +509,7 @@ async function meldeAb() {
   if (!letzterZustand || !letzterZustand.meta || letzterZustand.meta.phase !== "anmeldung") {
     return { erfolg: false, fehler: "Abmelden nicht mehr möglich." };
   }
-  await db.ref(BASIS + "/spieler/" + eigeneUid).remove();
+  await db.ref(basis() + "/spieler/" + eigeneUid).remove();
   return { erfolg: true };
 }
 
@@ -414,7 +561,7 @@ async function bildeTeams() {
   if (spieler.length < 4) return { erfolg: false, fehler: "Mindestens 4 Spieler nötig (für 2 Teams)." };
 
   const teams = paareZuTeamsObjekt(balancedPaare(spieler));
-  await db.ref(BASIS).update({
+  await db.ref(basis()).update({
     teams: teams,
     "meta/phase": "teams",
   });
@@ -441,7 +588,7 @@ async function tauscheSpieler(uidA, uidB) {
   const nameVon = (mit) => Object.keys(mit).map(name).join(" & ");
   const schnittVon = (mit) => Math.round(Object.keys(mit).reduce((s, u) => s + rating(u), 0) / Object.keys(mit).length);
 
-  await db.ref(BASIS).update({
+  await db.ref(basis()).update({
     [`teams/${teamA.id}/mitglieder`]: neuA,
     [`teams/${teamA.id}/name`]: nameVon(neuA),
     [`teams/${teamA.id}/ratingSchnitt`]: schnittVon(neuA),
@@ -521,7 +668,7 @@ async function loseGruppen(optionen) {
   updates["meta/bestOf"] = bestOf;
   updates["meta/anzahlGruppen"] = anzahlGruppen;
   updates["meta/weiterProGruppe"] = weiterProGruppe;
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
   return { erfolg: true };
 }
 
@@ -566,7 +713,7 @@ async function meldeErgebnis(spielId, saetzeA, saetzeB) {
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
 
   const meinTeamId = rolle.team ? rolle.team.id : (istAdmin() ? "admin" : null);
-  await db.ref(BASIS + "/spiele/" + spielId).update({
+  await db.ref(basis() + "/spiele/" + spielId).update({
     saetzeA: v.a, saetzeB: v.b,
     status: "gemeldet",
     gemeldetVon: meinTeamId,
@@ -585,7 +732,7 @@ async function bestaetigeErgebnis(spielId) {
   if (!istGegner && !istAdmin()) {
     return { erfolg: false, fehler: "Nur das gegnerische Team (oder der Veranstalter) bestätigt." };
   }
-  await db.ref(BASIS + "/spiele/" + spielId + "/status").set("bestaetigt");
+  await db.ref(basis() + "/spiele/" + spielId + "/status").set("bestaetigt");
   await pruefeKoProgression();
   return { erfolg: true };
 }
@@ -599,7 +746,7 @@ async function widersprichErgebnis(spielId) {
   if (!rolle.seiteA && !rolle.seiteB && !istAdmin()) {
     return { erfolg: false, fehler: "Nur beteiligte Teams." };
   }
-  await db.ref(BASIS + "/spiele/" + spielId).update({
+  await db.ref(basis() + "/spiele/" + spielId).update({
     saetzeA: null, saetzeB: null, status: "offen", gemeldetVon: null,
   });
   return { erfolg: true };
@@ -613,7 +760,7 @@ async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
   if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
   const v = validiereSaetze(saetzeA, saetzeB, letzterZustand.meta.bestOf);
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
-  await db.ref(BASIS + "/spiele/" + spielId).update({
+  await db.ref(basis() + "/spiele/" + spielId).update({
     saetzeA: v.a, saetzeB: v.b, status: "bestaetigt", gemeldetVon: "admin",
   });
   await pruefeKoProgression();
@@ -674,7 +821,7 @@ async function starteKoAuslosung() {
     };
   }
   updates["meta/phase"] = "ko";
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
   await pruefeKoProgression(); // falls Freilose sofort die nächste Runde erlauben
   return { erfolg: true };
 }
@@ -683,7 +830,7 @@ async function starteKoAuslosung() {
 // die nächste erzeugt (bzw. der Sieger festgestellt). Deterministisch + mit
 // Existenz-Guard, damit mehrere Clients es gefahrlos anstoßen können.
 async function pruefeKoProgression() {
-  const snap = await db.ref(BASIS).once("value");
+  const snap = await db.ref(basis()).once("value");
   const zustand = snap.val();
   if (!zustand || !zustand.meta || zustand.meta.phase !== "ko") return;
   const spiele = Object.keys(zustand.spiele || {}).map((sid) => ({ id: sid, ...zustand.spiele[sid] }));
@@ -700,7 +847,7 @@ async function pruefeKoProgression() {
   if (aktuelle.length === 1) {
     // Finale entschieden
     if (zustand.meta.siegerTeamId) return; // schon gesetzt
-    await db.ref(BASIS + "/meta").update({ phase: "beendet", siegerTeamId: sieger(aktuelle[0]) });
+    await db.ref(basis() + "/meta").update({ phase: "beendet", siegerTeamId: sieger(aktuelle[0]) });
     return;
   }
 
@@ -718,7 +865,7 @@ async function pruefeKoProgression() {
       status: "offen", gemeldetVon: null,
     };
   }
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
 }
 
 // Admin-Fallback, falls die Auto-Progression mal nicht griff.
@@ -770,7 +917,7 @@ async function legeTestspielerAn(anzahl) {
       beigetretenAm: Date.now() + i,
     };
   }
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
   return { erfolg: true, anzahl: n };
 }
 
@@ -784,7 +931,7 @@ async function entferneTestspieler() {
     .forEach((uid) => { updates["spieler/" + uid] = null; });
   const anzahl = Object.keys(updates).length;
   if (!anzahl) return { erfolg: false, fehler: "Es sind keine Testspieler angelegt." };
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
   return { erfolg: true, anzahl };
 }
 
@@ -822,7 +969,7 @@ async function simuliereOffeneSpiele() {
     updates["spiele/" + s.id + "/status"] = "bestaetigt";
     updates["spiele/" + s.id + "/gemeldetVon"] = "simulation";
   });
-  await db.ref(BASIS).update(updates);
+  await db.ref(basis()).update(updates);
   // Wie bei adminSetzeErgebnis: die K.-o.-Progression selbst anstoßen, damit die
   // nächste Runde entsteht (bzw. der Sieger feststeht).
   await pruefeKoProgression();
@@ -838,7 +985,7 @@ async function simuliereOffeneSpiele() {
 async function setzeTurnierZurueck() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(BASIS).update({
+  await db.ref(basis()).update({
     teams: null,
     gruppen: null,
     spiele: null,
@@ -853,7 +1000,13 @@ async function setzeTurnierZurueck() {
 async function loescheTurnier() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(BASIS).remove();
+  const id = turnierId;
+  // Erst der Baum, dann der Index-Eintrag: bleibt der Eintrag zurück, zeigt
+  // getListe() ihn ohnehin nicht mehr an (Baum weg = keine Kachel).
+  await db.ref("turniere/" + id).remove();
+  await db.ref(INDEX_PFAD + "/" + id).remove();
+  try { localStorage.removeItem(adminPinKey(id)); } catch (e) {}
+  waehleTurnier(null);
   return { erfolg: true };
 }
 
@@ -862,6 +1015,9 @@ const turnierService = {
   RATING_MIN, RATING_MAX, RATING_DEFAULT,
   onZustandsAenderung,
   getZustand,
+  getListe,
+  getTurnierId: () => turnierId,
+  waehleTurnier,
   erstelleTurnier,
   authentifiziereAlsAdmin,
   tritBei,

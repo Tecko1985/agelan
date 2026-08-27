@@ -1,8 +1,8 @@
-# 🎮 AgeLan – Streamplan
+# 🎮 AgeLan – Turniere & Streamplan
 
-Streamplan des AgeLan-Turniers: Die Streamer tragen sich selbst in einen Kalender über die Veranstaltungstage ein.
+Turnier- und Streamplan-Seite der AgeLan. Im Tab **Turnier** stehen alle Turniere der Veranstaltung nebeneinander — jede:r schreibt sich in die ein, bei denen sie oder er mitspielen will. Im Tab **Stream** tragen die Streamer selbst ein, wer wann vom Kanal sendet.
 
-**➡️ [AgeLan – Streamplan öffnen](https://sc1911heiligenstadt.github.io/agelan/)**
+**➡️ [AgeLan öffnen](https://sc1911heiligenstadt.github.io/agelan/)**
 
 ## Zugang
 
