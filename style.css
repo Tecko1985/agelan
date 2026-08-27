@@ -468,3 +468,13 @@ main#app.sk-breit { max-width: 980px; }
   cursor: pointer;
 }
 .setzliste .sl-knopf:disabled { opacity: 0.35; cursor: default; }
+
+/* Datum je Spieltag (Ligamodus) */
+.spieltag-datum-zeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.spieltag-datum-zeile .sd-name { flex: 0 0 110px; font-size: 0.9rem; }
+.spieltag-datum-zeile input { flex: 1 1 auto; min-width: 0; }

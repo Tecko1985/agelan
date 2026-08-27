@@ -316,8 +316,13 @@ function renderTeams(z) {
     renderSetzliste(z);
     // Hin- und Rückrunde ergibt nur da Sinn, wo feste Paarungen entstehen –
     // im Schweizer System werden die Gegner ja erst je Runde ausgelost.
-    document.getElementById("los-doppelrunde-zeile").style.display =
-      mitGruppen || z.ablauf === "nur_gruppen" ? "" : "none";
+    const mitPaarungen = mitGruppen || z.ablauf === "nur_gruppen";
+    document.getElementById("los-doppelrunde-zeile").style.display = mitPaarungen ? "" : "none";
+    // Spieltage gibt es nur, wo die Paarungen von vornherein feststehen – im
+    // Schweizer System entsteht jede Runde erst aus dem Zwischenstand.
+    document.getElementById("los-spieltage-zeile").style.display = mitPaarungen ? "" : "none";
+    document.getElementById("los-bracketreset-zeile").style.display =
+      z.hatKoRunde && document.getElementById("los-kotyp").value === "doppel" ? "" : "none";
     // Punkte und Gleichstand betreffen nur eine Tabelle.
     document.getElementById("los-wertungfelder").style.display = tabellenphase ? "" : "none";
 
@@ -349,6 +354,41 @@ function renderTeams(z) {
     if (z.istSchweizer) aktualisiereSchweizerHinweis(z.teams.length);
     aktualisiereLosVorschau(z.teams.length);
   }
+}
+
+// Überschrift einer Runde: im Schweizer System "Runde N", im Ligamodus
+// "Spieltag N" – samt Datum, wenn eines eingetragen ist.
+function rundenName(z, runde) {
+  if (z.istSchweizer) return "Runde " + (runde + 1);
+  const datum = (z.spieltagDaten || {})[runde];
+  return "Spieltag " + (runde + 1) + (datum ? " – " + datumLesbar(datum) : "");
+}
+
+function datumLesbar(iso) {
+  const teile = String(iso || "").split("-");
+  if (teile.length !== 3) return String(iso || "");
+  return teile[2] + "." + teile[1] + "." + teile[0];
+}
+
+// Ligamodus: je Spieltag ein Datumsfeld für den Veranstalter.
+function renderSpieltagDaten(z) {
+  const karte = document.getElementById("spieltag-daten");
+  const box = document.getElementById("spieltag-datum-liste");
+  if (!karte || !box) return;
+  const zeigen = z.istAdmin && z.spieltage && !z.istSchweizer;
+  karte.style.display = zeigen ? "" : "none";
+  if (!zeigen) return;
+  // Die Spieltagsnummern aus den Spielen holen, nicht raten – bei mehreren
+  // Gruppen laufen sie gruppenübergreifend gleich.
+  const nummern = [...new Set(z.spiele.filter((s) => s.phase === "gruppe").map((s) => Number(s.runde) || 0))]
+    .sort((a, b) => a - b);
+  const daten = z.spieltagDaten || {};
+  box.innerHTML = nummern
+    .map((n) => `<div class="spieltag-datum-zeile">
+      <span class="sd-name">Spieltag ${n + 1}</span>
+      <input type="date" class="eingabe" data-spieltag="${n}" value="${escapeHtml(daten[n] || "")}">
+    </div>`)
+    .join("");
 }
 
 // Setzliste von Hand: Reihenfolge, die beim Auslosen als "stark nach schwach"
@@ -427,9 +467,10 @@ function renderGruppen(z) {
           </tr>`;
         })
         .join("");
-      // Im Schweizer System nach Runden bündeln – sonst steht alles in einem Block.
-      const spiele = z.istSchweizer
-        ? g.runden.map((r) => `<h4 class="runden-titel">Runde ${r.runde + 1}</h4>
+      // Schweizer System und Ligamodus spielen in Runden – sonst steht alles
+      // in einem Block.
+      const spiele = z.istSchweizer || z.spieltage
+        ? g.runden.map((r) => `<h4 class="runden-titel">${escapeHtml(rundenName(z, r.runde))}</h4>
             <div class="spiel-liste">${r.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`).join("")
         : `<div class="spiel-liste">${g.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`;
       return `<div class="gruppe">
@@ -451,6 +492,8 @@ function renderGruppen(z) {
   // Im Schweizer System kommt erst die nächste Runde, und erst nach der letzten
   // die K.-o.-Runde bzw. der Abschluss.
   const fehlendeRunden = z.istSchweizer && z.schweizerGespielt < z.schweizerRunden;
+
+  renderSpieltagDaten(z);
 
   const adminBlock = document.getElementById("gruppen-admin");
   adminBlock.style.display = z.istAdmin ? "" : "none";
@@ -580,8 +623,14 @@ function verliererHtml(z) {
 
 function grossesFinaleHtml(z) {
   const m = z.bracket && z.bracket.finale;
-  if (!m) return "";
-  return `<div class="bracket-runde"><h3>Großes Finale</h3>${matchHtml(z, m)}</div>`;
+  const e = z.bracket && z.bracket.entscheidung;
+  let html = m ? `<div class="bracket-runde"><h3>Großes Finale</h3>${matchHtml(z, m)}</div>` : "";
+  if (e) {
+    html += `<div class="bracket-runde"><h3>Entscheidungsspiel</h3>
+      <p class="hinweis-text">Beide haben jetzt eine Niederlage – dieses Spiel entscheidet.</p>
+      ${matchHtml(z, e)}</div>`;
+  }
+  return html;
 }
 
 // Ein einzelnes Match als Baustein – gleich fuer Bracket, Verliererbaum,
@@ -909,6 +958,8 @@ function wireEvents() {
       doppelrunde: document.getElementById("los-doppelrunde").checked,
       spielUmPlatz3: document.getElementById("los-platz3").checked,
       koTyp: document.getElementById("los-kotyp").value,
+      spieltage: document.getElementById("los-spieltage").checked,
+      bracketReset: document.getElementById("los-bracketreset").checked,
     });
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
   });
@@ -934,6 +985,14 @@ function wireEvents() {
     );
     zeigeFehler("setzliste-fehler", res.erfolg === false && res.fehler ? res.fehler : "");
   });
+  // Datum eines Spieltags speichern
+  document.getElementById("spieltag-datum-liste").addEventListener("change", async (e) => {
+    const feld = e.target.closest("[data-spieltag]");
+    if (!feld) return;
+    const res = await turnierService.setzeSpieltagDatum(feld.dataset.spieltag, feld.value);
+    zeigeFehler("spieltag-fehler", res.erfolg ? "" : res.fehler);
+  });
+
   document.getElementById("btn-setzliste-reset").addEventListener("click", async () => {
     const res = await turnierService.setzlisteZuruecksetzen();
     zeigeFehler("setzliste-fehler", res.erfolg ? "" : res.fehler);
@@ -1032,6 +1091,22 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.6",
+    groups: [
+      { title: "Ligamodus mit Spieltagen", items: [
+          "Bei Gruppen und „Jeder gegen jeden“ lassen sich die Spiele jetzt auf Spieltage verteilen.",
+          "Je Spieltag hat jedes Team höchstens ein Spiel – gut, wenn sich das Turnier über mehrere Tage zieht.",
+          "Als Veranstalter trägst du je Spieltag ein Datum ein. Es steht dann über den Spielen, damit jede:r weiß, wann es losgeht.",
+          "Mit Hin- und Rückrunde verdoppelt sich die Zahl der Spieltage."
+      ]},
+      { title: "Entscheidungsspiel im Doppel-K.-o.", items: [
+          "Neu ankreuzbar: gewinnt im großen Finale der aus dem Verliererbaum, gibt es ein zweites Spiel.",
+          "Grund: er hatte schon eine Niederlage, der andere noch keine. Ohne das zweite Spiel wäre jemand mit einer Niederlage Sieger, während ein anderer mit einer Niederlage rausgeflogen ist.",
+          "Ohne den Haken bleibt es bei einem Spiel."
+      ]}
+    ]
+  },
   {
     version: "1.5",
     groups: [

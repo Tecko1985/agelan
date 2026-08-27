@@ -402,7 +402,7 @@ function baueBracket(teams, spiele, meta) {
 
   const gewinnerSpiele = ohnePlatz3.filter((s) => (s.bracket || "w") === "w");
   const verliererSpiele = ohnePlatz3.filter((s) => s.bracket === "l");
-  const finaleSpiel = ohnePlatz3.find((s) => s.bracket === "f") || null;
+  const finaleSpiel = ohnePlatz3.find((s) => s.bracket === "f" && (s.runde || 0) === 0) || null;
 
   // WARNUNG: Die Gesamtzahl der Runden aus der BRACKETGROESSE rechnen, nicht aus
   // den bisher angelegten Runden - sonst hiesse die erste Runde "Gewinner-Finale",
@@ -420,10 +420,13 @@ function baueBracket(teams, spiele, meta) {
 
   const platz3 = platz3Spiel ? alsMatch(platz3Spiel) : null;
   const finale = finaleSpiel && finaleSpiel.teamA ? alsMatch(finaleSpiel) : null;
+  const entscheidungSpiel = ohnePlatz3.find((s) => s.bracket === "f" && s.runde === 1) || null;
+  const entscheidung = entscheidungSpiel && entscheidungSpiel.teamA ? alsMatch(entscheidungSpiel) : null;
   return {
     runden,
     verliererRunden: doppel ? verliererRunden : [],
     finale,
+    entscheidung,
     platz3,
     doppel,
     siegerTeamId: meta.siegerTeamId || null,
@@ -457,6 +460,9 @@ function getZustand() {
     hatVorrunde: hatVorrunde(meta),
     tiebreak: metaTiebreak(meta),
     koTyp: metaKoTyp(meta),
+    spieltage: !!meta.spieltage,
+    bracketReset: !!meta.bracketReset,
+    spieltagDaten: (vorhanden && letzterZustand.spieltagDaten) || {},
     punkteSieg: metaPunkteSieg(meta),
     schweizerRunden: Number(meta.schweizerRunden) || 0,
     schweizerGespielt: vorhanden && istSchweizer(meta) ? schweizerGespielteRunden(spiele) : 0,
@@ -905,6 +911,28 @@ function verteileNachToepfen(teams, anzahlGruppen) {
   return buckets;
 }
 
+// Spieltage nach dem Kreisverfahren: jede:r spielt je Spieltag höchstens
+// einmal, und jede Paarung kommt genau einmal vor. Bei ungerader Zahl bleibt je
+// Spieltag eine:r ohne Spiel – kein Freilos-Sieg wie im Schweizer System, in
+// einer Liga spielen am Ende alle gleich viele Partien.
+function spieltagPaare(ids) {
+  const liste = ids.slice();
+  if (liste.length % 2) liste.push(null); // Platzhalter für den spielfreien Platz
+  const n = liste.length;
+  const runden = [];
+  for (let r = 0; r < n - 1; r++) {
+    const paare = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = liste[i], b = liste[n - 1 - i];
+      // Seiten je Spieltag wechseln, damit niemand immer links steht.
+      if (a && b) paare.push(r % 2 === 0 ? [a, b] : [b, a]);
+    }
+    runden.push(paare);
+    liste.splice(1, 0, liste.pop()); // rotieren, der erste bleibt stehen
+  }
+  return runden;
+}
+
 // Einstieg für den Auslosungs-Knopf: je nach Ablauf Gruppen oder direkt Bracket.
 async function loseTurnier(optionen) {
   const meta = letzterZustand && letzterZustand.meta;
@@ -925,6 +953,7 @@ function gemeinsameLosMeta(opt, meta) {
     : metaTiebreak(meta);
   const koTyp = hatKoRunde(meta) && opt.koTyp === "doppel" ? "doppel" : "einfach";
   updates["meta/koTyp"] = koTyp;
+  updates["meta/bracketReset"] = koTyp === "doppel" && !!opt.bracketReset;
   // Im Doppel-K.-o. ergibt sich Platz 3 aus dem Verliererbaum – ein eigenes
   // Spiel darum waere doppelt gemoppelt.
   updates["meta/spielUmPlatz3"] = hatKoRunde(meta) && koTyp === "einfach" ? !!opt.spielUmPlatz3 : false;
@@ -942,6 +971,7 @@ async function loseGruppen(optionen) {
   const opt = optionen || {};
   const nurGruppen = metaAblauf(meta) === "nur_gruppen";
   const doppelrunde = !!opt.doppelrunde;
+  const spieltage = !!opt.spieltage;
   // "Jeder gegen jeden" ist genau eine Gruppe, und hervorgehoben wird nur, wer
   // sie gewinnt – es kommt ja niemand irgendwohin weiter.
   const anzahlGruppen = nurGruppen
@@ -967,20 +997,40 @@ async function loseGruppen(optionen) {
       updates[`teams/${tid}/gruppe`] = gName;
     });
     updates["gruppen"][gid] = { name: gName, teamIds: teamIdsMap };
-    // Round-Robin: jede Paarung genau einmal – mit Hin- und Rückrunde zweimal,
-    // beim zweiten Mal mit vertauschten Seiten.
     const durchgaenge = doppelrunde ? 2 : 1;
-    for (let d = 0; d < durchgaenge; d++) {
-      for (let a = 0; a < teamIds.length; a++) {
-        for (let b = a + 1; b < teamIds.length; b++) {
-          const sid = `g_${gName}_${a}_${b}` + (d ? "_r" : "");
-          updates["spiele"][sid] = {
-            phase: "gruppe", gruppe: gName, runde: d,
-            teamA: d ? teamIds[b] : teamIds[a],
-            teamB: d ? teamIds[a] : teamIds[b],
-            saetzeA: null, saetzeB: null,
-            status: "offen", gemeldetVon: null,
-          };
+    if (spieltage) {
+      // Ligamodus: nach Spieltagen sortiert, damit jede:r pro Spieltag höchstens
+      // einmal ran muss. runde = Spieltag, gruppenübergreifend gleich nummeriert.
+      const basisRunden = spieltagPaare(teamIds);
+      for (let d = 0; d < durchgaenge; d++) {
+        basisRunden.forEach((paare, r) => {
+          const spieltag = d * basisRunden.length + r;
+          paare.forEach(([a, b], i) => {
+            updates["spiele"][`g_${gName}_st${spieltag}_${i}`] = {
+              phase: "gruppe", gruppe: gName, runde: spieltag, position: i,
+              teamA: d ? b : a,
+              teamB: d ? a : b,
+              saetzeA: null, saetzeB: null,
+              status: "offen", gemeldetVon: null,
+            };
+          });
+        });
+      }
+    } else {
+      // Round-Robin am Stück: jede Paarung genau einmal – mit Hin- und
+      // Rückrunde zweimal, beim zweiten Mal mit vertauschten Seiten.
+      for (let d = 0; d < durchgaenge; d++) {
+        for (let a = 0; a < teamIds.length; a++) {
+          for (let b = a + 1; b < teamIds.length; b++) {
+            const sid = `g_${gName}_${a}_${b}` + (d ? "_r" : "");
+            updates["spiele"][sid] = {
+              phase: "gruppe", gruppe: gName, runde: d,
+              teamA: d ? teamIds[b] : teamIds[a],
+              teamB: d ? teamIds[a] : teamIds[b],
+              saetzeA: null, saetzeB: null,
+              status: "offen", gemeldetVon: null,
+            };
+          }
         }
       }
     }
@@ -990,6 +1040,7 @@ async function loseGruppen(optionen) {
   updates["meta/anzahlGruppen"] = anzahlGruppen;
   updates["meta/weiterProGruppe"] = weiterProGruppe;
   updates["meta/doppelrunde"] = doppelrunde;
+  updates["meta/spieltage"] = spieltage;
   updates["meta/schweizerRunden"] = null;
   await db.ref(turnierBasis()).update(updates);
   return { erfolg: true };
@@ -1342,6 +1393,20 @@ async function loseKoDirekt(optionen) {
   return { erfolg: true };
 }
 
+// Datum eines Spieltags setzen oder wieder löschen (Ligamodus).
+async function setzeSpieltagDatum(spieltag, datum) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const nr = Math.round(Number(spieltag));
+  if (!Number.isFinite(nr) || nr < 0) return { erfolg: false, fehler: "Unbekannter Spieltag." };
+  const wert = String(datum || "").trim();
+  if (wert && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(wert)) {
+    return { erfolg: false, fehler: "Bitte ein gültiges Datum wählen." };
+  }
+  await db.ref(turnierBasis() + "/spieltagDaten/" + nr).set(wert || null);
+  return { erfolg: true };
+}
+
 // Ablauf "jeder gegen jeden": kein K.-o., die Tabelle entscheidet.
 async function beendeNachGruppen() {
   await authBereit;
@@ -1533,11 +1598,29 @@ async function doppelKoSchritt(zustand, spiele) {
   }
 
   // --- Grosses Finale
+  const finalSpiele = ko.filter((s) => s.bracket === "f");
+  const grossesEins = finalSpiele.find((s) => (s.runde || 0) === 0) || null;
+  const entscheidung = finalSpiele.find((s) => s.runde === 1) || null;
   const wbFinale = runde(gewinner, W - 1);
   const lbFinale = lbRunden > 0 ? runde(verlierer, lbRunden - 1) : [];
-  if (!grosses && fertig(wbFinale) && (lbRunden === 0 || fertig(lbFinale))) {
+  if (!grossesEins && fertig(wbFinale) && (lbRunden === 0 || fertig(lbFinale))) {
     updates["spiele/f_r0_p0"] = macheKoSpiel(
       "f", 0, 0, koSieger(wbFinale[0]), lbRunden ? koSieger(lbFinale[0]) : null, { istFinale: true }
+    );
+  }
+
+  // Entscheidungsspiel ("Bracket Reset"): teamA kommt aus dem Gewinnerbaum und
+  // hat noch KEINE Niederlage, teamB aus dem Verliererbaum und hat eine. Gewinnt
+  // teamB das grosse Finale, stehen beide bei einer Niederlage - dann muss ein
+  // zweites Spiel her, sonst waere der eine mit einer Niederlage raus und der
+  // andere mit einer Niederlage Sieger.
+  if (
+    meta.bracketReset && grossesEins && !entscheidung &&
+    grossesEins.status === "bestaetigt" && grossesEins.teamB &&
+    koSieger(grossesEins) === grossesEins.teamB
+  ) {
+    updates["spiele/f_r1_p0"] = macheKoSpiel(
+      "f", 1, 0, grossesEins.teamA, grossesEins.teamB, { istFinale: true, entscheidung: true }
     );
   }
 
@@ -1546,8 +1629,14 @@ async function doppelKoSchritt(zustand, spiele) {
     return true;
   }
 
-  if (grosses && grosses.status === "bestaetigt" && !meta.siegerTeamId) {
-    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: koSieger(grosses) });
+  // Der Sieger steht erst fest, wenn kein Entscheidungsspiel mehr aussteht.
+  const letztes = entscheidung || grossesEins;
+  const brauchtEntscheidung =
+    meta.bracketReset && grossesEins && !entscheidung &&
+    grossesEins.status === "bestaetigt" && grossesEins.teamB &&
+    koSieger(grossesEins) === grossesEins.teamB;
+  if (letztes && letztes.status === "bestaetigt" && !brauchtEntscheidung && !meta.siegerTeamId) {
+    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: koSieger(letztes) });
   }
   return false;
 }
@@ -1729,6 +1818,7 @@ const turnierService = {
   setzlisteZuruecksetzen,
   schweizerVorschlagRunden,
   beendeNachGruppen,
+  setzeSpieltagDatum,
   meldeErgebnis,
   bestaetigeErgebnis,
   widersprichErgebnis,
