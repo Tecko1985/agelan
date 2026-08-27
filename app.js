@@ -116,7 +116,7 @@ const PHASE_TEXT = {
   beendet: "Beendet",
 };
 
-const FORM_TEXT = { 1: "1 gegen 1", 2: "2 gegen 2" };
+const FORM_TEXT = { 1: "1 gegen 1", 2: "2 gegen 2", 3: "3 gegen 3", 4: "4 gegen 4" };
 const ABLAUF_TEXT = {
   gruppen_ko: "Gruppen + K.-o.",
   nur_ko: "Nur K.-o.",
@@ -124,6 +124,18 @@ const ABLAUF_TEXT = {
   schweizer: "Schweizer System",
   schweizer_ko: "Schweizer + K.-o.",
 };
+
+// Kurzname der Feinwertung fuer den Tabellenkopf.
+const WERTUNG_KOPF = { buchholz: "BH", buchholz_cut1: "BH-1", sonneborn: "SB" };
+function wertungSpalte(tiebreak) {
+  return WERTUNG_KOPF[tiebreak] || null;
+}
+function wertungWert(zeile, tiebreak) {
+  if (tiebreak === "buchholz") return zeile.buchholz;
+  if (tiebreak === "buchholz_cut1") return zeile.buchholzCut1;
+  if (tiebreak === "sonneborn") return zeile.sonneborn;
+  return 0;
+}
 
 // Im Einzelturnier gibt es keine Teams – dann heißt alles "Teilnehmer".
 function einheitWort(teamGroesse) {
@@ -148,7 +160,7 @@ function renderAuswahl(z) {
       const zahl = t.spielerAnzahl === 1 ? "1 Angemeldete:r" : t.spielerAnzahl + " Angemeldete";
       // Solange der Turnierbaum nicht da ist, stehen in teamGroesse/ablauf nur
       // die Standardwerte – die dürfen nicht als Tatsache auf der Kachel landen.
-      const art = t.geladen ? (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "") : "";
+      const art = t.geladen ? (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "") + (t.koTyp === "doppel" ? " (doppelt)" : "") : "";
       const aktion = t.binIchDrin
         ? "Du bist dabei"
         : t.phase === "anmeldung"
@@ -225,9 +237,13 @@ function renderLobby(z) {
     document.getElementById("btn-teams-bilden").textContent = einzel
       ? "Weiter zur Auslosung →"
       : "Teams bilden →";
+    // Geht die Zahl der Angemeldeten nicht auf, wandern die Übrigen in die
+    // schwächsten Teams – das soll dastehen, bevor sich jemand wundert.
+    const rest = z.spieler.length % z.teamGroesse;
     document.getElementById("lobby-teams-hinweis").textContent = einzel
       ? "Als Veranstalter: alle Angemeldeten spielen einzeln gegeneinander."
-      : "Als Veranstalter: bildet ratingfaire 2er-Teams.";
+      : "Als Veranstalter: bildet ratingfaire " + z.teamGroesse + "er-Teams." +
+        (rest ? " " + rest + " Angemeldete gehen nicht auf und kommen zu den schwächsten Teams dazu." : "");
     // Die Auswahlfelder nur setzen, wenn sie sich geändert haben – sonst
     // springt eine gerade angefasste Auswahl bei jedem Live-Update zurück.
     setzeAuswahl("form-teamgroesse", String(z.teamGroesse));
@@ -290,7 +306,14 @@ function renderTeams(z) {
     document.getElementById("los-schweizer-hinweis").style.display = z.istSchweizer ? "" : "none";
     document.getElementById("los-weiter-gesamt-feld").style.display = z.istSchweizer && z.hatKoRunde ? "" : "none";
     document.getElementById("los-finalfeld").style.display = z.hatKoRunde ? "" : "none";
-    document.getElementById("los-platz3-zeile").style.display = z.hatKoRunde ? "" : "none";
+    document.getElementById("los-kotyp-feld").style.display = z.hatKoRunde ? "" : "none";
+    // Im Doppel-K.-o. ergibt sich Platz 3 aus dem Verliererbaum.
+    const doppelKo = document.getElementById("los-kotyp").value === "doppel";
+    document.getElementById("los-platz3-zeile").style.display = z.hatKoRunde && !doppelKo ? "" : "none";
+    document.getElementById("los-kotyp-hinweis").textContent = doppelKo
+      ? "Wer verliert, rutscht in den Verliererbaum und ist erst nach der zweiten Niederlage raus. Am Ende steht ein großes Finale."
+      : "Eine Niederlage und man ist raus.";
+    renderSetzliste(z);
     // Hin- und Rückrunde ergibt nur da Sinn, wo feste Paarungen entstehen –
     // im Schweizer System werden die Gegner ja erst je Runde ausgelost.
     document.getElementById("los-doppelrunde-zeile").style.display =
@@ -326,6 +349,22 @@ function renderTeams(z) {
     if (z.istSchweizer) aktualisiereSchweizerHinweis(z.teams.length);
     aktualisiereLosVorschau(z.teams.length);
   }
+}
+
+// Setzliste von Hand: Reihenfolge, die beim Auslosen als "stark nach schwach"
+// gilt. Ohne Eingriff steht hier schlicht die Rating-Reihenfolge.
+function renderSetzliste(z) {
+  const box = document.getElementById("setzliste");
+  if (!box) return;
+  const liste = z.setzliste || [];
+  box.innerHTML = liste
+    .map((t, i) => `<li>
+      <span class="sl-pos">${i + 1}.</span>
+      <span class="sl-name">${escapeHtml(t.name)}</span>
+      <button class="sl-knopf" data-hoch="${escapeHtml(t.id)}" title="nach oben"${i === 0 ? " disabled" : ""}>↑</button>
+      <button class="sl-knopf" data-runter="${escapeHtml(t.id)}" title="nach unten"${i === liste.length - 1 ? " disabled" : ""}>↓</button>
+    </li>`)
+    .join("");
 }
 
 // Sagt an, wie viele Spiele bei der gewählten Rundenzahl je Person anfallen.
@@ -366,7 +405,8 @@ function renderGruppen(z) {
   const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
   // Buchholz nur zeigen, wenn danach auch gewertet wird – sonst ist es eine
   // Zahl, die niemand einordnen kann.
-  const zeigeBuchholz = z.tiebreak === "buchholz";
+  const wertungKopf = wertungSpalte(z.tiebreak);
+  const zeigeBuchholz = !!wertungKopf;
   // Hervorheben, wer weiterkommt. Ohne K.-o.-Runde ist das nur Platz 1.
   const qualBis = !z.hatKoRunde ? 1 : z.istSchweizer ? (z.meta.weiterInsgesamt || 4) : (z.meta.weiterProGruppe || 2);
 
@@ -382,7 +422,7 @@ function renderGruppen(z) {
             <td>${r.spiele}</td>
             <td>${r.siege}-${r.niederlagen}</td>
             <td>${r.saetzePlus}:${r.saetzeMinus}</td>
-            ${zeigeBuchholz ? `<td>${r.buchholz}</td>` : ""}
+            ${zeigeBuchholz ? `<td>${wertungWert(r, z.tiebreak)}</td>` : ""}
             <td class="punkte">${r.punkte}</td>
           </tr>`;
         })
@@ -395,7 +435,7 @@ function renderGruppen(z) {
       return `<div class="gruppe">
         ${eineTabelle ? "" : `<h3>Gruppe ${escapeHtml(g.name)}</h3>`}
         <table class="tabelle">
-          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? "<th>BH</th>" : ""}<th>Pkt</th></tr></thead>
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? `<th>${wertungKopf}</th>` : ""}<th>Pkt</th></tr></thead>
           <tbody>${zeilen}</tbody>
         </table>
         ${spiele}
@@ -480,7 +520,8 @@ function renderBeendet(z) {
 function endtabelleHtml(z) {
   if (!z.gruppen || !z.gruppen.length) return '<p class="hinweis-text">Keine Tabelle vorhanden.</p>';
   const spalte = einheitWort(z.teamGroesse) === "Teams" ? "Team" : "Teilnehmer";
-  const zeigeBuchholz = z.tiebreak === "buchholz";
+  const wertungKopf = wertungSpalte(z.tiebreak);
+  const zeigeBuchholz = !!wertungKopf;
   return z.gruppen
     .map((g) => {
       const zeilen = g.tabelle
@@ -490,14 +531,14 @@ function endtabelleHtml(z) {
           <td>${r.spiele}</td>
           <td>${r.siege}-${r.niederlagen}</td>
           <td>${r.saetzePlus}:${r.saetzeMinus}</td>
-          ${zeigeBuchholz ? `<td>${r.buchholz}</td>` : ""}
+          ${zeigeBuchholz ? `<td>${wertungWert(r, z.tiebreak)}</td>` : ""}
           <td class="punkte">${r.punkte}</td>
         </tr>`)
         .join("");
       return `<div class="gruppe">
         ${z.gruppen.length > 1 ? `<h3>Gruppe ${escapeHtml(g.name)}</h3>` : ""}
         <table class="tabelle">
-          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? "<th>BH</th>" : ""}<th>Pkt</th></tr></thead>
+          <thead><tr><th></th><th>${spalte}</th><th>Sp</th><th>S-N</th><th>Sätze</th>${zeigeBuchholz ? `<th>${wertungKopf}</th>` : ""}<th>Pkt</th></tr></thead>
           <tbody>${zeilen}</tbody>
         </table>
       </div>`;
@@ -525,7 +566,36 @@ function bracketHtml(z) {
         .join("");
       return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${matches}</div>`;
     })
-    .join("") + platz3Html(z);
+    .join("") + verliererHtml(z) + grossesFinaleHtml(z) + platz3Html(z);
+}
+
+// Verliererbaum des Doppel-K.-o. – nur da, wo es ihn gibt.
+function verliererHtml(z) {
+  const runden = (z.bracket && z.bracket.verliererRunden) || [];
+  if (!runden.length) return "";
+  return runden
+    .map((r) => `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${r.matches.map((m) => matchHtml(z, m)).join("")}</div>`)
+    .join("");
+}
+
+function grossesFinaleHtml(z) {
+  const m = z.bracket && z.bracket.finale;
+  if (!m) return "";
+  return `<div class="bracket-runde"><h3>Großes Finale</h3>${matchHtml(z, m)}</div>`;
+}
+
+// Ein einzelnes Match als Baustein – gleich fuer Bracket, Verliererbaum,
+// großes Finale und Spiel um Platz 3.
+function matchHtml(z, m) {
+  const spiel = z.spiele.find((s) => s.id === m.id);
+  const aktionen = spiel ? spielAktionenHtml(z, spiel) : "";
+  const aWin = m.siegerTeamId && m.siegerTeamId === m.teamA ? " sieger" : "";
+  const bWin = m.siegerTeamId && m.siegerTeamId === m.teamB ? " sieger" : "";
+  return `<div class="match">
+    <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
+    <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
+    ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
+  </div>`;
 }
 
 // Das Spiel um Platz 3 haengt unter dem Bracket, nicht in der Rundenfolge –
@@ -533,16 +603,7 @@ function bracketHtml(z) {
 function platz3Html(z) {
   const m = z.bracket && z.bracket.platz3;
   if (!m) return "";
-  const spiel = z.spiele.find((s) => s.id === m.id);
-  const aktionen = spiel ? spielAktionenHtml(z, spiel) : "";
-  const aWin = m.siegerTeamId && m.siegerTeamId === m.teamA ? " sieger" : "";
-  const bWin = m.siegerTeamId && m.siegerTeamId === m.teamB ? " sieger" : "";
-  return `<div class="bracket-runde"><h3>Spiel um Platz 3</h3>
-    <div class="match">
-      <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
-      <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
-      ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
-    </div></div>`;
+  return `<div class="bracket-runde"><h3>Spiel um Platz 3</h3>${matchHtml(z, m)}</div>`;
 }
 
 // --- Spiel-Zeile (Gruppe) + Aktionen --------------------------------------
@@ -847,6 +908,7 @@ function wireEvents() {
       tiebreak: document.getElementById("los-tiebreak").value,
       doppelrunde: document.getElementById("los-doppelrunde").checked,
       spielUmPlatz3: document.getElementById("los-platz3").checked,
+      koTyp: document.getElementById("los-kotyp").value,
     });
     zeigeFehler("teams-fehler", res.erfolg ? "" : res.fehler);
   });
@@ -855,6 +917,26 @@ function wireEvents() {
   });
   document.getElementById("los-runden").addEventListener("input", () => {
     if (zustand) aktualisiereSchweizerHinweis(zustand.teams.length);
+  });
+  // Die K.-o.-Art blendet das Platz-3-Feld um, also neu zeichnen.
+  document.getElementById("los-kotyp").addEventListener("change", () => {
+    if (zustand) renderTeams(zustand);
+  });
+
+  // Setzliste verschieben
+  document.getElementById("setzliste").addEventListener("click", async (e) => {
+    const hoch = e.target.closest("[data-hoch]");
+    const runter = e.target.closest("[data-runter]");
+    if (!hoch && !runter) return;
+    const res = await turnierService.verschiebeInSetzliste(
+      hoch ? hoch.dataset.hoch : runter.dataset.runter,
+      hoch ? -1 : 1
+    );
+    zeigeFehler("setzliste-fehler", res.erfolg === false && res.fehler ? res.fehler : "");
+  });
+  document.getElementById("btn-setzliste-reset").addEventListener("click", async () => {
+    const res = await turnierService.setzlisteZuruecksetzen();
+    zeigeFehler("setzliste-fehler", res.erfolg ? "" : res.fehler);
   });
 
   // Gruppen: K.o. auslosen – oder bei "Jeder gegen jeden" das Turnier beenden.
@@ -950,6 +1032,30 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.5",
+    groups: [
+      { title: "Doppel-K.-o.", items: [
+          "Neu wählbar bei jeder K.-o.-Runde: wer einmal verliert, ist nicht raus, sondern rutscht in den Verliererbaum.",
+          "Erst die zweite Niederlage bedeutet das Aus. Ein schlechtes Spiel wirft dich also nicht sofort aus dem Turnier.",
+          "Am Ende trifft der Sieger des Gewinnerbaums auf den des Verliererbaums – ein großes Finale, kein zweites Spiel danach.",
+          "Ein eigenes Spiel um Platz 3 gibt es dabei nicht, das ergibt sich aus dem Verliererbaum."
+      ]},
+      { title: "Größere Teams", items: [
+          "Neben 1 gegen 1 und 2 gegen 2 gibt es jetzt auch 3 gegen 3 und 4 gegen 4.",
+          "Die App verteilt die Angemeldeten weiter ratingfair: die Stärksten und die Schwächsten landen abwechselnd in denselben Teams."
+      ]},
+      { title: "Mehr Wertungen bei Punktgleichstand", items: [
+          "Buchholz gestrichen: der schwächste Gegner fällt aus der Rechnung. Dämpft, dass ein einziger sehr schwacher Gegner die Wertung verdirbt.",
+          "Sonneborn-Berger: zählt nur die Punkte der Gegner, die du wirklich besiegt hast."
+      ]},
+      { title: "Setzliste von Hand", items: [
+          "Vor dem Auslosen lässt sich die Reihenfolge mit den Pfeilen selbst festlegen.",
+          "Sie bestimmt, wer als stark gilt – also wer in verschiedene Gruppen kommt und wer im Bracket erst spät aufeinandertrifft.",
+          "Ohne Eingriff zählt weiter das Rating; ein Klick stellt das auch wieder her."
+      ]}
+    ]
+  },
   {
     version: "1.4",
     groups: [

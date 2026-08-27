@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.7">
+<link rel="stylesheet" href="style.css?v=2.8">
 </head>
 <body>
 
@@ -82,6 +82,8 @@
         <select id="neu-form" class="eingabe">
           <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
           <option value="1">1 gegen 1 — jede:r spielt für sich</option>
+          <option value="3">3 gegen 3</option>
+          <option value="4">4 gegen 4</option>
         </select>
 
         <label class="feld-label" for="neu-ablauf">Ablauf</label>
@@ -165,6 +167,8 @@
           <select id="form-teamgroesse" class="eingabe">
             <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
             <option value="1">1 gegen 1 — jede:r spielt für sich</option>
+            <option value="3">3 gegen 3</option>
+            <option value="4">4 gegen 4</option>
           </select>
           <select id="form-ablauf" class="eingabe">
             <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
@@ -203,6 +207,14 @@
       <div class="team-liste" id="teams-liste"></div>
 
       <div id="teams-admin" style="display:none">
+        <div class="karte-block" id="setzliste-block">
+          <p class="feld-label">Setzliste</p>
+          <p class="hinweis-text">Bestimmt, wer beim Auslosen als stark gilt. Ohne Änderung zählt das Rating.</p>
+          <ol class="setzliste" id="setzliste"></ol>
+          <button class="btn btn-link" id="btn-setzliste-reset">Zurück auf die Rating-Reihenfolge</button>
+          <p class="hinweis-text fehler" id="setzliste-fehler"></p>
+        </div>
+
         <div id="teams-tausch-block">
           <div class="karte-block">
             <p class="feld-label">Zwei Spieler tauschen</p>
@@ -225,6 +237,15 @@
             <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
             <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
           </select>
+
+          <div id="los-kotyp-feld">
+            <label class="feld-label" for="los-kotyp">K.-o.-Runde</label>
+            <select id="los-kotyp" class="eingabe">
+              <option value="einfach">Einfach — wer verliert, ist raus</option>
+              <option value="doppel">Doppel — erst nach der zweiten Niederlage raus</option>
+            </select>
+            <p class="hinweis-text" id="los-kotyp-hinweis"></p>
+          </div>
 
           <div id="los-finalfeld">
             <label class="feld-label" for="los-bestof-finale">Finale</label>
@@ -271,6 +292,8 @@
                 <option value="satzdifferenz">Satzdifferenz</option>
                 <option value="direktes_duell">Direktes Duell</option>
                 <option value="buchholz">Buchholz (Stärke der Gegner)</option>
+                <option value="buchholz_cut1">Buchholz gestrichen (ohne den schwächsten Gegner)</option>
+                <option value="sonneborn">Sonneborn-Berger (nur besiegte Gegner)</option>
               </select>
             </div>
           </div>
@@ -599,8 +622,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
-    'turnier-service.js?v=2.7',
-    'app.js?v=2.7',
+    'turnier-service.js?v=2.8',
+    'app.js?v=2.8',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];
