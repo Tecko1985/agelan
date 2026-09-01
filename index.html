@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.9">
+<link rel="stylesheet" href="style.css?v=3.0">
 </head>
 <body>
 
@@ -78,28 +78,12 @@
         <label class="feld-label" for="neu-name">Turniername</label>
         <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026 – 2vs2" maxlength="40" autocomplete="off">
 
-        <label class="feld-label" for="neu-form">Turnierform</label>
-        <select id="neu-form" class="eingabe">
-          <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
-          <option value="1">1 gegen 1 — jede:r spielt für sich</option>
-          <option value="3">3 gegen 3</option>
-          <option value="4">4 gegen 4</option>
-        </select>
-
-        <label class="feld-label" for="neu-ablauf">Ablauf</label>
-        <select id="neu-ablauf" class="eingabe">
-          <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
-          <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
-          <option value="nur_gruppen">Jeder gegen jeden (Round Robin) — eine Tabelle entscheidet</option>
-          <option value="schweizer">Schweizer System — feste Rundenzahl, Tabelle entscheidet</option>
-          <option value="schweizer_ko">Schweizer System, dann K.-o.-Runde</option>
-        </select>
-
         <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
         <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
 
         <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
-        <p class="hinweis-text">Modus und Gruppen legst du später beim Auslosen fest – dann steht die Teilnehmerzahl fest.</p>
+        <p class="hinweis-text">Erst die Anmeldung, dann das Format: Turnierform und Ablauf wählst du später in der
+          Lobby – dann siehst du, wie viele da sind, und die App rechnet dir jedes Format vor.</p>
         <p class="hinweis-text fehler" id="neu-fehler"></p>
         <button class="btn btn-link" id="btn-veranstalter-sperren">Veranstalter-Zugang auf diesem Gerät beenden</button>
       </div>
@@ -162,22 +146,30 @@
       <button class="btn btn-secondary btn-grow" id="btn-lobby-selbst-anmelden" style="display:none">＋ Selbst mitspielen</button>
 
       <div id="lobby-admin" style="display:none">
-        <div class="karte-block">
-          <p class="feld-label">Turnierform &amp; Ablauf</p>
+        <div class="karte-block" id="format-block">
+          <p class="feld-label">Turnierformat festlegen</p>
+          <p class="hinweis-text" id="format-stand"></p>
+
+          <label class="feld-label" for="form-teamgroesse">Wer spielt zusammen?</label>
           <select id="form-teamgroesse" class="eingabe">
             <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
             <option value="1">1 gegen 1 — jede:r spielt für sich</option>
             <option value="3">3 gegen 3</option>
             <option value="4">4 gegen 4</option>
           </select>
-          <select id="form-ablauf" class="eingabe">
-            <option value="gruppen_ko">Gruppenphase, dann K.-o.-Runde</option>
-            <option value="nur_ko">Nur K.-o.-Runde — wer verliert, ist raus</option>
-            <option value="nur_gruppen">Jeder gegen jeden (Round Robin) — eine Tabelle entscheidet</option>
-            <option value="schweizer">Schweizer System — feste Rundenzahl, Tabelle entscheidet</option>
-            <option value="schweizer_ko">Schweizer System, dann K.-o.-Runde</option>
+          <p class="hinweis-text" id="format-teams-zeile"></p>
+
+          <label class="feld-label" for="form-kotyp">K.-o.-Runden</label>
+          <select id="form-kotyp" class="eingabe">
+            <option value="einfach">Einfach — wer verliert, ist raus</option>
+            <option value="doppel">Doppel — erst nach der zweiten Niederlage raus</option>
           </select>
-          <button class="btn btn-secondary btn-grow" id="btn-form-speichern">Übernehmen</button>
+          <p class="hinweis-text">Nur für Abläufe mit K.-o. – beim Auslosen noch einmal änderbar.</p>
+
+          <p class="feld-label" id="format-vorschau-titel">Ablauf wählen</p>
+          <div class="format-liste" id="format-liste"></div>
+
+          <button class="btn btn-primary btn-grow" id="btn-form-speichern">Format festlegen</button>
           <p class="hinweis-text">Änderbar, solange die Anmeldung läuft. Danach hängen Teams und Spiele daran.</p>
           <p class="hinweis-text fehler" id="form-fehler"></p>
         </div>
@@ -637,8 +629,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
-    'turnier-service.js?v=2.9',
-    'app.js?v=2.9',
+    'turnier-service.js?v=3.0',
+    'app.js?v=3.0',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];

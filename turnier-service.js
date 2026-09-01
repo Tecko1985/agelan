@@ -455,6 +455,7 @@ function getZustand() {
     listeGeladen: indexGeladen,
     teamGroesse: metaTeamGroesse(meta),
     ablauf: metaAblauf(meta),
+    formatOffen: !!meta.formatOffen,
     istSchweizer: istSchweizer(meta),
     hatKoRunde: hatKoRunde(meta),
     hatVorrunde: hatVorrunde(meta),
@@ -511,6 +512,7 @@ function getListe() {
         geladen: id in uebersicht,
         teamGroesse: metaTeamGroesse(meta),
         ablauf: metaAblauf(meta),
+        formatOffen: !!(meta && meta.formatOffen),
         koTyp: metaKoTyp(meta),
         spielerAnzahl: baum && baum.spieler ? Object.keys(baum.spieler).length : 0,
         erstelltAm: (meta && meta.erstelltAm) || eintrag.erstelltAm || 0,
@@ -614,6 +616,11 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
   const pin = String(adminPin).trim();
   const id = neueTurnierId();
+  // Kein Ablauf übergeben = das Format wird erst später festgelegt. Das ist
+  // der Normalfall: erst am Veranstaltungstag steht fest, wie viele kommen.
+  // teamGroesse/ablauf tragen solange die alten Standardwerte als Platzhalter,
+  // damit jede vorhandene Auswertung weiterrechnet wie bisher.
+  const formatOffen = !ablauf;
   // Modus (Best-of), Gruppen-Anzahl und Weiterkommende werden erst beim Auslosen
   // festgelegt – dann steht die Teilnehmerzahl fest. Hier nur Platzhalter-Defaults.
   // Turnierform und Ablauf dagegen jetzt: sie sagen, worauf man sich einschreibt.
@@ -625,6 +632,7 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
     phase: "anmeldung",
     teamGroesse: metaTeamGroesse({ teamGroesse }),
     ablauf: metaAblauf({ ablauf }),
+    formatOffen: formatOffen,
     bestOf: 3,
     anzahlGruppen: 2,
     weiterProGruppe: 2,
@@ -644,17 +652,22 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
 // --- Turnierform & Ablauf ändern (Admin, nur während der Anmeldung) -------
 // Danach hängen Teams, Gruppen und Spiele daran – ein Wechsel würde sie
 // ungültig machen. Wer trotzdem umstellen will, setzt vorher zurück.
-async function setzeTurnierform({ teamGroesse, ablauf }) {
+async function setzeTurnierform({ teamGroesse, ablauf, koTyp }) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
   if (meta.phase !== "anmeldung") {
     return { erfolg: false, fehler: "Geht nur während der Anmeldung – setze das Turnier vorher zurück." };
   }
-  await db.ref(turnierBasis() + "/meta").update({
+  const zusatz = {};
+  // koTyp ist beim Auslosen nochmal wählbar; hier nur, damit die Vorschau in
+  // der Anmeldung und das spätere Auslosen dasselbe meinen.
+  if (koTyp === "doppel" || koTyp === "einfach") zusatz.koTyp = koTyp;
+  await db.ref(turnierBasis() + "/meta").update(Object.assign({
     teamGroesse: metaTeamGroesse({ teamGroesse }),
     ablauf: metaAblauf({ ablauf }),
-  });
+    formatOffen: false,
+  }, zusatz));
   return { erfolg: true };
 }
 
@@ -784,6 +797,9 @@ async function bildeTeams() {
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter kann Teams bilden." };
   const meta = letzterZustand.meta;
   if (!["anmeldung", "teams"].includes(meta.phase)) return { erfolg: false, fehler: "Falsche Phase." };
+  if (meta.formatOffen) {
+    return { erfolg: false, fehler: "Lege zuerst das Turnierformat fest." };
+  }
   const spieler = spielerListe();
   const groesse = metaTeamGroesse(meta);
   const einzel = groesse === 1;
@@ -1796,6 +1812,201 @@ async function loescheTurnier() {
 }
 
 // ===========================================================================
+// Format-Vorschau: wie sähe DIESES Format bei DIESER Teilnehmerzahl aus?
+// ===========================================================================
+// Reine Rechnung, ohne Datenbank – gedacht für die Anmeldephase, wenn noch
+// niemand weiß, wie viele kommen. Nutzt bewusst dieselben Formeln wie die
+// Auslosung (Teamzahl wie balancedGruppen, schweizerVorschlagRunden,
+// naechsteZweierpotenz), sonst verspricht die Vorschau etwas anderes, als
+// hinterher wirklich passiert.
+
+// Wie viele Gruppen schlägt die App bei n Teams vor? Dieselbe Formel wie im
+// Auslosen-Block der Oberfläche – hier die eine Quelle dafür.
+function vorschlagGruppen(anzahlTeams) {
+  return Math.max(1, Math.ceil(anzahlTeams / 4));
+}
+
+// n Teams möglichst gleichmäßig auf g Gruppen: [4,4,3] statt [4,4,2,1].
+function gruppenGroessen(anzahlTeams, anzahlGruppen) {
+  const g = Math.max(1, Math.min(anzahlTeams, Math.round(anzahlGruppen) || 1));
+  const basis = Math.floor(anzahlTeams / g);
+  const rest = anzahlTeams % g;
+  return Array.from({ length: g }, (unused, i) => basis + (i < rest ? 1 : 0));
+}
+
+// Paarungen, wenn jede:r gegen jede:n spielt.
+function paarungenIn(n) {
+  return n < 2 ? 0 : (n * (n - 1)) / 2;
+}
+
+// Zu spielende K.-o.-Partien bei q Startplätzen. Freilose legt die App zwar als
+// Spiele an, gespielt wird darin aber nichts – deshalb zählen sie hier nicht
+// als Partie, sondern werden getrennt gemeldet.
+function koPartien(q, koTyp, bracketReset) {
+  if (q < 2) return { spiele: 0, runden: 0, freilose: 0 };
+  const bracket = naechsteZweierpotenz(q);
+  const freilose = bracket - q;
+  if (koTyp === "doppel") {
+    // Doppel-K.-o.: raus erst nach der zweiten Niederlage, also sind 2q-2
+    // Niederlagen zu vergeben (+1, falls das Entscheidungsspiel nötig wird).
+    return {
+      spiele: 2 * q - 2 + (bracketReset ? 1 : 0),
+      runden: Math.max(1, 2 * Math.round(Math.log2(bracket)) - 1),
+      freilose: freilose,
+    };
+  }
+  return { spiele: q - 1, runden: Math.round(Math.log2(bracket)), freilose: freilose };
+}
+
+// Wie viele Spieltage dauert "jeder gegen jeden" als Liga (Kreisverfahren)?
+function ligaSpieltage(n) {
+  if (n < 2) return 0;
+  return n % 2 === 0 ? n - 1 : n;
+}
+
+// Ergebnis: { moeglich, warnung, teams, uebrige, einheit, spiele, runden,
+//             rundenWort, proMin, proMax, freilose, kurz, zeilen[] }
+function formatVorschau(optionen) {
+  const opt = optionen || {};
+  const spielerAnzahl = Math.max(0, Math.round(Number(opt.spielerAnzahl) || 0));
+  const groesse = metaTeamGroesse({ teamGroesse: opt.teamGroesse });
+  const ablauf = ABLAUF_ARTEN.indexOf(opt.ablauf) !== -1 ? opt.ablauf : "gruppen_ko";
+  const koTyp = opt.koTyp === "doppel" ? "doppel" : "einfach";
+  const durchgaenge = opt.doppelrunde ? 2 : 1;
+  const einheit = groesse === 1 ? "Teilnehmer" : "Teams";
+
+  // Teamzahl exakt wie balancedGruppen: floor(n/k). Übrige rücken in
+  // bestehende Teams nach, es entsteht also kein unvollständiges Team.
+  const teams = spielerAnzahl < groesse ? 0 : Math.max(1, Math.floor(spielerAnzahl / groesse));
+  const uebrige = teams ? spielerAnzahl - teams * groesse : spielerAnzahl;
+
+  const leer = {
+    moeglich: false, teams: teams, uebrige: uebrige, einheit: einheit, spiele: 0,
+    runden: 0, rundenWort: "Runden", proMin: 0, proMax: 0, freilose: 0,
+    kurz: "", zeilen: [],
+  };
+
+  const mindest = (ablauf === "schweizer" || ablauf === "schweizer_ko") ? 3 : 2;
+  if (teams < mindest) {
+    return Object.assign({}, leer, {
+      warnung: "Braucht mindestens " + mindest + " " + einheit +
+        (groesse > 1 ? " (also " + mindest * groesse + " Angemeldete)" : "") + ".",
+    });
+  }
+
+  const zeilen = [];
+  let spiele = 0, runden = 0, rundenWort = "Runden", proMin = 0, proMax = 0, freilose = 0;
+  let warnung = "";
+
+  if (ablauf === "nur_gruppen") {
+    spiele = paarungenIn(teams) * durchgaenge;
+    runden = ligaSpieltage(teams) * durchgaenge;
+    rundenWort = "Spieltage";
+    proMin = proMax = (teams - 1) * durchgaenge;
+    zeilen.push("Eine einzige Tabelle entscheidet – kein K.-o.");
+    zeilen.push("Alle spielen gleich oft, niemand fliegt vorzeitig raus.");
+    if (spiele > 40) warnung = "Sehr viele Partien – das dauert bei dieser Zahl lange.";
+  } else if (ablauf === "gruppen_ko") {
+    const g = vorschlagGruppen(teams);
+    const groessen = gruppenGroessen(teams, g);
+    const gruppenspiele = groessen.reduce(function (s, x) { return s + paarungenIn(x); }, 0) * durchgaenge;
+    const weiterJe = Math.max(1, Math.min(2, Math.min.apply(null, groessen)));
+    const q = Math.max(2, g * weiterJe);
+    const ko = koPartien(q, koTyp, false);
+    spiele = gruppenspiele + ko.spiele;
+    freilose = ko.freilose;
+    runden = Math.max.apply(null, groessen.map(function (x) { return x - 1; })) * durchgaenge + ko.runden;
+    proMin = Math.min.apply(null, groessen) - 1;
+    proMax = Math.max.apply(null, groessen) - 1 + ko.runden;
+    zeilen.push(g + (g === 1 ? " Gruppe" : " Gruppen") + " mit " + groessen.join("/") +
+      (groesse === 1 ? " Teilnehmenden." : " Teams."));
+    zeilen.push("Die besten " + weiterJe + " je Gruppe kommen weiter – " + q + " im K.-o.");
+    if (freilose > 0) {
+      zeilen.push(freilose + (freilose === 1 ? " Freilos" : " Freilose") + " in der ersten K.-o.-Runde.");
+    }
+  } else if (ablauf === "nur_ko") {
+    const ko = koPartien(teams, koTyp, false);
+    spiele = ko.spiele;
+    runden = ko.runden;
+    freilose = ko.freilose;
+    proMin = koTyp === "doppel" ? 2 : 1;
+    proMax = ko.runden;
+    zeilen.push(koTyp === "doppel"
+      ? "Raus erst nach der zweiten Niederlage."
+      : "Wer einmal verliert, ist raus.");
+    if (koTyp !== "doppel") {
+      // Nur die echten Erstrunden-Partien zählen: wer ein Freilos hat, steht
+      // schon in Runde 2, ohne gespielt zu haben.
+      const raus = teams - naechsteZweierpotenz(teams) / 2;
+      warnung = "Kürzestes Format – " + raus + " von " + teams + " scheiden schon in Runde 1 aus.";
+    }
+    if (freilose > 0) {
+      zeilen.push(freilose + (freilose === 1 ? " Freilos" : " Freilose") +
+        " in Runde 1 (der Baum füllt auf " + naechsteZweierpotenz(teams) + " auf).");
+    }
+  } else {
+    // schweizer / schweizer_ko
+    const maxRunden = Math.max(1, teams - 1);
+    const r = Math.max(1, Math.min(maxRunden, schweizerVorschlagRunden(teams)));
+    const proRunde = Math.floor(teams / 2);
+    const schweizerSpiele = r * proRunde;
+    runden = r;
+    proMin = proMax = r;
+    if (teams % 2 === 1) {
+      freilose = r;
+      proMin = r - 1;
+      zeilen.push("Ungerade Zahl: pro Runde hat eine:r ein Freilos (zählt als Sieg, rotiert).");
+    }
+    if (ablauf === "schweizer_ko") {
+      const q = Math.max(2, Math.min(teams, 4));
+      const ko = koPartien(q, koTyp, false);
+      spiele = schweizerSpiele + ko.spiele;
+      runden = r + ko.runden;
+      proMax = proMax + ko.runden;
+      zeilen.unshift(r + " Runden Schweizer System, dann die besten " + q + " ins K.-o.");
+    } else {
+      spiele = schweizerSpiele;
+      zeilen.unshift(r + " feste Runden – danach entscheidet die Tabelle (Buchholz).");
+      zeilen.push("Niemand fliegt raus, alle spielen gleich oft.");
+    }
+  }
+
+  const proText = proMin === proMax ? String(proMin) : proMin + "–" + proMax;
+  const rundenText = runden === 1 ? rundenWort.replace(/e$/, "").replace(/n$/, "") : rundenWort;
+  return {
+    moeglich: true,
+    warnung: warnung,
+    teams: teams,
+    uebrige: uebrige,
+    einheit: einheit,
+    spiele: spiele,
+    runden: runden,
+    rundenWort: rundenWort,
+    proMin: proMin,
+    proMax: proMax,
+    freilose: freilose,
+    kurz: spiele + (spiele === 1 ? " Partie" : " Partien") + " · " + runden + " " + rundenText +
+      " · jede:r spielt " + proText,
+    zeilen: zeilen,
+  };
+}
+
+// Alle Abläufe auf einmal durchrechnen – für den Vergleich in der Anmeldung.
+function formatVergleich(spielerAnzahl, teamGroesse, koTyp) {
+  return ABLAUF_ARTEN.map(function (a) {
+    return Object.assign(
+      { ablauf: a },
+      formatVorschau({
+        spielerAnzahl: spielerAnzahl,
+        teamGroesse: teamGroesse,
+        ablauf: a,
+        koTyp: koTyp,
+      })
+    );
+  });
+}
+
+// ===========================================================================
 const turnierService = {
   RATING_MIN, RATING_MAX, RATING_DEFAULT,
   onZustandsAenderung,
@@ -1817,6 +2028,9 @@ const turnierService = {
   verschiebeInSetzliste,
   setzlisteZuruecksetzen,
   schweizerVorschlagRunden,
+  formatVorschau,
+  formatVergleich,
+  vorschlagGruppen,
   beendeNachGruppen,
   setzeSpieltagDatum,
   meldeErgebnis,

@@ -137,6 +137,89 @@ function wertungWert(zeile, tiebreak) {
   return 0;
 }
 
+// --- Formatwahl während der Anmeldung ------------------------------------
+// Das Format wird bewusst erst gewählt, wenn die Anmeldungen da sind: am
+// Veranstaltungstag weiß niemand vorher, wie viele kommen. Damit die Wahl
+// keine Kopfrechenaufgabe ist, rechnet die App jeden Ablauf für die aktuelle
+// Zahl durch (Partien, Runden, wie oft jede:r drankommt).
+const ABLAUF_TITEL = {
+  gruppen_ko: "Gruppen, dann K.-o.",
+  nur_ko: "Nur K.-o.",
+  nur_gruppen: "Jeder gegen jeden",
+  schweizer: "Schweizer System",
+  schweizer_ko: "Schweizer System, dann K.-o.",
+};
+
+// Was der Veranstalter gerade angeklickt hat, aber noch nicht festgelegt hat.
+// Eigener Entwurf statt setzeAuswahl(): sonst springt die halbfertige Wahl
+// bei jeder neuen Anmeldung (Live-Update) auf den gespeicherten Stand zurück.
+let formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
+
+function formatEntwurfAus(z) {
+  if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
+  if (formatEntwurf.koTyp === null) formatEntwurf.koTyp = z.koTyp;
+  if (formatEntwurf.ablauf === null) formatEntwurf.ablauf = z.formatOffen ? "" : z.ablauf;
+  return formatEntwurf;
+}
+function formatEntwurfZuruecksetzen() {
+  formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
+}
+
+// Kleiner Text-Setzer: es gibt nur zeigeFehler(), und der ist fuer Fehler.
+function setzeText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text || "";
+}
+
+function renderFormatWahl(z) {
+  const liste = document.getElementById("format-liste");
+  if (!liste) return;
+  const entwurf = formatEntwurfAus(z);
+  const anzahl = z.spieler.length;
+
+  document.getElementById("form-teamgroesse").value = String(entwurf.teamGroesse);
+  document.getElementById("form-kotyp").value = entwurf.koTyp;
+
+  setzeText("format-stand", z.formatOffen
+    ? "Noch nichts festgelegt. Warte, bis alle da sind – dann wähle hier."
+    : "Festgelegt: " + (FORM_TEXT[z.teamGroesse] || "") + " · " +
+      (ABLAUF_TEXT[z.ablauf] || "") + ". Änderbar, solange die Anmeldung läuft.");
+
+  const wort = anzahl === 1 ? "1 Angemeldeten" : anzahl + " Angemeldeten";
+  setzeText("format-vorschau-titel", "Ablauf – so sähe er mit " + wort + " aus");
+
+  const vergleich = turnierService.formatVergleich(anzahl, entwurf.teamGroesse, entwurf.koTyp);
+  // Was aus den Angemeldeten wird, gehört direkt unter die Auswahl: sonst
+  // steht auf den Karten "6 Teams", ohne dass jemand sieht, wo die herkommen.
+  const probe = vergleich[0];
+  setzeText("format-teams-zeile", anzahl === 0
+    ? "Noch niemand angemeldet."
+    : entwurf.teamGroesse === 1
+    ? anzahl + (anzahl === 1 ? " Teilnehmer:in spielt" : " Teilnehmende spielen") + " einzeln gegeneinander."
+    : anzahl + " Angemeldete ergeben " + probe.teams + " Team" + (probe.teams === 1 ? "" : "s") +
+      (probe.uebrige === 1
+        ? " – 1 Person geht nicht auf und kommt ins schwächste Team dazu."
+        : probe.uebrige
+        ? " – " + probe.uebrige + " Personen gehen nicht auf und kommen in die schwächsten Teams dazu."
+        : "."));
+  liste.innerHTML = vergleich
+    .map((v) => {
+      const aktiv = v.ablauf === entwurf.ablauf && v.moeglich;
+      const zeilen = v.zeilen.map((t) => `<span class="fk-zeile">${escapeHtml(t)}</span>`).join("");
+      const warnung = v.warnung ? `<span class="fk-warnung">${escapeHtml(v.warnung)}</span>` : "";
+      const zahlen = v.moeglich
+        ? `<span class="fk-zahlen">${escapeHtml(v.kurz)}</span>`
+        : "";
+      return `<button type="button" class="format-karte${aktiv ? " aktiv" : ""}${v.moeglich ? "" : " gesperrt"}"
+        data-ablauf="${escapeHtml(v.ablauf)}"${v.moeglich ? "" : " disabled"}>
+        <span class="fk-kopf"><span class="fk-name">${escapeHtml(ABLAUF_TITEL[v.ablauf] || v.ablauf)}</span>
+        <span class="fk-haken">${aktiv ? "✓" : ""}</span></span>
+        ${zahlen}${zeilen}${warnung}
+      </button>`;
+    })
+    .join("");
+}
+
 // Im Einzelturnier gibt es keine Teams – dann heißt alles "Teilnehmer".
 function einheitWort(teamGroesse) {
   return teamGroesse === 1 ? "Teilnehmer" : "Teams";
@@ -160,7 +243,13 @@ function renderAuswahl(z) {
       const zahl = t.spielerAnzahl === 1 ? "1 Angemeldete:r" : t.spielerAnzahl + " Angemeldete";
       // Solange der Turnierbaum nicht da ist, stehen in teamGroesse/ablauf nur
       // die Standardwerte – die dürfen nicht als Tatsache auf der Kachel landen.
-      const art = t.geladen ? (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "") + (t.koTyp === "doppel" ? " (doppelt)" : "") : "";
+      // Solange das Format offen ist, stehen in teamGroesse/ablauf nur
+      // Platzhalter – die dürfen nicht als Zusage auf der Kachel landen.
+      const art = !t.geladen
+        ? ""
+        : t.formatOffen
+        ? "Format wird noch festgelegt"
+        : (FORM_TEXT[t.teamGroesse] || "") + " · " + (ABLAUF_TEXT[t.ablauf] || "") + (t.koTyp === "doppel" ? " (doppelt)" : "");
       const aktion = t.binIchDrin
         ? "Du bist dabei"
         : t.phase === "anmeldung"
@@ -240,14 +329,19 @@ function renderLobby(z) {
     // Geht die Zahl der Angemeldeten nicht auf, wandern die Übrigen in die
     // schwächsten Teams – das soll dastehen, bevor sich jemand wundert.
     const rest = z.spieler.length % z.teamGroesse;
-    document.getElementById("lobby-teams-hinweis").textContent = einzel
+    document.getElementById("lobby-teams-hinweis").textContent = z.formatOffen
+      ? "Lege oben zuerst das Turnierformat fest."
+      : einzel
       ? "Als Veranstalter: alle Angemeldeten spielen einzeln gegeneinander."
       : "Als Veranstalter: bildet ratingfaire " + z.teamGroesse + "er-Teams." +
-        (rest ? " " + rest + " Angemeldete gehen nicht auf und kommen zu den schwächsten Teams dazu." : "");
-    // Die Auswahlfelder nur setzen, wenn sie sich geändert haben – sonst
-    // springt eine gerade angefasste Auswahl bei jedem Live-Update zurück.
-    setzeAuswahl("form-teamgroesse", String(z.teamGroesse));
-    setzeAuswahl("form-ablauf", z.ablauf);
+        (rest === 1
+          ? " 1 Angemeldete:r geht nicht auf und kommt ins schwächste Team dazu."
+          : rest
+          ? " " + rest + " Angemeldete gehen nicht auf und kommen in die schwächsten Teams dazu."
+          : "");
+    renderFormatWahl(z);
+    // Ohne Format keine Teams: die Auslosung hängt an teamGroesse und ablauf.
+    document.getElementById("btn-teams-bilden").disabled = !!z.formatOffen;
   }
 }
 
@@ -345,7 +439,7 @@ function renderTeams(z) {
 
     if (!losFelderInit) {
       losFelderInit = true;
-      document.getElementById("los-gruppen").value = Math.max(1, Math.ceil(z.teams.length / 4));
+      document.getElementById("los-gruppen").value = turnierService.vorschlagGruppen(z.teams.length);
       document.getElementById("los-runden").value = turnierService.schweizerVorschlagRunden(z.teams.length);
       document.getElementById("los-weiter-gesamt").value = Math.min(z.teams.length, 4);
       document.getElementById("los-tiebreak").value = z.tiebreak;
@@ -777,8 +871,8 @@ function wireEvents() {
     const res = await turnierService.erstelleTurnier({
       name: document.getElementById("neu-name").value,
       adminPin: document.getElementById("neu-pin").value,
-      teamGroesse: document.getElementById("neu-form").value,
-      ablauf: document.getElementById("neu-ablauf").value,
+      // Kein Format: das legt der Veranstalter später in der Lobby fest,
+      // wenn die Zahl der Angemeldeten feststeht.
     });
     zeigeFehler("neu-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) {
@@ -831,13 +925,41 @@ function wireEvents() {
     if (zustand) render(zustand);
   });
 
-  // Turnierform/Ablauf nachträglich ändern (nur während der Anmeldung)
+  // Formatwahl: Teamgröße und K.-o.-Art ändern nur den Entwurf und rechnen
+  // die Vorschau neu – gespeichert wird erst mit "Format festlegen".
+  document.getElementById("form-teamgroesse").addEventListener("change", (e) => {
+    formatEntwurf.teamGroesse = Number(e.target.value) || 2;
+    if (zustand) renderFormatWahl(zustand);
+  });
+  document.getElementById("form-kotyp").addEventListener("change", (e) => {
+    formatEntwurf.koTyp = e.target.value;
+    if (zustand) renderFormatWahl(zustand);
+  });
+  document.getElementById("format-liste").addEventListener("click", (e) => {
+    const karte = e.target.closest("[data-ablauf]");
+    if (!karte || karte.disabled) return;
+    formatEntwurf.ablauf = karte.dataset.ablauf;
+    zeigeFehler("form-fehler", "");
+    if (zustand) renderFormatWahl(zustand);
+  });
+
+  // Turnierform/Ablauf festlegen (nur während der Anmeldung)
   document.getElementById("btn-form-speichern").addEventListener("click", async () => {
+    if (!formatEntwurf.ablauf) {
+      return zeigeFehler("form-fehler", "Bitte oben einen Ablauf auswählen.");
+    }
     const res = await turnierService.setzeTurnierform({
-      teamGroesse: document.getElementById("form-teamgroesse").value,
-      ablauf: document.getElementById("form-ablauf").value,
+      teamGroesse: formatEntwurf.teamGroesse,
+      ablauf: formatEntwurf.ablauf,
+      koTyp: formatEntwurf.koTyp,
     });
     zeigeFehler("form-fehler", res.erfolg ? "" : res.fehler);
+    // Nach dem Speichern gilt wieder, was im Turnier steht – sonst hinge die
+    // Anzeige an einem Entwurf, den ein anderes Gerät längst überschrieben hat.
+    if (res.erfolg) {
+      formatEntwurfZuruecksetzen();
+      if (zustand) renderFormatWahl(zustand);
+    }
   });
 
   // Turnier aus der Liste öffnen oder löschen
@@ -1091,6 +1213,24 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.7",
+    groups: [
+      { title: "Erst anmelden, dann das Format wählen", items: [
+          "Beim Anlegen brauchst du nur noch Name und PIN. Turnierform und Ablauf legst du später fest.",
+          "Das ist für den Turniertag gedacht: erst wenn alle da sind, weißt du, wie viele mitspielen.",
+          "Auf der Kachel steht solange „Format wird noch festgelegt“ – niemand schreibt sich unter falschen Annahmen ein.",
+          "„Teams bilden“ geht erst, wenn das Format steht."
+      ]},
+      { title: "Vorschau: was käme bei jedem Format heraus?", items: [
+          "In der Anmeldung stehen jetzt alle fünf Abläufe untereinander – jeder mit den Zahlen für genau die Zahl der Angemeldeten.",
+          "Je Ablauf: wie viele Partien es gibt, über wie viele Runden, und wie oft jede:r drankommt.",
+          "Dazu Hinweise, die die Wahl leichter machen: wie viele Gruppen entstünden, wie viele Freilose es gäbe, wie viele nach der ersten Runde schon fertig wären.",
+          "Umschalten auf 1 gegen 1 oder auf Doppel-K.-o. rechnet die Vorschau sofort neu.",
+          "Die Zahlen kommen aus derselben Rechnung wie die spätere Auslosung – was dort steht, passiert hinterher auch."
+      ]}
+    ]
+  },
   {
     version: "1.6",
     groups: [

@@ -17,6 +17,11 @@ selbst ein, wer wann vom Kanal sendet.
 Unter **Alle Einträge** steht der Gesamtstand, das Anlegen von Turnier und
 Streamplan bleibt dem **Veranstalter** vorbehalten.
 
+**Das Format kommt erst nach der Anmeldung.** Ein neues Turnier braucht nur Name und PIN.
+Erst wenn feststeht, wer alles da ist, wählt der Veranstalter Turnierform und Ablauf —
+und sieht dabei für jeden Ablauf vorgerechnet, wie viele Partien und Runden dabei
+herauskämen und wie oft jede:r drankäme.
+
 ## Zugang
 
 Die Seite ist mit einem **eigenen Passwort** geschützt, nicht über das
