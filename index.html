@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=3.0">
+<link rel="stylesheet" href="style.css?v=3.1">
 </head>
 <body>
 
@@ -89,6 +89,10 @@
       </div>
     </div>
   </section>
+
+  <!-- Meldet fehlgeschlagene Schreibvorgänge. Liegt außerhalb der Screens,
+       damit er in jeder Phase erscheinen kann. -->
+  <div id="netz-fehler" role="alert" aria-live="assertive"></div>
 
   <!-- ============ START ============ -->
   <section class="screen" id="screen-start">
@@ -630,7 +634,7 @@
     'firebase-mock.js?v=2.2',
     'firebase-config.js?v=2.2',
     'turnier-service.js?v=3.0',
-    'app.js?v=3.0',
+    'app.js?v=3.1',
     'stream-service.js?v=2.2',
     'stream-app.js?v=2.3'
   ];

@@ -1196,6 +1196,39 @@ function wireEvents() {
   });
 }
 
+// --- Fehlgeschlagene Schreibvorgänge sichtbar machen -------------------------
+// ⚠️ Die Service-Funktionen geben für LOGIK-Fehler sauber { erfolg:false } zurück,
+// fangen aber keine Ausnahme. Schlägt ein Firebase-Schreibvorgang fehl (Token
+// abgelaufen, WLAN weg, Regelverstoß), wirft das await in turnier-service.js und
+// niemand fängt es: der Klick verpufft, die Oberfläche zeigt weiter den alten
+// Stand, und die einzige Spur ist eine unhandledrejection in der Konsole.
+//
+// Auf einer LAN mit wackligem WLAN heißt das: "Ergebnis melden" gedrückt, nichts
+// passiert, nochmal gedrückt, nichts. Ein Handler an dieser Stelle deckt alle 35
+// Schreibwege ab; einzelne try/catch in 36 Funktionen wären der teurere Weg zum
+// selben Ergebnis.
+let netzFehlerTimer = null;
+function zeigeNetzFehler(text) {
+  const el = document.getElementById("netz-fehler");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add("sichtbar");
+  if (netzFehlerTimer) clearTimeout(netzFehlerTimer);
+  netzFehlerTimer = setTimeout(() => el.classList.remove("sichtbar"), 8000);
+}
+
+window.addEventListener("unhandledrejection", (e) => {
+  // Die Konsolenmeldung bleibt bewusst stehen (kein preventDefault) – sie ist
+  // beim Nachsehen die genauere Quelle als dieser Balken.
+  const grund = e && e.reason;
+  const text = String((grund && grund.message) || grund || "");
+  zeigeNetzFehler(
+    /permission|denied|auth/i.test(text)
+      ? "Nicht gespeichert – die Anmeldung ist abgelaufen. Bitte die Seite neu laden."
+      : "Nicht gespeichert – keine Verbindung. Bitte prüfen und noch einmal versuchen."
+  );
+});
+
 // --- Start ------------------------------------------------------------------
 (function init() {
   // Sync-Status im Header
@@ -1213,6 +1246,16 @@ function wireEvents() {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.8",
+    groups: [
+      { title: "Die App sagt jetzt, wenn etwas nicht gespeichert werden konnte", items: [
+          "Brach die Verbindung weg oder lief die Anmeldung ab, verpuffte jeder Klick: kein Ergebnis, keine Meldung, die Seite zeigte weiter den alten Stand.",
+          "Auf einer LAN mit wackligem WLAN hieß das: Ergebnis melden gedrückt, nichts passiert, nochmal gedrückt, nichts.",
+          "Jetzt erscheint unten ein roter Balken mit dem Grund — bei abgelaufener Anmeldung mit dem Hinweis, die Seite neu zu laden."
+      ]}
+    ]
+  },
   {
     version: "1.7",
     groups: [
