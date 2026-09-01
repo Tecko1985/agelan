@@ -5,7 +5,7 @@ Turniere der Veranstaltung nebeneinander — jede:r schreibt sich in die ein, be
 denen sie oder er mitspielen will. Im Reiter **Stream** tragen die Streamer
 selbst ein, wer wann vom Kanal sendet.
 
-**➡️ [AgeLan öffnen](https://sc1911heiligenstadt.github.io/agelan/)**
+**➡️ [AgeLan öffnen](https://tecko1985.github.io/agelan/)**
 
 ## Was drin ist
 
