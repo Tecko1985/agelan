@@ -1247,6 +1247,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.1",
+    groups: [
+      { title: "Datenschutz: wo die Turnierdaten wirklich liegen", items: [
+          "Der Hinweis im Info-Reiter behauptete, die Daten lägen auf Servern in Deutschland. Das stimmte nicht. Er sagt jetzt offen: die Turnierdaten laufen über die Echtzeit-Datenbank von Google (Firebase), das Rechenzentrum steht in Belgien und betrieben wird es von Google.",
+          "Dazu steht dort, was überhaupt gespeichert wird — der Name, unter dem du dich einschreibst, deine Team-Zuordnung und die gemeldeten Ergebnisse.",
+          "Und die Bitte: wer seinen Namen nicht bei Google haben möchte, schreibt sich mit einem Spitznamen ein."
+      ]}
+    ]
+  },
+  {
     version: "1.0",
     groups: [
       { title: "Die Seite", items: [
