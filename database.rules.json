@@ -1,0 +1,80 @@
+{
+  "rules": {
+    "turniere": {
+      "$tid": {
+        ".read": true,
+        ".write": "auth != null",
+
+        "meta": {
+          ".validate": "newData.hasChildren(['name', 'phase'])",
+          "name":  { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+          "phase": { ".validate": "newData.isString()" },
+          "bestOf": { ".validate": "newData.isNumber()" }
+        },
+
+        "spieler": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['name', 'rating'])",
+            "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+            "rating": { ".validate": "newData.isNumber() && newData.val() >= 500 && newData.val() <= 3000" }
+          }
+        },
+
+        "spiele": {
+          "$sid": {
+            "saetzeA": { ".validate": "newData.isNumber() || newData.val() == null" },
+            "saetzeB": { ".validate": "newData.isNumber() || newData.val() == null" },
+            "status":  { ".validate": "newData.isString()" }
+          }
+        }
+      }
+    },
+
+    "streamplan": {
+      "$pid": {
+        ".read": true,
+        ".write": "auth != null",
+
+        "meta": {
+          ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
+          "titel":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+          "startDatum":  { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "anzahlTage":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 7" },
+          "standardVon": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" },
+          "standardBis": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" }
+        },
+
+        "tage": {
+          "$datum": {
+            "von": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" },
+            "bis": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" }
+          }
+        },
+
+        "programm": {
+          "$id": {
+            ".validate": "newData.hasChildren(['datum', 'von', 'bis', 'titel'])",
+            "datum": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+            "von":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1800" },
+            "bis":   { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" },
+            "titel": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+            "notiz": { ".validate": "newData.isString() && newData.val().length <= 200" }
+          }
+        },
+
+        "slots": {
+          "$sid": {
+            ".validate": "newData.hasChildren(['datum', 'von', 'bis', 'streamer'])",
+            "datum":    { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+            "von":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1800" },
+            "bis":      { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" },
+            "streamer": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+            "titel":    { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "notiz":    { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "uid":      { ".validate": "newData.isString()" }
+          }
+        }
+      }
+    }
+  }
+}

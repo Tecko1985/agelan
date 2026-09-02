@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgeLan – Turnier & Streamplan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a56a0">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=1.0">
+</head>
+<body>
+
+<!-- Passwort-Gate: die ganze Seite erst nach serverseitiger Prüfung freigeben (Scope agelan-zugang).
+     Die App-Skripte werden bewusst NICHT hier eingebunden, sondern unten vom Gate nachgeladen –
+     sonst stünde die Firebase-Verbindung schon, während das Overlay nur optisch davorliegt. -->
+<div id="pw-gate" style="position:fixed;inset:0;z-index:99999;background:#eef1f6;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.15);padding:28px 26px;max-width:360px;width:100%;text-align:center">
+    <div style="font-size:32px;line-height:1;margin-bottom:8px">🔒</div>
+    <h2 style="margin:0 0 6px;font-size:19px;color:#12325b">AgeLan – Turnier &amp; Streamplan</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#5a6b82">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
+    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" style="width:100%;box-sizing:border-box;padding:11px 12px;font-size:16px;border:1px solid #c7d0db;border-radius:8px;margin-bottom:10px" />
+    <button id="pw-gate-btn" type="button" style="width:100%;padding:11px 12px;font-size:15px;font-weight:600;color:#fff;background:#1a56a0;border:none;border-radius:8px;cursor:pointer">Öffnen</button>
+    <p id="pw-gate-msg" style="margin:10px 0 0;font-size:13px;min-height:16px"></p>
+  </div>
+</div>
+
+<header class="kopfzeile">
+  <div class="kopfzeile-left">
+    <span class="kopfzeile-titel">🏆 AgeLan</span>
+  </div>
+  <div class="kopfzeile-right">
+    <span class="kopfzeile-status" id="sync-status">● live</span>
+    <button class="btn-abbrechen" id="btn-admin-oeffnen" title="Veranstalter">⚙️</button>
+    <img class="header-logo" src="https://sc1911heiligenstadt.github.io/logo.svg" alt="1. SC 1911 Heiligenstadt e.V." />
+  </div>
+</header>
+
+<nav class="tabs">
+  <button data-tab="turnier" class="active">Turnier</button>
+  <button data-tab="stream">Stream</button>
+  <button data-tab="info" style="margin-left:auto;">Info</button>
+</nav>
+
+<main id="app">
+ <div class="tab-section active" id="tab-turnier">
+
+  <!-- Rückweg aus einem geöffneten Turnier in die Turnierliste -->
+  <div class="turnier-leiste" id="turnier-leiste" style="display:none">
+    <button class="btn btn-link" id="btn-turnier-wechseln">← Alle Turniere</button>
+    <span class="turnier-leiste-name" id="turnier-leiste-name"></span>
+  </div>
+
+  <!-- ============ AUSWAHL (mehrere Turniere nebeneinander) ============ -->
+  <section class="screen active" id="screen-auswahl">
+    <div class="screen-inhalt zentriert">
+      <h1 class="logo">🏆 AgeLan</h1>
+      <p class="untertitel">Turniere</p>
+
+      <div id="auswahl-liste"></div>
+      <p class="hinweis-text" id="auswahl-leer" style="display:none">Aktuell läuft kein Turnier.</p>
+      <p class="hinweis-text fehler" id="auswahl-fehler"></p>
+
+      <!-- Turniere anlegen darf nur der Veranstalter. Das Seiten-Passwort kennt
+           jeder Teilnehmer, deshalb hier ein zweites, engeres (Scope
+           agelan-veranstalter, serverseitig gegen PW_AGELAN_VERANSTALTER). -->
+      <div class="karte-block" id="veranstalter-gate">
+        <h2>🔒 Turnier anlegen</h2>
+        <p class="hinweis-text">Turniere legt nur der Veranstalter an. Zum Öffnen das Veranstalter-Passwort eingeben – das ist ein anderes als das Passwort für die Seite.</p>
+        <input type="password" id="veranstalter-pw" class="eingabe" placeholder="Veranstalter-Passwort" autocomplete="current-password">
+        <button class="btn btn-secondary btn-grow" id="btn-veranstalter-oeffnen">Öffnen</button>
+        <p class="hinweis-text fehler" id="veranstalter-fehler"></p>
+      </div>
+
+      <div class="karte-block" id="anlegen-block" style="display:none">
+        <h2>Turnier anlegen</h2>
+        <p class="hinweis-text">Mehrere Turniere laufen nebeneinander – ein zweites Turnier verdrängt das erste nicht.</p>
+        <label class="feld-label" for="neu-name">Turniername</label>
+        <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026 – 2vs2" maxlength="40" autocomplete="off">
+
+        <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
+        <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+
+        <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
+        <p class="hinweis-text">Erst die Anmeldung, dann das Format: Turnierform und Ablauf wählst du später in der
+          Lobby – dann siehst du, wie viele da sind, und die App rechnet dir jedes Format vor.</p>
+        <p class="hinweis-text fehler" id="neu-fehler"></p>
+        <button class="btn btn-link" id="btn-veranstalter-sperren">Veranstalter-Zugang auf diesem Gerät beenden</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Meldet fehlgeschlagene Schreibvorgänge. Liegt außerhalb der Screens,
+       damit er in jeder Phase erscheinen kann. -->
+  <div id="netz-fehler" role="alert" aria-live="assertive"></div>
+
+  <!-- ============ START ============ -->
+  <section class="screen" id="screen-start">
+    <div class="screen-inhalt zentriert">
+
+      <!-- Turnier läuft, Anmeldung offen -> mitmachen -->
+      <div id="start-turnier-laeuft">
+        <h1 class="logo" id="start-turniername">🏆</h1>
+        <p class="untertitel" id="start-phase-text">Anmeldung läuft</p>
+        <p class="spieler-zaehler" id="start-zaehler"></p>
+        <div class="aktion-block">
+          <button class="btn btn-primary btn-grow" id="btn-mitmachen">Jetzt anmelden</button>
+          <button class="btn btn-link" id="btn-nur-zuschauen">Nur zuschauen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOGIN (Name + Rating) ============ -->
+  <section class="screen" id="screen-login">
+    <div class="screen-inhalt zentriert">
+      <h2>Anmeldung</h2>
+      <p class="untertitel">Trage deinen Namen und dein Rating ein.</p>
+      <label class="feld-label" for="login-name">Name</label>
+      <input type="text" id="login-name" class="eingabe" placeholder="Dein Name" maxlength="24" autocomplete="off">
+
+      <label class="feld-label" for="login-rating">Rating (500–3000)</label>
+      <div class="rating-zeile">
+        <input type="range" id="login-rating-slider" min="500" max="3000" step="10" value="1500">
+        <input type="number" id="login-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+      </div>
+
+      <button class="btn btn-primary btn-grow" id="btn-login-bestaetigen">Anmelden</button>
+      <p class="hinweis-text" id="login-fehler"></p>
+      <button class="btn btn-link" id="btn-login-zurueck">Zurück</button>
+    </div>
+  </section>
+
+  <!-- ============ LOBBY (Anmeldung läuft) ============ -->
+  <section class="screen" id="screen-lobby">
+    <div class="screen-inhalt">
+      <h2 id="lobby-titel">Anmeldung</h2>
+      <p class="spieler-zaehler" id="lobby-zaehler">0 Angemeldete</p>
+      <ul class="spieler-liste" id="lobby-spielerliste"></ul>
+
+      <div id="lobby-eigen" class="karte-block" style="display:none">
+        <p class="feld-label">Dein Rating anpassen</p>
+        <div class="rating-zeile">
+          <input type="range" id="lobby-rating-slider" min="500" max="3000" step="10" value="1500">
+          <input type="number" id="lobby-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+        </div>
+        <button class="btn btn-secondary btn-grow" id="btn-lobby-rating-speichern">Speichern</button>
+      </div>
+
+      <button class="btn btn-secondary btn-grow" id="btn-lobby-selbst-anmelden" style="display:none">＋ Selbst mitspielen</button>
+
+      <div id="lobby-admin" style="display:none">
+        <div class="karte-block" id="format-block">
+          <p class="feld-label">Turnierformat festlegen</p>
+          <p class="hinweis-text" id="format-stand"></p>
+
+          <label class="feld-label" for="form-teamgroesse">Wer spielt zusammen?</label>
+          <select id="form-teamgroesse" class="eingabe">
+            <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
+            <option value="1">1 gegen 1 — jede:r spielt für sich</option>
+            <option value="3">3 gegen 3</option>
+            <option value="4">4 gegen 4</option>
+          </select>
+          <p class="hinweis-text" id="format-teams-zeile"></p>
+
+          <label class="feld-label" for="form-kotyp">K.-o.-Runden</label>
+          <select id="form-kotyp" class="eingabe">
+            <option value="einfach">Einfach — wer verliert, ist raus</option>
+            <option value="doppel">Doppel — erst nach der zweiten Niederlage raus</option>
+          </select>
+          <p class="hinweis-text">Nur für Abläufe mit K.-o. – beim Auslosen noch einmal änderbar.</p>
+
+          <p class="feld-label" id="format-vorschau-titel">Ablauf wählen</p>
+          <div class="format-liste" id="format-liste"></div>
+
+          <button class="btn btn-primary btn-grow" id="btn-form-speichern">Format festlegen</button>
+          <p class="hinweis-text">Änderbar, solange die Anmeldung läuft. Danach hängen Teams und Spiele daran.</p>
+          <p class="hinweis-text fehler" id="form-fehler"></p>
+        </div>
+
+        <button class="btn btn-primary btn-grow" id="btn-teams-bilden">Teams bilden →</button>
+        <p class="hinweis-text" id="lobby-teams-hinweis">Als Veranstalter: bildet ratingfaire 2er-Teams.</p>
+
+        <div class="karte-block">
+          <p class="feld-label">🧪 Zum Ausprobieren</p>
+          <div class="feld-zeile">
+            <input type="number" id="test-anzahl" class="eingabe" min="1" max="64" value="8" style="flex:0 0 90px">
+            <button class="btn btn-secondary" id="btn-test-spieler" style="flex:1">Testspieler anlegen</button>
+          </div>
+          <p class="hinweis-text">Erfindet Spieler mit zufälligem Rating, damit du den Ablauf allein durchspielen kannst.</p>
+          <button class="btn btn-link" id="btn-test-entfernen">Testspieler wieder entfernen</button>
+          <p class="hinweis-text fehler" id="test-fehler"></p>
+        </div>
+      </div>
+      <p class="hinweis-text" id="lobby-warte" style="display:none">Warte, bis der Veranstalter die Teams bildet …</p>
+    </div>
+  </section>
+
+  <!-- ============ TEAMS ============ -->
+  <section class="screen" id="screen-teams">
+    <div class="screen-inhalt">
+      <h2 id="teams-titel">Teams</h2>
+      <div class="team-liste" id="teams-liste"></div>
+
+      <div id="teams-admin" style="display:none">
+        <div class="karte-block" id="setzliste-block">
+          <p class="feld-label">Setzliste</p>
+          <p class="hinweis-text">Bestimmt, wer beim Auslosen als stark gilt. Ohne Änderung zählt das Rating.</p>
+          <ol class="setzliste" id="setzliste"></ol>
+          <button class="btn btn-link" id="btn-setzliste-reset">Zurück auf die Rating-Reihenfolge</button>
+          <p class="hinweis-text fehler" id="setzliste-fehler"></p>
+        </div>
+
+        <div id="teams-tausch-block">
+          <div class="karte-block">
+            <p class="feld-label">Zwei Spieler tauschen</p>
+            <div class="feld-zeile">
+              <select id="tausch-a" class="eingabe"></select>
+              <select id="tausch-b" class="eingabe"></select>
+            </div>
+            <button class="btn btn-secondary btn-grow" id="btn-tauschen">Tauschen</button>
+          </div>
+          <button class="btn btn-secondary btn-grow" id="btn-teams-neu">🎲 Neu vorschlagen</button>
+        </div>
+
+        <div class="karte-block">
+          <p class="feld-label">Turnier auslosen <span class="los-teamzahl" id="los-teamzahl"></span></p>
+          <p class="hinweis-text" id="los-ablauf-hinweis"></p>
+
+          <label class="feld-label" for="los-bestof">Modus je Spiel</label>
+          <select id="los-bestof" class="eingabe">
+            <option value="3">Best of 3 (erst 2 Sätze gewinnen)</option>
+            <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
+            <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
+          </select>
+
+          <div id="los-kotyp-feld">
+            <label class="feld-label" for="los-kotyp">K.-o.-Runde</label>
+            <select id="los-kotyp" class="eingabe">
+              <option value="einfach">Einfach — wer verliert, ist raus</option>
+              <option value="doppel">Doppel — erst nach der zweiten Niederlage raus</option>
+            </select>
+            <p class="hinweis-text" id="los-kotyp-hinweis"></p>
+          </div>
+
+          <div id="los-finalfeld">
+            <label class="feld-label" for="los-bestof-finale">Finale</label>
+            <select id="los-bestof-finale" class="eingabe">
+              <option value="">wie die anderen Spiele</option>
+              <option value="3">Best of 3</option>
+              <option value="5">Best of 5</option>
+              <option value="7">Best of 7</option>
+            </select>
+          </div>
+
+          <div class="feld-zeile" id="los-gruppenfelder">
+            <div>
+              <label class="feld-label" for="los-gruppen">Gruppen</label>
+              <input type="number" id="los-gruppen" class="eingabe" min="1" value="2">
+            </div>
+            <div>
+              <label class="feld-label" for="los-weiter">Weiter je Gruppe</label>
+              <input type="number" id="los-weiter" class="eingabe" min="1" value="2">
+            </div>
+          </div>
+          <p class="hinweis-text" id="los-vorschau"></p>
+
+          <div class="feld-zeile" id="los-schweizerfelder" style="display:none">
+            <div>
+              <label class="feld-label" for="los-runden">Runden</label>
+              <input type="number" id="los-runden" class="eingabe" min="1" value="4">
+            </div>
+            <div id="los-weiter-gesamt-feld">
+              <label class="feld-label" for="los-weiter-gesamt">Weiter in die K.-o.-Runde</label>
+              <input type="number" id="los-weiter-gesamt" class="eingabe" min="2" value="4">
+            </div>
+          </div>
+          <p class="hinweis-text" id="los-schweizer-hinweis" style="display:none"></p>
+
+          <div class="feld-zeile" id="los-wertungfelder">
+            <div>
+              <label class="feld-label" for="los-punkte">Punkte je Sieg</label>
+              <input type="number" id="los-punkte" class="eingabe" min="1" max="5" value="3">
+            </div>
+            <div>
+              <label class="feld-label" for="los-tiebreak">Bei Punktgleichstand</label>
+              <select id="los-tiebreak" class="eingabe">
+                <option value="satzdifferenz">Satzdifferenz</option>
+                <option value="direktes_duell">Direktes Duell</option>
+                <option value="buchholz">Buchholz (Stärke der Gegner)</option>
+                <option value="buchholz_cut1">Buchholz gestrichen (ohne den schwächsten Gegner)</option>
+                <option value="sonneborn">Sonneborn-Berger (nur besiegte Gegner)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="radio-zeile" id="los-doppelrunde-zeile">
+            <input type="checkbox" id="los-doppelrunde">
+            <span><strong>Hin- und Rückrunde</strong> — jede Paarung zweimal, mit getauschten Seiten</span>
+          </label>
+          <label class="radio-zeile" id="los-spieltage-zeile">
+            <input type="checkbox" id="los-spieltage">
+            <span><strong>Ligamodus mit Spieltagen</strong> — die Spiele werden auf Spieltage verteilt, je Spieltag höchstens ein Spiel pro Team. Datum je Spieltag lässt sich danach eintragen.</span>
+          </label>
+          <label class="radio-zeile" id="los-bracketreset-zeile">
+            <input type="checkbox" id="los-bracketreset">
+            <span><strong>Entscheidungsspiel im großen Finale</strong> — gewinnt der aus dem Verliererbaum, gibt es ein zweites Spiel. Sonst wäre er mit einer Niederlage Sieger.</span>
+          </label>
+          <label class="radio-zeile" id="los-platz3-zeile">
+            <input type="checkbox" id="los-platz3">
+            <span><strong>Spiel um Platz 3</strong> — die beiden Halbfinal-Verlierer spielen den dritten Platz aus</span>
+          </label>
+
+          <div id="los-art-block">
+            <p class="feld-label">Auslosungs-Art</p>
+            <label class="radio-zeile">
+              <input type="radio" name="losmodus" value="setzliste" checked>
+              <span><strong>Nach Setzliste</strong> <span id="losmodus-setzliste-text">— starke Teams auf die Gruppen verteilt (fairere Gruppen)</span></span>
+            </label>
+            <label class="radio-zeile">
+              <input type="radio" name="losmodus" value="zufaellig">
+              <span><strong>Rein zufällig</strong> — reines Losglück</span>
+            </label>
+          </div>
+          <button class="btn btn-primary btn-grow" id="btn-gruppen-losen">Auslosen →</button>
+        </div>
+        <p class="hinweis-text" id="teams-fehler"></p>
+      </div>
+      <p class="hinweis-text" id="teams-warte" style="display:none">Warte, bis der Veranstalter die Gruppen auslost …</p>
+    </div>
+  </section>
+
+  <!-- ============ GRUPPEN ============ -->
+  <section class="screen" id="screen-gruppen">
+    <div class="screen-inhalt">
+      <h2 id="gruppen-titel">Gruppenphase</h2>
+      <div id="gruppen-container"></div>
+
+      <div class="karte-block" id="spieltag-daten" style="display:none">
+        <p class="feld-label">Datum je Spieltag</p>
+        <p class="hinweis-text">Optional. Steht ein Datum, taucht es über dem Spieltag auf – so sieht jede:r, wann gespielt wird.</p>
+        <div id="spieltag-datum-liste"></div>
+        <p class="hinweis-text fehler" id="spieltag-fehler"></p>
+      </div>
+
+      <div id="gruppen-admin" style="display:none">
+        <button class="btn btn-primary btn-grow" id="btn-ko-losen">K.o.-Auslosung starten →</button>
+        <p class="hinweis-text" id="gruppen-admin-hinweis"></p>
+        <button class="btn btn-secondary btn-grow" id="btn-sim-gruppen">🧪 Offene Spiele auswürfeln</button>
+        <p class="hinweis-text fehler" id="sim-gruppen-fehler"></p>
+      </div>
+      <p class="hinweis-text" id="gruppen-warte" style="display:none"></p>
+    </div>
+  </section>
+
+  <!-- ============ K.O. ============ -->
+  <section class="screen" id="screen-ko">
+    <div class="screen-inhalt">
+      <h2>K.-o.-Runde</h2>
+      <div id="ko-container" class="bracket"></div>
+      <div id="ko-admin" style="display:none">
+        <button class="btn btn-secondary btn-grow" id="btn-sim-ko">🧪 Offene Spiele auswürfeln</button>
+        <p class="hinweis-text fehler" id="sim-ko-fehler"></p>
+        <button class="btn btn-link" id="btn-ko-naechste">Nächste Runde manuell prüfen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEENDET ============ -->
+  <section class="screen" id="screen-beendet">
+    <div class="screen-inhalt zentriert">
+      <h1 class="sieger-titel">🏆 Turnier beendet!</h1>
+      <p class="sieger-name" id="beendet-sieger">—</p>
+      <div id="beendet-tabelle"></div>
+      <div id="beendet-bracket" class="bracket"></div>
+    </div>
+  </section>
+
+ </div>
+
+ <!-- ============ STREAMKALENDER ============ -->
+ <div class="tab-section" id="tab-stream">
+
+  <!-- noch kein Plan -> anlegen -->
+  <div class="sk-view aktiv" id="sk-kein-plan">
+    <div class="karte-block">
+      <h2>Streamplan anlegen</h2>
+      <p class="hinweis-text">Wer sendet wann vom Kanal? Jede:r mit dem Link trägt sich selbst ein – gesendet wird immer nur von einem gleichzeitig.</p>
+
+      <label class="feld-label" for="sk-neu-titel">Name des Plans</label>
+      <input type="text" id="sk-neu-titel" class="eingabe" placeholder="z. B. AgeLan 2026 – Streams" maxlength="60" autocomplete="off">
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="sk-neu-start">Erster Tag</label>
+          <input type="date" id="sk-neu-start" class="eingabe">
+        </div>
+        <div>
+          <label class="feld-label" for="sk-neu-tage">Tage</label>
+          <input type="number" id="sk-neu-tage" class="eingabe" min="1" max="7" value="4">
+        </div>
+      </div>
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="sk-neu-von">Sendebeginn je Tag</label>
+          <select id="sk-neu-von" class="eingabe"></select>
+        </div>
+        <div>
+          <label class="feld-label" for="sk-neu-bis">Sendeschluss</label>
+          <select id="sk-neu-bis" class="eingabe"></select>
+        </div>
+      </div>
+      <p class="hinweis-text">Zeiten nach Mitternacht sind mit „(Nacht)“ gekennzeichnet und gehören noch zum selben Tag. Einzelne Tage – etwa einen Sonntag, an dem nur vormittags etwas läuft – stellst du danach kürzer.</p>
+
+      <label class="feld-label" for="sk-neu-pin">Veranstalter-PIN</label>
+      <input type="text" id="sk-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <p class="hinweis-text" id="sk-neu-pin-hinweis"></p>
+
+      <button class="btn btn-primary btn-grow" id="sk-btn-erstellen">Streamplan anlegen</button>
+      <p class="hinweis-text fehler" id="sk-neu-fehler"></p>
+    </div>
+  </div>
+
+  <!-- Plan vorhanden -->
+  <div class="sk-view" id="sk-plan">
+    <div class="sk-kopf">
+      <h2 id="sk-titel">Streamplan</h2>
+      <p class="hinweis-text" id="sk-zeitraum"></p>
+    </div>
+
+    <button class="btn btn-primary btn-grow" id="sk-btn-belegen">＋ Zeit belegen</button>
+    <button class="btn btn-secondary btn-grow" id="sk-btn-programm" style="display:none">＋ Programmpunkt</button>
+
+    <div class="sk-tagchips" id="sk-tagchips"></div>
+    <div id="sk-kalender"></div>
+
+    <h3>Alle Einträge</h3>
+    <div id="sk-liste"></div>
+
+    <div class="karte-block" id="sk-admin-login">
+      <p class="feld-label">Veranstalter</p>
+      <div class="feld-zeile">
+        <div>
+          <input type="text" id="sk-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn btn-secondary" id="sk-btn-admin-anmelden">Anmelden</button>
+        </div>
+      </div>
+      <p class="hinweis-text fehler" id="sk-admin-fehler"></p>
+    </div>
+
+    <div class="karte-block" id="sk-admin-panel" style="display:none">
+      <p class="feld-label">Zeitfenster je Tag</p>
+      <div id="sk-fenster-liste"></div>
+      <button class="btn btn-secondary btn-grow" id="sk-btn-fenster-speichern">Zeiten speichern</button>
+      <p class="hinweis-text">Nur innerhalb dieser Zeiten lässt sich etwas eintragen. Zwei Tage dürfen sich nicht überschneiden, und schon belegte Zeiten müssen im Fenster bleiben.</p>
+
+      <button class="btn btn-secondary btn-grow" id="sk-btn-leeren">Alle Einträge entfernen</button>
+      <p class="hinweis-text">Die Zeitfenster und der Plan bleiben stehen, nur die Belegungen fallen weg.</p>
+
+      <button class="btn btn-danger btn-grow" id="sk-btn-plan-loeschen">Streamplan löschen</button>
+      <p class="hinweis-text">Löscht den kompletten Plan. Das Turnier bleibt davon unberührt.</p>
+      <p class="hinweis-text fehler" id="sk-admin-panel-fehler"></p>
+    </div>
+  </div>
+
+ </div>
+
+ <div class="tab-section" id="tab-info">
+   <div class="info-card">
+     <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
+     <p>Turniere und Streamplan für die Veranstaltungstage. Im Tab „Turnier“ stehen alle Turniere nebeneinander – du schreibst dich in jedes einzeln ein. Im Tab „Stream“ trägst du ein, wer wann vom Kanal sendet. Alle Geräte sehen den Stand live.</p>
+   </div>
+   <div class="info-card">
+     <h2>Änderungen</h2>
+     <div id="changelog-list"></div>
+   </div>
+ 
+    <div class="card" id="ds-info-karte">
+      <h2>Datenschutz</h2>
+      <p>Dieses Werkzeug gehört zu den internen Anwendungen des
+      1. SC 1911 Heiligenstadt. Gespeichert wird der Name, unter dem du dich in
+      ein Turnier einschreibst, deine Team-Zuordnung und die gemeldeten
+      Ergebnisse. Es gibt kein Konto und keine E-Mail-Adresse; die Anmeldung an
+      der Datenbank läuft anonym. Firebase legt dafür in deinem Browser eine
+      zufällige Kennung ab; sie bleibt, bis du die Website-Daten löschst.</p>
+      <p><strong>Die Turnierdaten verlassen den Verein.</strong> Damit alle
+      Geräte denselben Stand sehen, laufen sie über die Echtzeit-Datenbank von
+      Google (Firebase); das Rechenzentrum steht in Belgien, nicht in
+      Deutschland, und betrieben wird es von Google. <strong>Wenn du das nicht
+      möchtest, schreib dich mit einem Spitznamen statt deines Namens
+      ein.</strong></p>
+      <p>Eine Weitergabe an weitere Dritte findet nur statt, soweit sie für den
+      jeweiligen Zweck erforderlich oder gesetzlich vorgeschrieben ist.</p>
+      <p>Verantwortlich ist der 1. SC 1911 Heiligenstadt, Leineberg 2,
+      37308 Heilbad Heiligenstadt, Telefon 03606 612206,
+      <a href="mailto:info@sc1911-heiligenstadt.de">info@sc1911-heiligenstadt.de</a>.
+      Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
+      Datenübertragbarkeit und Widerspruch lassen sich unter dieser Anschrift
+      geltend machen. Beschwerden nimmt der Thüringer Landesbeauftragte für
+      den Datenschutz und die Informationsfreiheit entgegen.</p>
+      <p><a href="https://www.sc1911-heiligenstadt.de/datenschutz/" target="_blank" rel="noopener">Datenschutzerklärung des Vereins</a>
+      &middot;
+      <a href="https://www.sc1911-heiligenstadt.de/impressum-2/" target="_blank" rel="noopener">Impressum</a></p>
+    </div>
+</div>
+</main>
+
+<!-- ============ Modal: Ergebnis melden ============ -->
+<div class="modal-overlay" id="modal-melden">
+  <div class="modal">
+    <h3 id="melden-titel">Ergebnis melden</h3>
+    <div class="melden-teams">
+      <div class="melden-team">
+        <span class="melden-teamname" id="melden-name-a">Team A</span>
+        <input type="number" id="melden-saetze-a" class="eingabe saetze-input" min="0" value="0">
+      </div>
+      <span class="melden-doppelpunkt">:</span>
+      <div class="melden-team">
+        <span class="melden-teamname" id="melden-name-b">Team B</span>
+        <input type="number" id="melden-saetze-b" class="eingabe saetze-input" min="0" value="0">
+      </div>
+    </div>
+    <p class="hinweis-text" id="melden-hinweis"></p>
+    <p class="hinweis-text fehler" id="melden-fehler"></p>
+    <button class="btn btn-primary btn-grow" id="btn-melden-speichern">Speichern</button>
+    <button class="btn btn-link" id="btn-melden-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
+<!-- ============ Modal: Veranstalter ============ -->
+<div class="modal-overlay" id="modal-admin">
+  <div class="modal">
+    <h3>Veranstalter</h3>
+    <div id="admin-login">
+      <label class="feld-label" for="admin-pin">Admin-PIN eingeben</label>
+      <input type="text" id="admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+      <button class="btn btn-primary btn-grow" id="btn-admin-anmelden">Anmelden</button>
+      <p class="hinweis-text fehler" id="admin-fehler"></p>
+    </div>
+    <div id="admin-panel" style="display:none">
+      <p class="hinweis-text" id="admin-panel-info">Du bist als Veranstalter angemeldet.</p>
+      <button class="btn btn-secondary btn-grow" id="btn-admin-reset">Turnier zurücksetzen</button>
+      <p class="hinweis-text">Teams, Gruppen und Spiele werden verworfen. Alle Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.</p>
+      <button class="btn btn-danger btn-grow" id="btn-admin-loeschen">Turnier löschen</button>
+      <p class="hinweis-text">Löscht das ganze Turnier samt Anmeldungen und PIN. Nicht umkehrbar.</p>
+      <p class="hinweis-text fehler" id="admin-panel-fehler"></p>
+    </div>
+    <button class="btn btn-link" id="btn-admin-schliessen">Schließen</button>
+  </div>
+</div>
+
+<!-- ============ Modal: Zeit belegen ============ -->
+<div class="modal-overlay" id="modal-stream">
+  <div class="modal">
+    <h3 id="sk-dlg-titel-text">Zeit belegen</h3>
+
+    <label class="feld-label" for="sk-dlg-tag">Tag</label>
+    <select id="sk-dlg-tag" class="eingabe"></select>
+
+    <div class="feld-zeile">
+      <div>
+        <label class="feld-label" for="sk-dlg-von">Von</label>
+        <select id="sk-dlg-von" class="eingabe"></select>
+      </div>
+      <div>
+        <label class="feld-label" for="sk-dlg-bis">Bis</label>
+        <select id="sk-dlg-bis" class="eingabe"></select>
+      </div>
+    </div>
+
+    <label class="feld-label" for="sk-dlg-name">Dein Name</label>
+    <input type="text" id="sk-dlg-name" class="eingabe" maxlength="40" autocomplete="off">
+
+    <label class="feld-label" for="sk-dlg-was">Was läuft in der Zeit?</label>
+    <input type="text" id="sk-dlg-was" class="eingabe" placeholder="z. B. Cast Gruppenphase" maxlength="60" autocomplete="off">
+
+    <label class="feld-label" for="sk-dlg-notiz">Notiz (freiwillig)</label>
+    <input type="text" id="sk-dlg-notiz" class="eingabe" maxlength="200" autocomplete="off">
+
+    <p class="hinweis-text" id="sk-dlg-hinweis"></p>
+    <p class="hinweis-text fehler" id="sk-dlg-fehler"></p>
+
+    <button class="btn btn-primary btn-grow" id="sk-dlg-speichern">Speichern</button>
+    <button class="btn btn-danger btn-grow" id="sk-dlg-loeschen" style="display:none">Belegung entfernen</button>
+    <button class="btn btn-link" id="sk-dlg-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
+<!-- ============ Modal: Programmpunkt ============ -->
+<div class="modal-overlay" id="modal-programm">
+  <div class="modal">
+    <h3 id="sk-prg-titel-text">Programmpunkt anlegen</h3>
+
+    <label class="feld-label" for="sk-prg-tag">Tag</label>
+    <select id="sk-prg-tag" class="eingabe"></select>
+
+    <div class="feld-zeile">
+      <div>
+        <label class="feld-label" for="sk-prg-von">Von</label>
+        <select id="sk-prg-von" class="eingabe"></select>
+      </div>
+      <div>
+        <label class="feld-label" for="sk-prg-bis">Bis</label>
+        <select id="sk-prg-bis" class="eingabe"></select>
+      </div>
+    </div>
+
+    <label class="feld-label" for="sk-prg-was">Was steht an?</label>
+    <input type="text" id="sk-prg-was" class="eingabe" placeholder="z. B. Gruppenphase" maxlength="60" autocomplete="off">
+
+    <label class="feld-label" for="sk-prg-notiz">Notiz (freiwillig)</label>
+    <input type="text" id="sk-prg-notiz" class="eingabe" maxlength="200" autocomplete="off">
+
+    <p class="hinweis-text" id="sk-prg-hinweis"></p>
+    <p class="hinweis-text fehler" id="sk-prg-fehler"></p>
+
+    <button class="btn btn-primary btn-grow" id="sk-prg-speichern">Speichern</button>
+    <button class="btn btn-danger btn-grow" id="sk-prg-loeschen" style="display:none">Programmpunkt entfernen</button>
+    <button class="btn btn-link" id="sk-prg-abbrechen">Abbrechen</button>
+  </div>
+</div>
+
+<script>
+// Passwort-Gate. Prüft serverseitig gegen das Worker-Secret PW_AGELAN (Scope
+// agelan-zugang) und lädt die App-Skripte ERST nach der Freigabe. Damit steht
+// vor der Eingabe weder eine Firebase-Verbindung noch ein Datenabruf.
+//
+// Der Zugang wird in localStorage gemerkt, nicht in sessionStorage wie bei den
+// übrigen Seiten der Flotte: über vier Veranstaltungstage soll das Passwort
+// wirklich nur einmal je Gerät nötig sein.
+(function () {
+  var SCOPE = 'agelan-zugang';
+  var SPEICHER_KEY = 'agelan_gate_ok';
+  var GATEWAY = 'https://landingpage.michel-brunner.workers.dev';
+  var SKRIPTE = [
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
+    'firebase-mock.js?v=1.0',
+    'firebase-config.js?v=1.0',
+    'turnier-service.js?v=1.0',
+    'app.js?v=1.1',
+    'stream-service.js?v=1.0',
+    'stream-app.js?v=1.0'
+  ];
+
+  var input = document.getElementById('pw-gate-input');
+  var btn = document.getElementById('pw-gate-btn');
+  var msg = document.getElementById('pw-gate-msg');
+
+  // Nacheinander, nicht parallel: firebase-config braucht das Firebase-SDK,
+  // die Services brauchen die Konfiguration, die Oberflächen die Services.
+  function ladeSkripte(fertig) {
+    var i = 0;
+    (function weiter() {
+      if (i >= SKRIPTE.length) return fertig();
+      var s = document.createElement('script');
+      s.src = SKRIPTE[i++];
+      s.onload = weiter;
+      s.onerror = function () {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Die Seite konnte nicht vollständig geladen werden.';
+      };
+      document.body.appendChild(s);
+    })();
+  }
+
+  function freigeben(merken) {
+    if (merken) { try { localStorage.setItem(SPEICHER_KEY, '1'); } catch (e) {} }
+    ladeSkripte(function () {
+      var g = document.getElementById('pw-gate');
+      if (g) g.remove();
+    });
+  }
+
+  var schonFrei = false;
+  try { schonFrei = localStorage.getItem(SPEICHER_KEY) === '1'; } catch (e) {}
+  if (schonFrei) { freigeben(false); return; }
+
+  function pruefe() {
+    var pw = input.value;
+    if (!pw) { msg.style.color = '#c0392b'; msg.textContent = 'Bitte Passwort eingeben.'; return; }
+    btn.disabled = true; msg.style.color = '#5a6b82'; msg.textContent = 'Prüfe …';
+    fetch(GATEWAY, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-action-password', scope: SCOPE, password: pw })
+    }).then(function (resp) {
+      if (resp.ok) { msg.textContent = 'Einen Moment …'; freigeben(true); return; }
+      msg.style.color = '#c0392b';
+      if (resp.status === 403) { msg.textContent = 'Falsches Passwort.'; btn.disabled = false; input.select(); return; }
+      resp.json().catch(function () { return {}; }).then(function (b) {
+        msg.textContent = (b.error && /nicht konfiguriert/.test(b.error))
+          ? 'Der Zugang ist noch nicht eingerichtet.'
+          : 'Prüfung fehlgeschlagen (HTTP ' + resp.status + ').';
+        btn.disabled = false; input.select();
+      });
+    }).catch(function () {
+      // Häufigster Grund ist nicht "kein Netz", sondern eine Adresse, die der
+      // Worker nicht kennt (CORS) – etwa ein anderer localhost-Port oder eine
+      // direkt geöffnete Datei. Deshalb die eigene Herkunft mit anzeigen, sonst
+      // ist das von außen nicht zu unterscheiden.
+      msg.style.color = '#c0392b';
+      msg.innerHTML = 'Keine Verbindung zum Server.<br><span style="font-size:11px;opacity:.8">Aufgerufen von: ' +
+        String(window.location.origin || 'unbekannt').replace(/[<>&"]/g, '') + '</span>';
+      btn.disabled = false;
+    });
+  }
+
+  btn.addEventListener('click', pruefe);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
+  input.focus();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "AgeLan Streamplan",
+  "short_name": "AgeLan",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1f6",
+  "theme_color": "#1a56a0",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
