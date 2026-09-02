@@ -1247,189 +1247,71 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
-    version: "1.8",
-    groups: [
-      { title: "Die App sagt jetzt, wenn etwas nicht gespeichert werden konnte", items: [
-          "Brach die Verbindung weg oder lief die Anmeldung ab, verpuffte jeder Klick: kein Ergebnis, keine Meldung, die Seite zeigte weiter den alten Stand.",
-          "Auf einer LAN mit wackligem WLAN hieß das: Ergebnis melden gedrückt, nichts passiert, nochmal gedrückt, nichts.",
-          "Jetzt erscheint unten ein roter Balken mit dem Grund — bei abgelaufener Anmeldung mit dem Hinweis, die Seite neu zu laden."
-      ]}
-    ]
-  },
-  {
-    version: "1.7",
-    groups: [
-      { title: "Erst anmelden, dann das Format wählen", items: [
-          "Beim Anlegen brauchst du nur noch Name und PIN. Turnierform und Ablauf legst du später fest.",
-          "Das ist für den Turniertag gedacht: erst wenn alle da sind, weißt du, wie viele mitspielen.",
-          "Auf der Kachel steht solange „Format wird noch festgelegt“ – niemand schreibt sich unter falschen Annahmen ein.",
-          "„Teams bilden“ geht erst, wenn das Format steht."
-      ]},
-      { title: "Vorschau: was käme bei jedem Format heraus?", items: [
-          "In der Anmeldung stehen jetzt alle fünf Abläufe untereinander – jeder mit den Zahlen für genau die Zahl der Angemeldeten.",
-          "Je Ablauf: wie viele Partien es gibt, über wie viele Runden, und wie oft jede:r drankommt.",
-          "Dazu Hinweise, die die Wahl leichter machen: wie viele Gruppen entstünden, wie viele Freilose es gäbe, wie viele nach der ersten Runde schon fertig wären.",
-          "Umschalten auf 1 gegen 1 oder auf Doppel-K.-o. rechnet die Vorschau sofort neu.",
-          "Die Zahlen kommen aus derselben Rechnung wie die spätere Auslosung – was dort steht, passiert hinterher auch."
-      ]}
-    ]
-  },
-  {
-    version: "1.6",
-    groups: [
-      { title: "Ligamodus mit Spieltagen", items: [
-          "Bei Gruppen und „Jeder gegen jeden“ lassen sich die Spiele jetzt auf Spieltage verteilen.",
-          "Je Spieltag hat jedes Team höchstens ein Spiel – gut, wenn sich das Turnier über mehrere Tage zieht.",
-          "Als Veranstalter trägst du je Spieltag ein Datum ein. Es steht dann über den Spielen, damit jede:r weiß, wann es losgeht.",
-          "Mit Hin- und Rückrunde verdoppelt sich die Zahl der Spieltage."
-      ]},
-      { title: "Entscheidungsspiel im Doppel-K.-o.", items: [
-          "Neu ankreuzbar: gewinnt im großen Finale der aus dem Verliererbaum, gibt es ein zweites Spiel.",
-          "Grund: er hatte schon eine Niederlage, der andere noch keine. Ohne das zweite Spiel wäre jemand mit einer Niederlage Sieger, während ein anderer mit einer Niederlage rausgeflogen ist.",
-          "Ohne den Haken bleibt es bei einem Spiel."
-      ]}
-    ]
-  },
-  {
-    version: "1.5",
-    groups: [
-      { title: "Doppel-K.-o.", items: [
-          "Neu wählbar bei jeder K.-o.-Runde: wer einmal verliert, ist nicht raus, sondern rutscht in den Verliererbaum.",
-          "Erst die zweite Niederlage bedeutet das Aus. Ein schlechtes Spiel wirft dich also nicht sofort aus dem Turnier.",
-          "Am Ende trifft der Sieger des Gewinnerbaums auf den des Verliererbaums – ein großes Finale, kein zweites Spiel danach.",
-          "Ein eigenes Spiel um Platz 3 gibt es dabei nicht, das ergibt sich aus dem Verliererbaum."
-      ]},
-      { title: "Größere Teams", items: [
-          "Neben 1 gegen 1 und 2 gegen 2 gibt es jetzt auch 3 gegen 3 und 4 gegen 4.",
-          "Die App verteilt die Angemeldeten weiter ratingfair: die Stärksten und die Schwächsten landen abwechselnd in denselben Teams."
-      ]},
-      { title: "Mehr Wertungen bei Punktgleichstand", items: [
-          "Buchholz gestrichen: der schwächste Gegner fällt aus der Rechnung. Dämpft, dass ein einziger sehr schwacher Gegner die Wertung verdirbt.",
-          "Sonneborn-Berger: zählt nur die Punkte der Gegner, die du wirklich besiegt hast."
-      ]},
-      { title: "Setzliste von Hand", items: [
-          "Vor dem Auslosen lässt sich die Reihenfolge mit den Pfeilen selbst festlegen.",
-          "Sie bestimmt, wer als stark gilt – also wer in verschiedene Gruppen kommt und wer im Bracket erst spät aufeinandertrifft.",
-          "Ohne Eingriff zählt weiter das Rating; ein Klick stellt das auch wieder her."
-      ]}
-    ]
-  },
-  {
-    version: "1.4",
-    groups: [
-      { title: "Schweizer System mit Buchholz", items: [
-          "Neuer Ablauf: feste Rundenzahl, und in jeder Runde spielst du gegen jemanden mit ähnlicher Punktzahl – nie zweimal gegen dieselbe Person.",
-          "Passt, wenn viele mitspielen, aber nicht jede:r gegen jede:n antreten soll.",
-          "Bei ungerader Teilnehmerzahl bekommt je Runde eine Person ein Freilos, also einen geschenkten Sieg. Wer schon eins hatte, bekommt kein zweites.",
-          "Bei Punktgleichstand entscheidet Buchholz: die Summe der Punkte aller eigenen Gegner. Wer die stärkeren Gegner hatte, steht vorn. Die Spalte „BH“ zeigt den Wert.",
-          "Wahlweise endet das Turnier mit der Tabelle oder die Besten kommen noch in eine K.-o.-Runde."
-      ]},
-      { title: "Mehr Stellschrauben beim Auslosen", items: [
-          "Punkte je Sieg frei einstellbar.",
-          "Bei Punktgleichstand wählbar: Satzdifferenz, direktes Duell oder Buchholz.",
-          "Hin- und Rückrunde: jede Paarung zweimal, beim zweiten Mal mit getauschten Seiten.",
-          "Spiel um Platz 3: die beiden Halbfinal-Verlierer spielen den dritten Platz aus.",
-          "Das Finale kann einen eigenen Modus haben, zum Beispiel Best of 5 statt Best of 3.",
-          "„Jeder gegen jeden“ heißt jetzt auch im Text „Round Robin“ – das ist dasselbe."
-      ]}
-    ]
-  },
-  {
-    version: "1.3",
-    groups: [
-      { title: "Turniere anlegen nur noch als Veranstalter", items: [
-          "Vorher konnte jede:r mit dem Link Turniere anlegen. Der Bereich „Turnier anlegen“ ist jetzt hinter einem eigenen Veranstalter-Passwort.",
-          "Das ist ein anderes Passwort als das für die Seite – das kennt ja jede:r Teilnehmer:in.",
-          "Geprüft wird es auf dem Server, es steht nirgends im Quelltext.",
-          "Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen; über „Veranstalter-Zugang auf diesem Gerät beenden“ wird er wieder gesperrt.",
-          "Einschreiben, Ergebnisse melden und Zuschauen bleiben für alle offen wie bisher."
-      ]}
-    ]
-  },
-  {
-    version: "1.2",
-    groups: [
-      { title: "Turnierform wählen", items: [
-          "Beim Anlegen legst du fest, ob „1 gegen 1“ oder „2 gegen 2“ gespielt wird.",
-          "Bei 1 gegen 1 gibt es keine Teambildung mehr – alle Angemeldeten gehen direkt in die Auslosung.",
-          "Beide Angaben stehen auf der Kachel in der Turnierliste, damit jede:r weiß, worauf sie oder er sich einschreibt."
-      ]},
-      { title: "Ablauf wählen", items: [
-          "„Gruppenphase, dann K.-o.-Runde“ wie bisher.",
-          "„Nur K.-o.-Runde“ – alle kommen sofort ins Bracket, wer verliert ist raus.",
-          "„Jeder gegen jeden“ – alle spielen in einer Tabelle, Platz 1 gewinnt, keine K.-o.-Runde.",
-          "Solange die Anmeldung läuft, kannst du Form und Ablauf als Veranstalter noch umstellen."
-      ]},
-      { title: "Turniere löschen", items: [
-          "In der Turnierliste hat jedes Turnier, das dir gehört, einen Papierkorb – Löschen geht jetzt ohne es vorher zu öffnen.",
-          "Es wird immer nachgefragt, und andere Turniere bleiben unberührt."
-      ]}
-    ]
-  },
-  {
-    version: "1.1",
-    groups: [
-      { title: "Mehrere Turniere nebeneinander", items: [
-          "Der Tab „Turnier“ beginnt jetzt mit einer Liste aller Turniere – jedes mit Stand und Zahl der Angemeldeten.",
-          "Ein zweites Turnier verdrängt das erste nicht mehr: „Turnier anlegen“ legt immer ein zusätzliches an.",
-          "Einschreiben geht in jedes Turnier einzeln; wo du schon dabei bist, steht „Du bist dabei“.",
-          "Über „← Alle Turniere“ oben wechselst du jederzeit zurück zur Liste.",
-          "Jedes Turnier hat seinen eigenen Veranstalter-PIN."
-      ]},
-      { title: "Turnierteil wieder sichtbar", items: [
-          "Der Tab „Turnier“ und das Veranstalter-Zahnrad sind wieder eingeblendet."
-      ]}
-    ]
-  },
-  {
     version: "1.0",
     groups: [
-      { title: "Zugang zur Seite", items: [
-          "Die Seite ist mit einem Passwort geschützt. Wer es nicht hat, kommt an nichts heran – geladen wird erst nach der Freigabe.",
-          "Das Passwort gibt es bei Michel im Discord. Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen.",
-          "Geprüft wird das Passwort auf dem Server, nicht in der Seite – es steht nirgends im Quelltext.",
-          "Der Turnierteil ist vorerst ausgeblendet: die Seite zeigt nur den Streamplan."
+      { title: "Die Seite", items: [
+          "Turnier- und Streamplan der AgeLan in einem: der Reiter „Turnier“ für alle Turniere der Veranstaltung, der Reiter „Stream“ für den Sendeplan.",
+          "Die Seite ist mit einem Passwort geschützt. Wer es nicht hat, kommt an nichts heran – die App-Dateien werden erst nach der Freigabe geladen.",
+          "Das Passwort gibt es beim Veranstalter. Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen.",
+          "Geprüft wird es auf dem Server, nicht in der Seite – es steht nirgends im Quelltext.",
+          "Alle Geräte sehen denselben Stand live."
+      ]},
+      { title: "Viele Turniere nebeneinander", items: [
+          "Der Reiter „Turnier“ beginnt mit einer Liste aller Turniere – jedes mit Stand und Zahl der Angemeldeten.",
+          "Einschreiben geht in jedes Turnier einzeln; wo du schon dabei bist, steht „Du bist dabei“.",
+          "Über „← Alle Turniere“ oben wechselst du jederzeit zurück zur Liste.",
+          "Jedes Turnier hat seinen eigenen Veranstalter-PIN.",
+          "Jedes Turnier, das dir gehört, hat einen Papierkorb – Löschen geht ohne es vorher zu öffnen, und immer mit Rückfrage."
+      ]},
+      { title: "Erst anmelden, dann das Format", items: [
+          "Ein neues Turnier braucht nur Name und PIN. Turnierform und Ablauf legst du später fest – für den Turniertag gedacht: erst wenn alle da sind, weißt du, wie viele mitspielen.",
+          "Auf der Kachel steht solange „Format wird noch festgelegt“, damit sich niemand unter falschen Annahmen einschreibt. „Teams bilden“ geht erst, wenn das Format steht.",
+          "Turnierform: 1 gegen 1, 2 gegen 2, 3 gegen 3 oder 4 gegen 4. Bei 1 gegen 1 entfällt die Teambildung, alle Angemeldeten gehen direkt in die Auslosung.",
+          "Fünf Abläufe zur Wahl: Gruppenphase mit K.-o.-Runde, nur K.-o.-Runde, Jeder gegen jeden (Round Robin), Schweizer System mit Tabelle oder Schweizer System mit anschließender K.-o.-Runde.",
+          "Beim Schweizer System spielst du in jeder Runde gegen jemanden mit ähnlicher Punktzahl – nie zweimal gegen dieselbe Person. Bei ungerader Zahl gibt es je Runde ein Freilos, und wer schon eins hatte, bekommt kein zweites.",
+          "Neues Turnier anlegen darf nur, wer das Veranstalter-Passwort kennt – ein anderes als das für die Seite. Einschreiben, Ergebnisse melden und Zuschauen bleiben für alle offen.",
+          "Der Veranstalter-Zugang lässt sich über „Veranstalter-Zugang auf diesem Gerät beenden“ wieder sperren."
+      ]},
+      { title: "Vorschau: was käme bei jedem Ablauf heraus?", items: [
+          "In der Anmeldung stehen alle fünf Abläufe untereinander – jeder mit den Zahlen für genau die Zahl der Angemeldeten.",
+          "Je Ablauf: wie viele Partien es gibt, über wie viele Runden, und wie oft jede:r drankommt.",
+          "Dazu Hinweise, die die Wahl leichter machen: wie viele Gruppen entstünden, wie viele Freilose es gäbe, wie viele nach der ersten Runde schon fertig wären.",
+          "Umschalten auf eine andere Turnierform oder auf Doppel-K.-o. rechnet die Vorschau sofort neu.",
+          "Die Zahlen kommen aus derselben Rechnung wie die spätere Auslosung – was dort steht, passiert hinterher auch."
+      ]},
+      { title: "Auslosen und Wertung", items: [
+          "Setzliste von Hand: vor dem Auslosen lässt sich die Reihenfolge mit den Pfeilen festlegen. Sie bestimmt, wer als stark gilt – wer in verschiedene Gruppen kommt und wer im Bracket erst spät aufeinandertrifft. Ohne Eingriff zählt das Rating; ein Klick stellt das wieder her.",
+          "Punkte je Sieg frei einstellbar.",
+          "Bei Punktgleichstand wählbar: Satzdifferenz, direktes Duell, Buchholz, Buchholz gestrichen (der schwächste Gegner fällt aus der Rechnung) oder Sonneborn-Berger (nur die Punkte der wirklich besiegten Gegner).",
+          "Hin- und Rückrunde: jede Paarung zweimal, beim zweiten Mal mit getauschten Seiten.",
+          "Spiel um Platz 3, und das Finale kann einen eigenen Modus haben – zum Beispiel Best of 5 statt Best of 3.",
+          "Doppel-K.-o. bei jeder K.-o.-Runde zuschaltbar: wer einmal verliert, rutscht in den Verliererbaum, erst die zweite Niederlage bedeutet das Aus. Am Ende trifft der Sieger des Gewinnerbaums auf den des Verliererbaums.",
+          "Dazu ankreuzbar: gewinnt im großen Finale der aus dem Verliererbaum, gibt es ein Entscheidungsspiel – er hatte schon eine Niederlage, der andere noch keine.",
+          "Ligamodus mit Spieltagen bei Gruppen und Jeder gegen jeden: je Spieltag hat jedes Team höchstens ein Spiel, und der Veranstalter trägt je Spieltag ein Datum ein. Gut, wenn sich das Turnier über mehrere Tage zieht."
+      ]},
+      { title: "Während des Turniers", items: [
+          "Ergebnisse eintragen, Tabellen und Bracket aktualisieren sich sofort auf allen Geräten.",
+          "Ließ sich etwas nicht speichern, erscheint unten ein roter Balken mit dem Grund – bei abgelaufener Anmeldung mit dem Hinweis, die Seite neu zu laden. Kein Klick verpufft mehr stillschweigend.",
+          "Zum Ausprobieren legt der Veranstalter in der Anmeldung Testspieler mit zufälligem Rating an und spielt den ganzen Ablauf allein durch; ein Klick entfernt sie wieder.",
+          "Offene Spiele lassen sich auswürfeln – das stärkere Team gewinnt häufiger, aber nicht immer.",
+          "Zurücksetzen verwirft Teams, Gruppen und Ergebnisse, alle Angemeldeten bleiben drin. Löschen entfernt das ganze Turnier. Beides steht als Veranstalter hinter dem Zahnrad oben rechts."
       ]},
       { title: "Streamkalender", items: [
-          "Der Tab „Stream“ zeigt einen Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
+          "Der Reiter „Stream“ zeigt einen Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
           "Eintragen heißt: Tag, Von, Bis, Name und wahlweise, was in der Zeit läuft. Der eigene Eintrag lässt sich jederzeit ändern oder wieder entfernen.",
           "Es sendet immer nur einer: überschneidet sich eine Zeit mit einer schon eingetragenen, nimmt der Plan sie nicht an und sagt, wer da schon dran ist.",
           "Am Handy zeigt der Kalender einen Tag, auf größeren Bildschirmen alle Tage nebeneinander.",
-          "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet."
-      ]},
-      { title: "Programm der Veranstaltung im Kalender", items: [
-          "Jeder Tag hat zwei Spalten: links das Programm der AgeLan, rechts die Streams.",
-          "So ist auf einen Blick zu sehen, worauf sich eine Streamzeit legt – etwa ob gerade die Gruppenphase läuft.",
-          "Programmpunkte legt nur der Veranstalter an. Alle anderen sehen sie und können sie zum Nachlesen öffnen.",
-          "Programm und Streams behindern sich nicht: ein Stream darf zeitgleich zu einem Turnier laufen, das ist ja der Zweck. Nur die Streams untereinander bleiben überschneidungsfrei.",
-          "Auch zwei Programmpunkte dürfen parallel liegen und stehen dann nebeneinander.",
+          "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet.",
           "Unter dem Kalender stehen Programm und Streams in einer gemeinsamen Zeitleiste, jeweils gekennzeichnet."
       ]},
-      { title: "Als Veranstalter", items: [
+      { title: "Programm und Veranstalter-Rechte im Streamplan", items: [
+          "Jeder Tag hat zwei Spalten: links das Programm der AgeLan, rechts die Streams. So ist auf einen Blick zu sehen, worauf sich eine Streamzeit legt – etwa ob gerade die Gruppenphase läuft.",
+          "Programmpunkte legt nur der Veranstalter an. Alle anderen sehen sie und können sie zum Nachlesen öffnen.",
+          "Programm und Streams behindern sich nicht: ein Stream darf zeitgleich zu einem Turnier laufen, das ist ja der Zweck. Nur die Streams untereinander bleiben überschneidungsfrei; auch zwei Programmpunkte dürfen parallel liegen und stehen dann nebeneinander.",
           "Das Zeitfenster lässt sich für jeden Tag einzeln stellen – etwa ein Sonntag, an dem nur noch der Vormittag läuft.",
           "Fremde Einträge lassen sich korrigieren oder entfernen, ebenso alle Einträge auf einmal.",
           "Es gilt derselbe Veranstalter-PIN wie beim Turnier; beim Anlegen des Plans wird er übernommen.",
           "Der Streamplan hängt nicht am Turnier: Zurücksetzen und Löschen des Turniers lassen ihn unberührt, und es braucht kein Turnier, damit es ihn gibt."
-      ]},
-      { title: "Turnier aufsetzen", items: [
-          "Teams anlegen und auf Gruppen verteilen.",
-          "Gruppenphase mit automatischem Spielplan.",
-          "K.-o.-Runde aus den Gruppenergebnissen."
-      ]},
-      { title: "Während des Turniers", items: [
-          "Ergebnisse eintragen, Tabellen aktualisieren sich sofort.",
-          "Alle Geräte sehen denselben Stand live.",
-          "Eigener Veranstalter-Zugang für Änderungen am Turnier."
-      ]},
-      { title: "Ausprobieren", items: [
-          "Als Veranstalter kannst du in der Anmeldung Testspieler mit zufälligem Rating anlegen und den ganzen Ablauf allein durchspielen.",
-          "Die Testspieler lassen sich mit einem Klick wieder entfernen.",
-          "Offene Spiele lassen sich auswürfeln – das stärkere Team gewinnt häufiger, aber nicht immer."
-      ]},
-      { title: "Turnier beenden oder neu starten", items: [
-          "Zurücksetzen: Teams, Gruppen und Ergebnisse werden verworfen, alle Angemeldeten bleiben drin – ihr könnt sofort neu auslosen.",
-          "Löschen: das komplette Turnier wird entfernt, danach lässt sich ein neues anlegen.",
-          "Beides findest du als Veranstalter hinter dem Zahnrad oben rechts."
       ]}
     ]
   }
