@@ -87,6 +87,17 @@ function frBestellSchluessel(b) {
   return b.positionen.map((p) => p.paketId + ":" + p.anzahl).sort().join("|") + "#" + (b.notiz || "");
 }
 
+// Der Name des angemeldeten Kontos, falls eines da ist. Sonst leer - dann
+// greift wie bisher das Eingabefeld.
+function frFesterName() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return (k && k.nickname) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function frStarteEntwurf(tag) {
   const positionen = {};
   (tag.meineBestellung ? tag.meineBestellung.positionen : []).forEach((p) => { positionen[p.paketId] = p.anzahl; });
@@ -161,8 +172,13 @@ function frRenderTagInhalt(z) {
       </div>
 
       ${bearbeitbar && z.pakete.length ? `
-        <label class="feld-label" for="fr-best-name">Dein Name</label>
-        <input type="text" id="fr-best-name" class="eingabe" maxlength="40" autocomplete="off" value="${escapeHtml(frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName()))}">
+        ${frFesterName()
+          // ⚠️ Angemeldet heißt: der Name steht fest. Ein Eingabefeld wäre nicht
+          // nur überflüssig, es ließe auch Bestellungen unter fremdem Namen zu –
+          // und genau der Name ist der Schlüssel der Abrechnung.
+          ? `<p class="fr-besteller">Bestellung für <b>${escapeHtml(frFesterName())}</b></p>`
+          : `<label class="feld-label" for="fr-best-name">Dein Name</label>
+             <input type="text" id="fr-best-name" class="eingabe" maxlength="40" autocomplete="off" value="${escapeHtml(frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName()))}">`}
 
         <label class="feld-label" for="fr-best-notiz">Notiz (freiwillig)</label>
         <input type="text" id="fr-best-notiz" class="eingabe" maxlength="200" autocomplete="off" placeholder="z. B. ohne Milch" value="${escapeHtml(frEntwurf.notiz || "")}">
@@ -205,7 +221,9 @@ function frAendereEntwurf(paketId, delta) {
 }
 
 async function frSpeichereBestellung(tag) {
-  const name = frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName());
+  // Angemeldet: der Konto-Name gilt, egal was in einem Feld stehen könnte.
+  const name = frFesterName()
+    || (frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName()));
   const res = await fruehstueckService.bestelle(tag.datum, {
     name,
     positionen: frEntwurf.positionen,

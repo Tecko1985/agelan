@@ -1255,6 +1255,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.8",
+    groups: [
+      { title: "Das Logo der AgeLan", items: [
+          "Auf der Startseite steht jetzt das Banner „AGE LAN #3“ statt des Pokal-Symbols.",
+          "Oben links in der Kopfzeile sitzt das Wappen daraus – der Schriftzug wäre dort zu klein zum Lesen."
+      ]},
+      { title: "Kein Namensfeld mehr beim Frühstück", items: [
+          "Du bist angemeldet, also steht dein Name fest. Über den Paketen steht jetzt „Bestellung für <dein Name>“ statt eines Eingabefelds.",
+          "Damit kann niemand mehr versehentlich unter einem anderen Namen bestellen – und die Abrechnung bleibt eindeutig."
+      ]}
+    ]
+  },
+  {
     version: "1.7",
     groups: [
       { title: "Veranstalter ist jetzt das Konto, nicht das Gerät", items: [

@@ -829,3 +829,24 @@ main#app.sk-breit { max-width: 980px; }
 .pw-box .pw-eingabe { margin-bottom: 0; }
 .pw-box .pw-knopf { margin-top: 16px; }
 .pw-freiwillig { font-weight: 400; opacity: 0.75; }
+
+/* Banner der Veranstaltung auf der Startseite. Breite begrenzt, Hoehe
+   automatisch - width/height stehen am <img>, damit beim Laden nichts springt. */
+.hub-banner {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  margin: 0 auto 10px;
+  border-radius: var(--radius);
+}
+/* Wappen in der Kopfzeile. vertical-align statt Flexbox: der Knopf enthaelt
+   Bild UND Text, und die Grundlinie soll stimmen. */
+.kopf-wappen {
+  height: 26px;
+  width: 26px;
+  border-radius: 5px;
+  vertical-align: -7px;
+  margin-right: 2px;
+}
+.fr-besteller { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
