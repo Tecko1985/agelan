@@ -136,6 +136,8 @@ function frGespeicherterPin() {
 }
 
 function frIstAdmin() {
+  // Ein Veranstalter-Konto gilt ueberall, auch ohne PIN und auf jedem Geraet.
+  if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
   if (!frRoh || !frRoh.meta) return false;
   const meta = frRoh.meta;
   if (meta.hostId && meta.hostId === frEigeneUid) return true;

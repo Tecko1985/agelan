@@ -19,6 +19,8 @@ const VERANSTALTER_SCOPE = "agelan-veranstalter";
 const VERANSTALTER_KEY = "agelan_veranstalter_ok";
 
 function veranstalterFrei() {
+  // Ein Veranstalter-Konto braucht das zweite Passwort nicht mehr.
+  if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
   try { return localStorage.getItem(VERANSTALTER_KEY) === "1"; } catch (e) { return false; }
 }
 function setzeVeranstalterFrei(frei) {
@@ -1252,6 +1254,18 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.7",
+    groups: [
+      { title: "Veranstalter ist jetzt das Konto, nicht das Gerät", items: [
+          "Beim Anlegen des Kontos kann der Veranstalter zusätzlich sein Veranstalter-Passwort eintragen. Alle anderen lassen das Feld leer.",
+          "Danach bist du auf JEDEM Gerät Veranstalter, sobald du dich anmeldest – am Handy genauso wie am Rechner.",
+          "Kein PIN-Eintippen mehr, und ein gelöschter Browser-Speicher kostet dich nicht mehr die Rechte.",
+          "Oben rechts steht ein ⭐ vor deinem Namen, wenn du als Veranstalter angemeldet bist.",
+          "Die PINs der einzelnen Turniere funktionieren unverändert weiter – für alle, die kein Veranstalter-Konto haben."
+      ]}
+    ]
+  },
   {
     version: "1.6",
     groups: [

@@ -85,6 +85,7 @@ export default {
     if (aktion === "konto-anlegen")  return kontoAnlegen(request, body, env, cors);
     if (aktion === "konto-login")    return kontoLogin(request, body, env, cors);
     if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
+    if (aktion === "konto-admin")    return kontoAdmin(request, body, env, cors);
     if (aktion === "konto-liste")    return kontoListe(body, env, cors);
     if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
@@ -271,8 +272,11 @@ async function tokenSchluessel(env) {
   );
 }
 
-async function tokenBauen(env, nick) {
+// ⚠️ Das Admin-Merkmal steht MIT im signierten Token, ist also nicht faelschbar.
+// Der Client darf ihm deshalb glauben - er kann es nicht selbst setzen.
+async function tokenBauen(env, nick, admin) {
   const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000 };
+  if (admin) nutzlast.a = 1;
   const teil = bytesZuB64Url(new TextEncoder().encode(JSON.stringify(nutzlast)));
   const key = await tokenSchluessel(env);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(teil));
@@ -296,7 +300,7 @@ async function tokenLesen(env, token) {
     if (!ok) return null;
     const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
     if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
-    return nutzlast.n;
+    return { nick: nutzlast.n, admin: nutzlast.a === 1 };
   } catch (e) {
     return null;
   }
@@ -329,13 +333,25 @@ async function kontoAnlegen(request, body, env, cors) {
     return json({ error: "Diesen Namen gibt es schon. Nimm einen anderen – oder melde dich damit an." }, 409, cors);
   }
 
+  // Wer beim Anlegen auch das Veranstalter-Passwort mitschickt, wird gleich
+  // Veranstalter. Michel muss sich so nicht zweimal durch Masken klicken.
+  const istAdmin = body.veranstalterPasswort
+    ? await veranstalterOk(body, env)
+    : false;
+
   await env.KONTEN.put(schluessel, JSON.stringify({
     nick: geprueft.nick,
     pw: await passwortHashen(passwort),
+    admin: istAdmin,
     angelegtAm: Date.now(),
   }));
 
-  return json({ ok: true, nickname: geprueft.nick, token: await tokenBauen(env, geprueft.nick) }, 200, cors);
+  return json({
+    ok: true,
+    nickname: geprueft.nick,
+    admin: istAdmin,
+    token: await tokenBauen(env, geprueft.nick, istAdmin),
+  }, 200, cors);
 }
 
 async function kontoLogin(request, body, env, cors) {
@@ -364,17 +380,72 @@ async function kontoLogin(request, body, env, cors) {
     bremseFehlschlag(request);
     return json(fehlmeldung, 403, cors);
   }
-  return json({ ok: true, nickname: konto.nick, token: await tokenBauen(env, konto.nick) }, 200, cors);
+  return json({
+    ok: true,
+    nickname: konto.nick,
+    admin: !!konto.admin,
+    token: await tokenBauen(env, konto.nick, !!konto.admin),
+  }, 200, cors);
 }
 
 async function kontoPruefen(body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  const nick = await tokenLesen(env, body.token);
-  if (!nick) return json({ ok: false }, 200, cors);
+  const gelesen = await tokenLesen(env, body.token);
+  if (!gelesen) return json({ ok: false }, 200, cors);
   // Gegenprobe am Bestand: ein gelöschtes Konto darf mit altem Token nicht
   // weiterlaufen – genau das passiert nach "alle Konten leeren".
-  if (!(await env.KONTEN.get(nickSchluessel(nick)))) return json({ ok: false }, 200, cors);
-  return json({ ok: true, nickname: nick }, 200, cors);
+  const roh = await env.KONTEN.get(nickSchluessel(gelesen.nick));
+  if (!roh) return json({ ok: false }, 200, cors);
+
+  // ⚠️ Der Admin-Stand kommt aus dem KV, NICHT aus dem Token: ein entzogenes
+  // Veranstalter-Recht muss sofort wirken und nicht erst, wenn das Token in
+  // 120 Tagen abläuft.
+  let admin = false;
+  try {
+    admin = !!JSON.parse(roh).admin;
+  } catch (e) { /* kaputter Eintrag gilt als kein Admin */ }
+
+  // Weicht der Stand vom Token ab, bekommt der Client ein frisches.
+  const token = admin !== gelesen.admin ? await tokenBauen(env, gelesen.nick, admin) : null;
+  return json({ ok: true, nickname: gelesen.nick, admin, token }, 200, cors);
+}
+
+// Ein bestehendes Konto zum Veranstalter machen (oder das Recht wieder abgeben).
+async function kontoAdmin(request, body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!bremseOffen(request)) {
+    return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+  }
+
+  const gelesen = await tokenLesen(env, body.token);
+  if (!gelesen) return json({ error: "Du bist nicht angemeldet." }, 403, cors);
+
+  // Das Recht ABGEBEN darf man ohne Passwort - es ist der eigene Verzicht.
+  const anschalten = body.admin !== false;
+  if (anschalten && !(await veranstalterOk(body, env))) {
+    bremseFehlschlag(request);
+    return json({ error: "Falsches Veranstalter-Passwort." }, 403, cors);
+  }
+
+  const schluessel = nickSchluessel(gelesen.nick);
+  const roh = await env.KONTEN.get(schluessel);
+  if (!roh) return json({ error: "Dieses Konto gibt es nicht mehr." }, 404, cors);
+
+  let konto;
+  try {
+    konto = JSON.parse(roh);
+  } catch (e) {
+    return json({ error: "Das Konto ist beschädigt." }, 500, cors);
+  }
+
+  konto.admin = anschalten;
+  await env.KONTEN.put(schluessel, JSON.stringify(konto));
+  return json({
+    ok: true,
+    nickname: konto.nick,
+    admin: anschalten,
+    token: await tokenBauen(env, konto.nick, anschalten),
+  }, 200, cors);
 }
 
 // --- Veranstalter: Konten sehen und leeren ---------------------------------
@@ -396,7 +467,7 @@ async function kontoListe(body, env, cors) {
       if (!roh) continue;
       try {
         const konto = JSON.parse(roh);
-        liste.push({ nickname: konto.nick, angelegtAm: konto.angelegtAm || 0 });
+        liste.push({ nickname: konto.nick, admin: !!konto.admin, angelegtAm: konto.angelegtAm || 0 });
       } catch (e) { /* kaputter Eintrag wird übersprungen */ }
     }
     cursor = seite.list_complete ? null : seite.cursor;

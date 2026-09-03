@@ -198,8 +198,22 @@ function gespeichertePins(id) {
 
 // Veranstalter EINES bestimmten Turniers – auch für Turniere, die gerade nicht
 // geöffnet sind (Löschknopf auf der Kachel).
+// Ist das angemeldete Konto als Veranstalter hinterlegt? Das Merkmal steht im
+// signierten Token, der Client kann es nicht selbst setzen.
+// ⚠️ Wie jede Rechteprüfung dieser App eine BEDIEN-Sperre, kein Datenriegel:
+// die Firebase-Regeln lassen weiterhin jeden anonymen Client schreiben.
+function kontoIstVeranstalter() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return !!(k && k.admin);
+  } catch (e) {
+    return false;
+  }
+}
+
 function istVeranstalterVon(id, meta) {
   if (!meta) return false;
+  if (kontoIstVeranstalter()) return true;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
   if (!meta.adminPin) return false;
   return gespeichertePins(id).indexOf(meta.adminPin) !== -1;

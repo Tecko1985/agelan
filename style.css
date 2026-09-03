@@ -823,3 +823,4 @@ main#app.sk-breit { max-width: 980px; }
 }
 .pw-box .pw-eingabe { margin-bottom: 0; }
 .pw-box .pw-knopf { margin-top: 16px; }
+.pw-freiwillig { font-weight: 400; opacity: 0.75; }
