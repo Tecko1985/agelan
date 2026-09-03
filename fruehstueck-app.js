@@ -9,6 +9,10 @@ let frZustand = null;
 let frAktiverTag = null;          // Datum des gerade angezeigten Morgens
 let frEntwurf = null;             // { positionen:{pid:anzahl}, notiz } – laufende Bestellung vor dem Speichern
 let frBearbeitetesPaketId = null; // null = "Neues Paket"-Formular legt an, sonst bearbeitet es dieses Paket
+// ⚠️ Wer beim Kassieren eine Zeile abhakt, loest ein Live-Update aus und die
+// Liste wird neu gezeichnet. Ohne dieses Merken klappte die Person dabei jedes
+// Mal wieder zu – genau bei der Taetigkeit, fuer die die Liste da ist.
+const frOffenePersonen = new Set();
 
 function frEl(id) {
   return document.getElementById(id);
@@ -76,13 +80,36 @@ function frRenderChips(z) {
   });
 }
 
+// Kurzform des gespeicherten Standes. Damit laesst sich erkennen, ob sich die
+// Bestellung in Firebase geaendert hat, seit der Entwurf gebaut wurde.
+function frBestellSchluessel(b) {
+  if (!b) return "";
+  return b.positionen.map((p) => p.paketId + ":" + p.anzahl).sort().join("|") + "#" + (b.notiz || "");
+}
+
 function frStarteEntwurf(tag) {
   const positionen = {};
   (tag.meineBestellung ? tag.meineBestellung.positionen : []).forEach((p) => { positionen[p.paketId] = p.anzahl; });
   frEntwurf = {
     positionen,
     notiz: tag.meineBestellung ? tag.meineBestellung.notiz : "",
+    // Erst wenn jemand wirklich etwas angefasst hat, ist der Entwurf schuetzenswert.
+    beruehrt: false,
+    stand: frBestellSchluessel(tag.meineBestellung),
   };
+}
+
+// ⚠️ Der Entwurf darf eine laufende Eingabe nicht ueberschreiben – er darf aber
+// auch nicht auf einem veralteten Stand haengen bleiben. Genau das ist passiert:
+// beim ersten Rendern stand die anonyme Firebase-Kennung noch nicht fest, die
+// eigene Bestellung galt als "nicht vorhanden", der Entwurf wurde leer gebaut
+// und zog danach nie nach. Wer schon bestellt hatte, sah lauter Nullen – und
+// "Bestellung aktualisieren" haette sie geloescht.
+function frEntwurfAuffrischen(tag) {
+  if (!frEntwurf) { frStarteEntwurf(tag); return; }
+  if (frEntwurf.beruehrt) return;                    // jemand tippt gerade
+  const jetzt = frBestellSchluessel(tag.meineBestellung);
+  if (jetzt !== frEntwurf.stand) frStarteEntwurf(tag);
 }
 
 function frRenderTagInhalt(z) {
@@ -90,7 +117,7 @@ function frRenderTagInhalt(z) {
   const tag = z.tage.find((t) => t.datum === frAktiverTag);
   if (!tag) { box.innerHTML = ""; return; }
 
-  if (!frEntwurf) frStarteEntwurf(tag);
+  frEntwurfAuffrischen(tag);
 
   const bearbeitbar = tag.offen || z.istAdmin;
   const stueckGesamt = Object.values(frEntwurf.positionen).reduce((s, n) => s + (n || 0), 0);
@@ -150,16 +177,16 @@ function frRenderTagInhalt(z) {
       <p class="hinweis-text">${tag.anzahlBesteller ? tag.anzahlBesteller + " Person" + (tag.anzahlBesteller === 1 ? " hat" : "en haben") + " bestellt, " + tag.stueckGesamt + " Stück insgesamt." : "Noch niemand hat für diesen Morgen bestellt."}</p>
     </div>
 
-    ${z.istAdmin ? frEinkaufslisteHtml(tag, z.pakete) + frBestellerlisteHtml(tag) : ""}
+    ${z.istAdmin ? frEinkaufslisteHtml(tag, z.pakete) + frBestellerlisteHtml(tag) + frAbrechnungHtml(z) : ""}
   `;
 
   box.querySelectorAll("[data-fr-mehr]").forEach((b) => b.addEventListener("click", () => frAendereEntwurf(b.dataset.frMehr, 1)));
   box.querySelectorAll("[data-fr-weniger]").forEach((b) => b.addEventListener("click", () => frAendereEntwurf(b.dataset.frWeniger, -1)));
 
   const nameEl = frEl("fr-best-name");
-  if (nameEl) nameEl.addEventListener("input", () => { frEntwurf.name = nameEl.value; });
+  if (nameEl) nameEl.addEventListener("input", () => { frEntwurf.name = nameEl.value; frEntwurf.beruehrt = true; });
   const notizEl = frEl("fr-best-notiz");
-  if (notizEl) notizEl.addEventListener("input", () => { frEntwurf.notiz = notizEl.value; });
+  if (notizEl) notizEl.addEventListener("input", () => { frEntwurf.notiz = notizEl.value; frEntwurf.beruehrt = true; });
 
   const btnBestellen = frEl("fr-btn-bestellen");
   if (btnBestellen) btnBestellen.addEventListener("click", () => frSpeichereBestellung(tag));
@@ -173,6 +200,7 @@ function frAendereEntwurf(paketId, delta) {
   const bisher = frEntwurf.positionen[paketId] || 0;
   const neu = Math.max(0, Math.min(fruehstueckService.MAX_STUECK, bisher + delta));
   frEntwurf.positionen = Object.assign({}, frEntwurf.positionen, { [paketId]: neu });
+  frEntwurf.beruehrt = true;
   frRenderTagInhalt(frZustand);
 }
 
@@ -217,15 +245,61 @@ function frBestellerlisteHtml(tag) {
       ${tag.bestellungen.map((b) => `
         <div class="fr-liste-eintrag${b.abgeholt ? " abgeholt" : ""}">
           <div style="flex:1 1 auto; min-width:0">
-            <div class="fr-liste-name">${escapeHtml(b.name)}</div>
-            <div class="fr-liste-positionen">${b.positionen.map((p) => p.anzahl + "× " + escapeHtml(p.name)).join(", ")}</div>
+            <div class="fr-liste-name">${escapeHtml(b.name)}<span class="fr-liste-summe">${fruehstueckService.centLabel(b.summeCent)}</span></div>
+            <div class="fr-liste-positionen">${b.positionen.map((p) =>
+              p.anzahl + "× " + escapeHtml(p.name) + (p.preisCent ? " (" + fruehstueckService.centLabel(p.summeCent) + ")" : "")
+            ).join(", ")}</div>
             ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
           </div>
-          <label class="fr-liste-abholen">
-            <input type="checkbox" data-fr-abgeholt="${tag.datum}|${b.uid}" ${b.abgeholt ? "checked" : ""}>
-            abgeholt
-          </label>
+          <div class="fr-liste-haken">
+            <label class="fr-liste-abholen">
+              <input type="checkbox" data-fr-abgeholt="${tag.datum}|${b.uid}" ${b.abgeholt ? "checked" : ""}>
+              abgeholt
+            </label>
+            <label class="fr-liste-abholen">
+              <input type="checkbox" data-fr-bezahlt="${tag.datum}|${b.uid}" ${b.bezahlt ? "checked" : ""}>
+              bezahlt
+            </label>
+          </div>
         </div>`).join("")}
+      <div class="fr-summe-zeile">
+        <span>${tag.stueckGesamt} Stück</span>
+        <span>${fruehstueckService.centLabel(tag.summeCentGesamt)}</span>
+      </div>
+    </div>`;
+}
+
+// Abrechnung über alle Morgen: die Liste, mit der kassiert wird.
+function frAbrechnungHtml(z) {
+  if (!z.abrechnung.length) return "";
+  return `
+    <div class="karte-block">
+      <p class="feld-label">Abrechnung – alle Morgen zusammen</p>
+      ${z.abrechnung.map((person) => `
+        <details class="fr-abr-person${person.offenCent ? "" : " bezahlt"}" data-fr-person="${escapeHtml(person.name)}"${frOffenePersonen.has(person.name) ? " open" : ""}>
+          <summary>
+            <span class="fr-abr-name">${escapeHtml(person.name)}</span>
+            <span class="fr-abr-betrag">
+              ${person.offenCent
+                ? `<b>${fruehstueckService.centLabel(person.offenCent)}</b> offen`
+                : `<span class="fr-abr-ok">bezahlt</span>`}
+            </span>
+          </summary>
+          <div class="fr-abr-zeilen">
+            ${person.zeilen.map((zeile) => `
+              <label class="fr-abr-zeile${zeile.bezahlt ? " bezahlt" : ""}">
+                <input type="checkbox" data-fr-bezahlt="${zeile.datum}|${zeile.uid}" ${zeile.bezahlt ? "checked" : ""}>
+                <span class="fr-abr-tag">${escapeHtml(zeile.label)}</span>
+                <span class="fr-abr-was">${zeile.positionen.map((p) => p.anzahl + "× " + escapeHtml(p.name)).join(", ")}</span>
+                <span class="fr-abr-preis">${fruehstueckService.centLabel(zeile.summeCent)}</span>
+              </label>`).join("")}
+            <div class="fr-abr-gesamt">Gesamt: ${fruehstueckService.centLabel(person.summeCent)}</div>
+          </div>
+        </details>`).join("")}
+      <div class="fr-summe-zeile">
+        <span>Noch offen</span>
+        <span>${fruehstueckService.centLabel(z.offenGesamtCent)} von ${fruehstueckService.centLabel(z.summeGesamtCent)}</span>
+      </div>
     </div>`;
 }
 
@@ -234,6 +308,19 @@ function frWireAbholButtons() {
     cb.addEventListener("change", () => {
       const [datum, uid] = cb.dataset.frAbgeholt.split("|");
       fruehstueckService.setzeAbgeholt(datum, uid, cb.checked);
+    });
+  });
+  document.querySelectorAll("[data-fr-bezahlt]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const [datum, uid] = cb.dataset.frBezahlt.split("|");
+      fruehstueckService.setzeBezahlt(datum, uid, cb.checked);
+    });
+  });
+  document.querySelectorAll("[data-fr-person]").forEach((d) => {
+    d.addEventListener("toggle", () => {
+      const name = d.dataset.frPerson;
+      if (d.open) frOffenePersonen.add(name);
+      else frOffenePersonen.delete(name);
     });
   });
 }

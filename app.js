@@ -1253,6 +1253,23 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.5",
+    groups: [
+      { title: "Frühstück: Abrechnung", items: [
+          "Neue Abrechnung für den Veranstalter: je Person steht dort, was sie über alle Morgen bestellt hat und was sie zahlen muss.",
+          "Aufklappen zeigt jeden Morgen einzeln mit Positionen und Preis – ein Haken je Zeile markiert „bezahlt“.",
+          "Unten steht, wie viel insgesamt noch offen ist und wie viel es insgesamt war.",
+          "Auch in der Bestellliste je Morgen stehen jetzt die Preise: je Position und als Summe pro Person.",
+          "Die Liste ist alphabetisch sortiert und bleibt beim Abhaken stehen, statt umzuspringen."
+      ]},
+      { title: "Behobene Fehler", items: [
+          "Wer schon bestellt hatte und die Seite neu lud, sah unter Umständen lauter Nullen statt seiner Bestellung. Ein Klick auf „Bestellung aktualisieren“ hätte sie dann gelöscht. Die Anzeige zieht jetzt nach – aber nur, solange du nicht selbst gerade etwas eingegeben hast.",
+          "Der Haken „bezahlt“ und „abgeholt“ bleibt stehen, auch wenn der Besteller seine Bestellung danach noch ändert.",
+          "Im Veranstalter-Bereich hieß das Feld noch „Anzahl Morgen“ – jetzt „Wie viele Tage?“, wie beim Anlegen."
+      ]}
+    ]
+  },
+  {
     version: "1.4",
     groups: [
       { title: "„AgeLan“ oben führt zurück zur Übersicht", items: [

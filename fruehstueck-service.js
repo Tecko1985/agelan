@@ -16,7 +16,7 @@
 //                   anzahlTage, schlussUhr }
 //   pakete/$pid : { name, beschreibung, preisCent, sort, erstelltAm }
 //   bestellungen/$datum/$uid : { name, positionen:{pid:anzahl}, notiz,
-//                                abgeholt, aktualisiertAm }
+//                                abgeholt, bezahlt, aktualisiertAm }
 //
 // startDatum ist der erste FRÜHSTÜCKSMORGEN, nicht der Anreisetag.
 //
@@ -219,6 +219,7 @@ function frBestellungenEinesTages(bestellungenRoh, datum, pakete) {
       name: frText(b && b.name, 40) || "Ohne Namen",
       notiz: frText(b && b.notiz, 200),
       abgeholt: !!(b && b.abgeholt),
+      bezahlt: !!(b && b.bezahlt),
       positionen,
       stueck: positionen.reduce((s, p) => s + p.anzahl, 0),
       summeCent: positionen.reduce((s, p) => s + p.summeCent, 0),
@@ -269,6 +270,45 @@ function frTageListe(meta, bestellungenRoh, pakete) {
   return liste;
 }
 
+// Abrechnung: was schuldet mir wer, ueber alle Morgen zusammen.
+// ⚠️ Gruppiert wird nach NAME, nicht nach uid – kassiert wird bei einer Person,
+// und wer vom Handy und vom Rechner bestellt, hat zwei uids. Der Name ist hier
+// also bewusst nur ein Anzeige-Schluessel; jede Zeile behaelt ihre uid, damit
+// der Bezahlt-Haken am richtigen Eintrag landet.
+function frAbrechnung(tage) {
+  const nachName = new Map();
+  tage.forEach((tag) => {
+    tag.bestellungen.forEach((b) => {
+      const schluessel = b.name.toLowerCase();
+      if (!nachName.has(schluessel)) {
+        nachName.set(schluessel, { name: b.name, zeilen: [], summeCent: 0, offenCent: 0, stueck: 0 });
+      }
+      const person = nachName.get(schluessel);
+      person.zeilen.push({
+        datum: tag.datum,
+        label: tag.label,
+        tagLang: tag.tagLang,
+        uid: b.uid,
+        positionen: b.positionen,
+        stueck: b.stueck,
+        summeCent: b.summeCent,
+        bezahlt: b.bezahlt,
+        notiz: b.notiz,
+      });
+      person.summeCent += b.summeCent;
+      person.stueck += b.stueck;
+      if (!b.bezahlt) person.offenCent += b.summeCent;
+    });
+  });
+  const liste = Array.from(nachName.values());
+  liste.forEach((p) => { p.zeilen.sort((a, b) => a.datum.localeCompare(b.datum)); });
+  // ⚠️ Alphabetisch, NICHT nach offenem Betrag: sonst springt beim Kassieren
+  // die Person weg, die man gerade abhakt, weil sich ihre Position aendert.
+  // Wer noch offen hat, ist am roten Betrag zu erkennen.
+  liste.sort((a, b) => a.name.localeCompare(b.name));
+  return liste;
+}
+
 function frGetZustand() {
   const meta = (frRoh && frRoh.meta) || null;
   if (!meta || !meta.startDatum) {
@@ -284,11 +324,15 @@ function frGetZustand() {
   }
   const pakete = frPaketListe(frRoh.pakete);
   const tage = frTageListe(meta, frRoh.bestellungen, pakete);
+  const abrechnung = frAbrechnung(tage);
   return {
     vorhanden: true,
     meta,
     pakete,
     tage,
+    abrechnung,
+    summeGesamtCent: abrechnung.reduce((sum, p) => sum + p.summeCent, 0),
+    offenGesamtCent: abrechnung.reduce((sum, p) => sum + p.offenCent, 0),
     istAdmin: frIstAdmin(),
     eigeneUid: frEigeneUid,
     vorhandenerPin: frVorhandenerPin(),
@@ -503,11 +547,17 @@ async function frBestelle(datum, { name, positionen, notiz }) {
     return { erfolg: true, abbestellt: true };
   }
 
+  // ⚠️ set() statt update(), damit weggeklickte Positionen wirklich verschwinden
+  // – aber abgeholt/bezahlt sind Haken des VERANSTALTERS und dürfen nicht bei
+  // jeder Änderung des Bestellers zurückfallen. Deshalb den bisherigen Stand
+  // mitschreiben statt ihn auf false zu setzen.
+  const bisher = tag.meineBestellung;
   await db.ref(pfad).set({
     name: n,
     positionen: sauber,
     notiz: frText(notiz, 200),
-    abgeholt: false,
+    abgeholt: !!(bisher && bisher.abgeholt),
+    bezahlt: !!(bisher && bisher.bezahlt),
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
   });
   try {
@@ -533,6 +583,14 @@ async function frSetzeAbgeholt(datum, uid, wert) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/abgeholt").set(!!wert);
+  return { erfolg: true };
+}
+
+// Zum Abhaken beim Kassieren.
+async function frSetzeBezahlt(datum, uid, wert) {
+  await frAuthBereit;
+  if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/bezahlt").set(!!wert);
   return { erfolg: true };
 }
 
@@ -594,6 +652,7 @@ const fruehstueckService = {
   bestelle: frBestelle,
   storniere: frStorniere,
   setzeAbgeholt: frSetzeAbgeholt,
+  setzeBezahlt: frSetzeBezahlt,
   setzeEinstellungen: frSetzeEinstellungen,
   leereBestellungen: frLeereBestellungen,
   loeschePlan: frLoeschePlan,
