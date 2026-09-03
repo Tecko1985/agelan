@@ -264,6 +264,15 @@ nav.tabs button {
 }
 nav.tabs button:hover { background: var(--bg); }
 nav.tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* ⚠️ Mit dem vierten Reiter „Einstellungen" wird die Leiste auf 375 px 385 px
+   breit – und weil nav.tabs kein overflow setzt, scrollt die GANZE SEITE
+   seitlich. Trifft nur Veranstalter, die als Einzige den vierten Reiter sehen.
+   Schmaleres Polster statt overflow-x: auto, weil ein zentrierter Flex-Container
+   beim Scrollen den linken Rand unerreichbar macht. */
+@media (max-width: 430px) {
+  nav.tabs { padding-left: 6px; padding-right: 6px; }
+  nav.tabs button { padding-left: 9px; padding-right: 9px; font-size: 13px; }
+}
 .tab-section { display: none; }
 .tab-section.active { display: block; }
 .info-card {
@@ -272,11 +281,33 @@ nav.tabs button.active { color: var(--primary); border-bottom-color: var(--prima
 }
 .info-card h2 { font-size: 17px; margin: 0 0 10px; color: var(--primary); }
 .info-card p { color: var(--text); font-size: 14px; line-height: 1.55; margin: 0; }
-.info-card .version-badge { background: var(--bg); border-color: var(--border); color: var(--primary); }
+/* ⚠️ .version-badge ist für den BLAUEN Kopf gebaut: weiße Schrift auf 18 %
+   Weiß. Auf einer hellen Karte ist es damit unsichtbar – steht im DOM, hat
+   Text, sieht man nicht. Jede helle Umgebung braucht diese Umkehrung. */
+.info-card .version-badge,
+.karte-block .version-badge { background: var(--bg); border-color: var(--border); color: var(--primary); }
 .changelog-entry { font-size: 14px; }
 .changelog-entry .cv { font-weight: 700; color: var(--primary); margin-bottom: 8px; }
 .changelog-entry .cgt { font-weight: 600; font-size: 13px; margin: 8px 0 4px; }
 .changelog-entry ul { margin: 0; padding-left: 20px; color: var(--text); line-height: 1.6; }
+
+/* Änderungsliste im Einstellungs-Reiter: 16 Blöcke am Stück sind eine Wand,
+   deshalb zugeklappt und darin scrollbar. Die Trennlinie zwischen den Blöcken
+   sitzt oben statt unten, sonst hängt unter dem letzten eine Linie ins Leere. */
+.changelog-box > summary {
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--primary);
+  padding: 8px 0; list-style: none;
+}
+.changelog-box > summary::-webkit-details-marker { display: none; }
+.changelog-box > summary::before { content: "▸ "; color: var(--muted); }
+.changelog-box[open] > summary::before { content: "▾ "; }
+.changelog-box > div {
+  max-height: 420px; overflow-y: auto;
+  border-top: 1px solid var(--border); padding-top: 4px;
+}
+.changelog-box .changelog-entry + .changelog-entry {
+  border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;
+}
 
 /* ---------- Streamkalender ---------- */
 /* Der Kalender braucht mehr Breite als die 560px der Turnier-Screens. Die Klasse

@@ -1271,6 +1271,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.6",
+    groups: [
+      { title: "Die Änderungsliste ist wieder sichtbar", items: [
+          "Mit dem Info-Reiter verschwand auch diese Liste. Gepflegt wurde sie weiter – sehen konnte sie seitdem niemand. Sie steht jetzt unten im Reiter „Einstellungen“, zugeklappt.",
+          "Kleiner Anzeigefehler nebenbei: im Eintrag zur Streamer-Freigabe stand statt der Kamera 🎥 ein Zeichenfehler."
+      ]},
+      { title: "Handy: die Reiterleiste passt wieder auf den Schirm", items: [
+          "Mit dem vierten Reiter „Einstellungen“ war die Leiste breiter als ein iPhone – dadurch ließ sich die ganze Seite seitlich wegschieben. Betraf nur Veranstalter, weil nur die den vierten Reiter sehen.",
+          "Auf schmalen Geräten sind die Reiter jetzt etwas enger gesetzt, alle vier sind ohne Wischen erreichbar."
+      ]}
+    ]
+  },
+  {
     version: "2.5",
     groups: [
       { title: "Streamplan: Termine sitzen mittig in ihrer Spalte", items: [
@@ -1320,7 +1333,7 @@ const APP_CHANGELOG = [
     version: "2.0",
     groups: [
       { title: "Streamplan: eintragen nur mit Freigabe", items: [
-          "In den Einstellungen hat jetzt jedes Konto ein Häkchen Ἲ5. Wer es hat, darf sich in den Streamplan eintragen und seine Einträge ändern.",
+          "In den Einstellungen hat jetzt jedes Konto ein Häkchen 🎥. Wer es hat, darf sich in den Streamplan eintragen und seine Einträge ändern.",
           "Alle anderen sehen den Plan weiterhin vollständig – sie können ihn nur nicht mehr verändern. Der Knopf zum Eintragen ist für sie weg.",
           "Veranstalter dürfen immer, ihr Häkchen ist deshalb fest gesetzt."
       ]}
