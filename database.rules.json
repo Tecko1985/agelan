@@ -75,6 +75,45 @@
           }
         }
       }
+    },
+
+    "fruehstueck": {
+      "$pid": {
+        ".read": true,
+        ".write": "auth != null",
+
+        "meta": {
+          ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
+          "titel":      { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+          "startDatum": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "anzahlTage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 7" },
+          "schlussUhr": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" }
+        },
+
+        "pakete": {
+          "$pak": {
+            ".validate": "newData.hasChildren(['name', 'preisCent'])",
+            "name":         { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+            "beschreibung": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "preisCent":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5000" },
+            "sort":         { ".validate": "newData.isNumber()" }
+          }
+        },
+
+        "bestellungen": {
+          "$datum": {
+            "$uid": {
+              ".validate": "newData.hasChildren(['name', 'positionen'])",
+              "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+              "notiz":    { ".validate": "newData.isString() && newData.val().length <= 200" },
+              "abgeholt": { ".validate": "newData.isBoolean()" },
+              "positionen": {
+                "$pak": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 9" }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

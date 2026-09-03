@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.0">
+<link rel="stylesheet" href="style.css?v=1.1">
 </head>
 <body>
 
@@ -39,6 +39,7 @@
 <nav class="tabs">
   <button data-tab="turnier" class="active">Turnier</button>
   <button data-tab="stream">Stream</button>
+  <button data-tab="fruehstueck">Frühstück</button>
   <button data-tab="info" style="margin-left:auto;">Info</button>
 </nav>
 
@@ -468,10 +469,105 @@
 
  </div>
 
+ <div class="tab-section" id="tab-fruehstueck">
+
+  <!-- noch keine Bestellung -> anlegen -->
+  <div class="sk-view aktiv" id="fr-kein-plan">
+    <div class="karte-block">
+      <h2>Frühstücksbestellung anlegen</h2>
+      <p class="hinweis-text">Pakete zum Vorbestellen fürs Frühstück – jede:r bucht am Vorabend, was am nächsten Morgen bereitstehen soll.</p>
+
+      <label class="feld-label" for="fr-neu-titel">Name</label>
+      <input type="text" id="fr-neu-titel" class="eingabe" placeholder="z. B. AgeLan 2026 – Frühstück" maxlength="60" autocomplete="off">
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="fr-neu-start">Erster Frühstücksmorgen</label>
+          <input type="date" id="fr-neu-start" class="eingabe">
+        </div>
+        <div>
+          <label class="feld-label" for="fr-neu-tage">Morgen</label>
+          <input type="number" id="fr-neu-tage" class="eingabe" min="1" max="7" value="3">
+        </div>
+      </div>
+
+      <label class="feld-label" for="fr-neu-schluss">Bestellschluss (am Vorabend)</label>
+      <input type="time" id="fr-neu-schluss" class="eingabe" value="20:00">
+      <p class="hinweis-text">Bestellungen für einen Morgen sind bis zu dieser Uhrzeit am Tag davor möglich – danach wird eingekauft.</p>
+
+      <label class="feld-label" for="fr-neu-pin">Veranstalter-PIN</label>
+      <input type="text" id="fr-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <p class="hinweis-text" id="fr-neu-pin-hinweis"></p>
+
+      <button class="btn btn-primary btn-grow" id="fr-btn-erstellen">Frühstücksbestellung anlegen</button>
+      <p class="hinweis-text fehler" id="fr-neu-fehler"></p>
+    </div>
+  </div>
+
+  <!-- Bestellung vorhanden -->
+  <div class="sk-view" id="fr-plan">
+    <div class="sk-kopf">
+      <h2 id="fr-titel">Frühstücksbestellung</h2>
+      <p class="hinweis-text" id="fr-zeitraum"></p>
+    </div>
+
+    <div class="sk-tagchips" id="fr-tagchips"></div>
+
+    <div id="fr-tag-inhalt"></div>
+
+    <div class="karte-block" id="fr-admin-login">
+      <p class="feld-label">Veranstalter</p>
+      <div class="feld-zeile">
+        <div>
+          <input type="text" id="fr-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn btn-secondary" id="fr-btn-admin-anmelden">Anmelden</button>
+        </div>
+      </div>
+      <p class="hinweis-text fehler" id="fr-admin-fehler"></p>
+    </div>
+
+    <div class="karte-block" id="fr-admin-panel" style="display:none">
+      <p class="feld-label">Pakete</p>
+      <div id="fr-pakete-verwalten"></div>
+
+      <label class="feld-label" for="fr-pak-name">Neues Paket</label>
+      <input type="text" id="fr-pak-name" class="eingabe" placeholder="Name, z. B. Klassisch" maxlength="60" autocomplete="off">
+      <input type="text" id="fr-pak-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
+      <input type="text" id="fr-pak-preis" class="eingabe" placeholder="Preis in €, z. B. 2,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
+      <button class="btn btn-secondary btn-grow" id="fr-btn-pak-anlegen">Paket hinzufügen</button>
+      <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
+
+      <p class="feld-label">Einstellungen</p>
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="fr-ein-tage">Anzahl Morgen</label>
+          <input type="number" id="fr-ein-tage" class="eingabe" min="1" max="7">
+        </div>
+        <div>
+          <label class="feld-label" for="fr-ein-schluss">Bestellschluss</label>
+          <input type="time" id="fr-ein-schluss" class="eingabe">
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-grow" id="fr-btn-einstellungen-speichern">Einstellungen speichern</button>
+      <p class="hinweis-text fehler" id="fr-einstellungen-fehler"></p>
+
+      <button class="btn btn-secondary btn-grow" id="fr-btn-leeren">Alle Bestellungen entfernen</button>
+      <p class="hinweis-text">Die Pakete und Einstellungen bleiben stehen, nur die Bestellungen fallen weg.</p>
+
+      <button class="btn btn-danger btn-grow" id="fr-btn-plan-loeschen">Frühstücksbestellung löschen</button>
+      <p class="hinweis-text">Löscht alles: Pakete, Einstellungen und Bestellungen. Das Turnier bleibt davon unberührt.</p>
+      <p class="hinweis-text fehler" id="fr-admin-panel-fehler"></p>
+    </div>
+  </div>
+
+ </div>
+
  <div class="tab-section" id="tab-info">
    <div class="info-card">
      <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
-     <p>Turniere und Streamplan für die Veranstaltungstage. Im Tab „Turnier“ stehen alle Turniere nebeneinander – du schreibst dich in jedes einzeln ein. Im Tab „Stream“ trägst du ein, wer wann vom Kanal sendet. Alle Geräte sehen den Stand live.</p>
+     <p>Turniere, Streamplan und Frühstücksbestellung für die Veranstaltungstage. Im Tab „Turnier“ stehen alle Turniere nebeneinander – du schreibst dich in jedes einzeln ein. Im Tab „Stream“ trägst du ein, wer wann vom Kanal sendet. Im Tab „Frühstück“ bestellst du am Vorabend ein Paket für den nächsten Morgen. Alle Geräte sehen den Stand live.</p>
    </div>
    <div class="info-card">
      <h2>Änderungen</h2>
@@ -642,9 +738,11 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.0',
-    'app.js?v=1.1',
+    'app.js?v=1.2',
     'stream-service.js?v=1.0',
-    'stream-app.js?v=1.0'
+    'stream-app.js?v=1.0',
+    'fruehstueck-service.js?v=1.0',
+    'fruehstueck-app.js?v=1.0'
   ];
 
   var input = document.getElementById('pw-gate-input');

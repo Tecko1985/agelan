@@ -554,3 +554,46 @@ main#app.sk-breit { max-width: 980px; }
   opacity: 1;
   transform: translateY(0);
 }
+
+/* ---------- Frühstücksbestellung ---------- */
+.fr-tage-hinweis { margin: 4px 0 0; }
+.fr-tagkarte { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.fr-tagkarte h3 { margin: 0 0 2px; }
+.fr-schluss { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.fr-schluss.zu { color: #dc2626; }
+.fr-paket { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+.fr-paket:first-of-type { border-top: none; }
+.fr-paket-info { flex: 1 1 auto; min-width: 0; }
+.fr-paket-name { font-weight: 600; }
+.fr-paket-beschreibung { font-size: 13px; color: var(--muted); }
+.fr-paket-preis { font-size: 13px; color: var(--muted); }
+.fr-stepper { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.fr-stepper button {
+  width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--primary);
+  background: var(--card-bg); color: var(--primary); font-size: 18px; font-weight: 700; cursor: pointer; line-height: 1;
+}
+.fr-stepper button:disabled { border-color: var(--border); color: var(--muted); cursor: not-allowed; }
+.fr-stepper-zahl { min-width: 18px; text-align: center; font-weight: 700; }
+.fr-summe-zeile { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-weight: 700; }
+.fr-summe-leer { color: var(--muted); font-weight: 400; font-size: 14px; }
+.fr-eigene-hinweis { font-size: 13px; color: var(--success); margin: 8px 0 0; }
+.fr-leer-hinweis { color: var(--muted); font-size: 14px; padding: 10px 0; }
+
+.fr-liste-eintrag { display: flex; align-items: center; gap: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px; }
+.fr-liste-eintrag.abgeholt { opacity: 0.55; }
+.fr-liste-name { flex: 1 1 auto; font-weight: 600; }
+.fr-liste-positionen { font-size: 13px; color: var(--muted); }
+.fr-liste-notiz { font-size: 12px; color: var(--gold); }
+.fr-liste-abholen { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
+.fr-liste-abholen input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+.fr-einkaufsliste { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; }
+.fr-einkauf-zeile { display: flex; justify-content: space-between; font-size: 14px; }
+.fr-einkauf-zeile b { font-weight: 700; }
+
+.fr-paket-verwalten { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.fr-paket-verwalten:first-of-type { border-top: none; }
+.fr-pv-info { flex: 1 1 auto; min-width: 0; }
+.fr-pv-name { font-weight: 600; }
+.fr-pv-preis { font-size: 13px; color: var(--muted); }
+.fr-pv-aktionen { display: flex; gap: 4px; flex: 0 0 auto; flex-wrap: wrap; }

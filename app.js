@@ -1247,6 +1247,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.1",
+    groups: [
+      { title: "Neu: Frühstücksbestellung", items: [
+          "Dritter Reiter „Frühstück“ neben Turnier und Stream: der Veranstalter legt Frühstückspakete mit Namen, Beschreibung und Preis an.",
+          "Bestellt wird je Morgen bis zu einem festen Bestellschluss am Vorabend – danach ist der Morgen für alle außer dem Veranstalter geschlossen.",
+          "Menge je Paket per Plus/Minus, dazu ein freiwilliges Notizfeld – etwa für „ohne Milch“.",
+          "Eine Bestellung lässt sich bis zum Bestellschluss jederzeit ändern oder wieder stornieren.",
+          "Der Veranstalter sieht je Morgen die Einkaufsliste (Summe je Paket) und eine Liste aller Bestellungen mit einem Haken zum Abhaken bei der Ausgabe.",
+          "Gleiches Prinzip wie beim Streamplan: eigener PIN je Bestellung, überlebt Zurücksetzen und Löschen eines Turniers."
+      ]}
+    ]
+  },
+  {
     version: "1.0",
     groups: [
       { title: "Wo die Turnierdaten liegen", items: [
