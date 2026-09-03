@@ -1253,6 +1253,22 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.6",
+    groups: [
+      { title: "Jeder hat jetzt sein eigenes Konto", items: [
+          "Statt eines Passworts für alle legst du dir einmal ein Konto an: dein Name und ein Passwort, das nur du kennst.",
+          "Zum Anlegen brauchst du einmalig das Passwort der Veranstaltung von Michel. Danach nie wieder – ab dann reichen Name und dein eigenes Passwort.",
+          "Oben rechts steht, mit welchem Namen du angemeldet bist.",
+          "Dein Name steht damit überall automatisch: beim Einschreiben ins Turnier, beim Streamplan und beim Frühstück. Kein Tippen mehr, und die Frühstücks-Abrechnung stimmt.",
+          "Die Anmeldung bleibt auf deinem Gerät bestehen – auch nach dem Schließen des Browsers.",
+          "Dein Passwort wird verschlüsselt gespeichert und lässt sich nicht auslesen, auch nicht von Michel."
+      ]},
+      { title: "Kein Vereinslogo mehr", items: [
+          "Oben rechts hing das Wappen des SC 1911 Heiligenstadt. Die AgeLan ist eine private Veranstaltung – das Wappen ist raus."
+      ]}
+    ]
+  },
+  {
     version: "1.5",
     groups: [
       { title: "Frühstück: Abrechnung", items: [

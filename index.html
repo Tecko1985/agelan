@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.6">
+<link rel="stylesheet" href="style.css?v=1.7">
 </head>
 <body>
 
@@ -61,9 +61,24 @@
   <div class="pw-box">
     <div class="pw-icon">🔒</div>
     <h2 class="pw-titel" id="pw-gate-titel">AgeLan öffnen</h2>
-    <p class="pw-text">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
-    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" class="pw-eingabe" />
-    <button id="pw-gate-btn" type="button" class="pw-knopf">Öffnen</button>
+
+    <!-- Zwei Wege: anmelden (der Normalfall) und einmalig ein Konto anlegen.
+         Umgeschaltet über die Klasse .modus-neu am Kasten – so bleibt es EIN
+         Dialog mit EINEM Absende-Weg statt zweier, die auseinanderlaufen. -->
+    <p class="pw-text" id="pw-text-login">Melde dich mit deinem Namen und deinem Passwort an.</p>
+    <p class="pw-text pw-nur-neu" id="pw-text-neu">Einmalig ein Konto anlegen. Dafür brauchst du das Passwort der Veranstaltung – du bekommst es von Michel im <b>Discord</b>.</p>
+
+    <label class="pw-label pw-nur-neu" for="pw-lan">Passwort der Veranstaltung</label>
+    <input id="pw-lan" type="password" autocomplete="off" placeholder="Von Michel im Discord" class="pw-eingabe pw-nur-neu" />
+
+    <label class="pw-label" for="pw-nick">Dein Name</label>
+    <input id="pw-nick" type="text" autocomplete="username" placeholder="z. B. Tecko" maxlength="20" class="pw-eingabe" />
+
+    <label class="pw-label" for="pw-gate-input">Dein Passwort</label>
+    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Mindestens 4 Zeichen" class="pw-eingabe" />
+
+    <button id="pw-gate-btn" type="button" class="pw-knopf">Anmelden</button>
+    <button id="pw-wechsel" type="button" class="pw-zurueck">Noch kein Konto? Hier anlegen</button>
     <button id="pw-gate-zurueck" type="button" class="pw-zurueck">← Zurück zur Übersicht</button>
     <p id="pw-gate-msg" class="pw-meldung"></p>
   </div>
@@ -781,20 +796,19 @@
 // übrigen Seiten der Flotte: über vier Veranstaltungstage soll das Passwort
 // wirklich nur einmal je Gerät nötig sein.
 (function () {
-  var SCOPE = 'agelan-zugang';
-  var SPEICHER_KEY = 'agelan_gate_ok';
   var GATEWAY = 'https://agelan.michel-brunner.workers.dev';
+  var KONTO_KEY = 'agelan_konto';   // { nickname, token }
   var SKRIPTE = [
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
-    'turnier-service.js?v=1.0',
-    'app.js?v=1.6',
-    'stream-service.js?v=1.0',
+    'turnier-service.js?v=1.1',
+    'app.js?v=1.7',
+    'stream-service.js?v=1.1',
     'stream-app.js?v=1.0',
-    'fruehstueck-service.js?v=1.1',
+    'fruehstueck-service.js?v=1.2',
     'fruehstueck-app.js?v=1.3'
   ];
 
@@ -805,12 +819,53 @@
   var gateTitel = document.getElementById('pw-gate-titel');
   var hub = document.getElementById('start-hub');
   var zurueck = document.getElementById('pw-gate-zurueck');
+  var box = gate.querySelector('.pw-box');
+  var wechsel = document.getElementById('pw-wechsel');
+  var nickFeld = document.getElementById('pw-nick');
+  var lanFeld = document.getElementById('pw-lan');
 
-  // Welchen Bereich hat der Klick im Vorraum gemeint? Nach der Freigabe soll
+  // Welchen Bereich hat der Klick im Vorraum gemeint? Nach der Anmeldung soll
   // die App genau dort aufgehen und nicht auf dem Turnier-Tab.
   var zielTab = null;
   var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück' };
+  var frei = false;
+  var modusNeu = false;   // false = anmelden, true = Konto anlegen
 
+  // --- Konto merken ---------------------------------------------------------
+  function kontoLesen() {
+    try {
+      var roh = localStorage.getItem(KONTO_KEY);
+      return roh ? JSON.parse(roh) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function kontoSchreiben(konto) {
+    try {
+      if (konto) localStorage.setItem(KONTO_KEY, JSON.stringify(konto));
+      else localStorage.removeItem(KONTO_KEY);
+    } catch (e) { /* privater Modus: dann gilt die Anmeldung nur für diesen Besuch */ }
+  }
+
+  // Der Name steht in der Kopfzeile. Das läuft schon, bevor die App-Skripte
+  // geladen sind – die Kopfzeile ist Teil des HTML.
+  function kontoAnzeigen(konto) {
+    var el = document.getElementById('kopf-konto');
+    if (el) {
+      if (konto && konto.nickname) {
+        el.textContent = '👤 ' + konto.nickname;
+        el.title = 'Angemeldet als ' + konto.nickname;
+        el.hidden = false;
+      } else {
+        el.textContent = '';
+        el.hidden = true;
+      }
+    }
+    // Die App-Oberflächen belegen ihre Namensfelder damit vor.
+    window.__AGELAN_KONTO__ = konto || null;
+  }
+
+  // --- Skripte nachladen ----------------------------------------------------
   // Nacheinander, nicht parallel: firebase-config braucht das Firebase-SDK,
   // die Services brauchen die Konfiguration, die Oberflächen die Services.
   function ladeSkripte(fertig) {
@@ -828,34 +883,23 @@
     })();
   }
 
-  // Ist der Zugang frei? Dann sind die Kacheln keine Passwortabfrage mehr,
-  // sondern reine Navigation.
-  var frei = false;
-
   // ⚠️ Der Vorraum wird NICHT aus dem DOM entfernt, nur versteckt: er ist das
   // Dashboard, auf das der Kopfzeilen-Titel jederzeit zurückführt.
-  function zeigeHub() {
-    if (!hub) return;
-    hub.hidden = false;
-  }
-  function versteckeHub() {
-    if (!hub) return;
-    hub.hidden = true;
-  }
+  function zeigeHub() { if (hub) hub.hidden = false; }
+  function versteckeHub() { if (hub) hub.hidden = true; }
 
-  function freigeben(merken) {
-    if (merken) { try { localStorage.setItem(SPEICHER_KEY, '1'); } catch (e) {} }
+  function freigeben() {
     // Das Ziel muss VOR dem Laden stehen: app.js wertet es beim Start aus.
     if (zielTab) { window.__AGELAN_START_TAB__ = zielTab; }
     frei = true;
-    if (hub) hub.classList.add('frei');   // blendet Schlösser und Passwort-Hinweis aus
+    if (hub) hub.classList.add('frei');   // blendet Schlösser und Hinweis aus
     ladeSkripte(function () {
       if (gate) gate.hidden = true;
       versteckeHub();
     });
   }
 
-  // Klick auf eine Kachel: solange gesperrt, fragt sie nach dem Passwort –
+  // Klick auf eine Kachel: solange nicht angemeldet, fragt sie nach dem Konto –
   // danach ist sie einfach der Weg in den Bereich.
   function oeffneBereich(ziel) {
     if (!frei) return oeffneGate(ziel);
@@ -864,19 +908,30 @@
     versteckeHub();
   }
 
-  var schonFrei = false;
-  try { schonFrei = localStorage.getItem(SPEICHER_KEY) === '1'; } catch (e) {}
-  if (schonFrei) { freigeben(false); }
+  // --- Anmeldemaske ---------------------------------------------------------
+  function modusSetzen(neu) {
+    modusNeu = !!neu;
+    box.classList.toggle('modus-neu', modusNeu);
+    btn.textContent = modusNeu ? 'Konto anlegen' : 'Anmelden';
+    wechsel.textContent = modusNeu ? '← Ich habe schon ein Konto' : 'Noch kein Konto? Hier anlegen';
+    input.setAttribute('autocomplete', modusNeu ? 'new-password' : 'current-password');
+    input.setAttribute('placeholder', modusNeu ? 'Neues Passwort, mindestens 4 Zeichen' : 'Dein Passwort');
+    msg.textContent = '';
+  }
 
-  // --- Vorraum: Klick auf eine Kachel öffnet die Passwortabfrage ------------
   function oeffneGate(ziel) {
     zielTab = ziel;
     gateTitel.textContent = (ZIEL_NAMEN[ziel] || 'AgeLan') + ' öffnen';
     msg.textContent = '';
     btn.disabled = false;
     gate.hidden = false;
+    // Ein bekannter Name wird vorbelegt – nur das Passwort ist dann noch zu tippen.
+    var bekannt = kontoLesen();
+    nickFeld.value = (bekannt && bekannt.nickname) || nickFeld.value || '';
     input.value = '';
-    input.focus();
+    lanFeld.value = '';
+    modusSetzen(false);
+    (nickFeld.value ? input : nickFeld).focus();
   }
 
   function schliesseGate() {
@@ -884,44 +939,46 @@
     zielTab = null;
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
-    k.addEventListener('click', function () { oeffneBereich(k.getAttribute('data-hub-ziel')); });
-  });
-  zurueck.addEventListener('click', schliesseGate);
-  gate.addEventListener('click', function (e) { if (e.target === gate) schliesseGate(); });
-
-  // Der Titel in der Kopfzeile führt zurück aufs Dashboard – erst wenn der
-  // Zugang frei ist, denn vorher IST das Dashboard schon zu sehen.
-  var kopfTitel = document.getElementById('kopf-titel');
-  if (kopfTitel) {
-    kopfTitel.addEventListener('click', function () {
-      if (frei) zeigeHub();
-    });
+  function fehler(text) {
+    msg.style.color = '#c0392b';
+    msg.textContent = text;
+    btn.disabled = false;
   }
 
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape') return;
-    if (!gate.hidden) { schliesseGate(); return; }
-    // Das Dashboard lässt sich nur schließen, wenn dahinter auch etwas liegt.
-    if (frei && hub && !hub.hidden) versteckeHub();
-  });
-
   function pruefe() {
+    var nick = nickFeld.value.trim();
     var pw = input.value;
-    if (!pw) { msg.style.color = '#c0392b'; msg.textContent = 'Bitte Passwort eingeben.'; return; }
-    btn.disabled = true; msg.style.color = '#5a6b82'; msg.textContent = 'Prüfe …';
+    if (!nick) return fehler('Bitte gib deinen Namen ein.');
+    if (!pw) return fehler('Bitte gib dein Passwort ein.');
+    if (modusNeu && !lanFeld.value) return fehler('Bitte gib das Passwort der Veranstaltung ein.');
+
+    btn.disabled = true;
+    msg.style.color = '#5a6b82';
+    msg.textContent = modusNeu ? 'Lege an …' : 'Prüfe …';
+
+    var koerper = modusNeu
+      ? { action: 'konto-anlegen', lanPasswort: lanFeld.value, nickname: nick, passwort: pw }
+      : { action: 'konto-login', nickname: nick, passwort: pw };
+
     fetch(GATEWAY, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify-action-password', scope: SCOPE, password: pw })
+      body: JSON.stringify(koerper)
     }).then(function (resp) {
-      if (resp.ok) { msg.textContent = 'Einen Moment …'; freigeben(true); return; }
-      msg.style.color = '#c0392b';
-      if (resp.status === 403) { msg.textContent = 'Falsches Passwort.'; btn.disabled = false; input.select(); return; }
-      resp.json().catch(function () { return {}; }).then(function (b) {
-        msg.textContent = (b.error && /nicht konfiguriert/.test(b.error))
-          ? 'Der Zugang ist noch nicht eingerichtet.'
-          : 'Prüfung fehlgeschlagen (HTTP ' + resp.status + ').';
-        btn.disabled = false; input.select();
+      return resp.json().catch(function () { return {}; }).then(function (b) {
+        if (resp.ok && b.ok && b.token) {
+          var konto = { nickname: b.nickname, token: b.token };
+          kontoSchreiben(konto);
+          kontoAnzeigen(konto);
+          msg.style.color = '#5a6b82';
+          msg.textContent = 'Einen Moment …';
+          freigeben();
+          return;
+        }
+        // Die Meldung des Workers ist die genauere – eine eigene nur, wenn keine da ist.
+        fehler(b.error || ('Es hat nicht geklappt (HTTP ' + resp.status + ').'));
+        // 409 heißt "Name vergeben" – dann liegt das Problem beim Namen, sonst beim Passwort.
+        if (resp.status === 409) nickFeld.select();
+        else input.select();
       });
     }).catch(function () {
       // Häufigster Grund ist nicht "kein Netz", sondern eine Adresse, die der
@@ -935,9 +992,64 @@
     });
   }
 
+  // --- Verdrahtung ----------------------------------------------------------
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
+    k.addEventListener('click', function () { oeffneBereich(k.getAttribute('data-hub-ziel')); });
+  });
   btn.addEventListener('click', pruefe);
-  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
-  // Kein focus() beim Laden: der Dialog ist erst nach einem Klick im Vorraum da.
+  wechsel.addEventListener('click', function () { modusSetzen(!modusNeu); nickFeld.focus(); });
+  [nickFeld, lanFeld, input].forEach(function (f) {
+    f.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
+  });
+  zurueck.addEventListener('click', schliesseGate);
+  gate.addEventListener('click', function (e) { if (e.target === gate) schliesseGate(); });
+
+  // Der Titel in der Kopfzeile führt zurück aufs Dashboard – erst wenn man
+  // angemeldet ist, denn vorher IST das Dashboard schon zu sehen.
+  var kopfTitel = document.getElementById('kopf-titel');
+  if (kopfTitel) {
+    kopfTitel.addEventListener('click', function () { if (frei) zeigeHub(); });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!gate.hidden) { schliesseGate(); return; }
+    // Das Dashboard lässt sich nur schließen, wenn dahinter auch etwas liegt.
+    if (frei && hub && !hub.hidden) versteckeHub();
+  });
+
+  // --- Start ----------------------------------------------------------------
+  // Liegt eine Anmeldung vor, wird sie beim Server gegengeprüft: ein gelöschtes
+  // Konto (etwa nach "alle Konten leeren") darf mit altem Token nicht weiterlaufen.
+  // ⚠️ Bei einem NETZfehler wird trotzdem freigegeben. Wer sich einmal angemeldet
+  // hat, darf nicht ausgesperrt werden, weil gerade die Leitung hakt – die
+  // Firebase-Daten sind ohnehin nicht durch dieses Konto geschützt.
+  var konto = kontoLesen();
+  if (konto && konto.token) {
+    kontoAnzeigen(konto);
+    fetch(GATEWAY, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'konto-pruefen', token: konto.token })
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; });
+    }).then(function (b) {
+      if (b && b.ok) {
+        // Der Name kann sich serverseitig unterscheiden (Groß-/Kleinschreibung).
+        if (b.nickname && b.nickname !== konto.nickname) {
+          konto.nickname = b.nickname;
+          kontoSchreiben(konto);
+          kontoAnzeigen(konto);
+        }
+        freigeben();
+      } else {
+        // Konto gibt es nicht mehr: Anmeldung wegräumen, Vorraum zeigen.
+        kontoSchreiben(null);
+        kontoAnzeigen(null);
+      }
+    }).catch(function () {
+      freigeben();
+    });
+  }
 })();
 </script>
 </body>

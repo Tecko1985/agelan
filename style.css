@@ -807,3 +807,19 @@ main#app.sk-breit { max-width: 980px; }
   .fr-abr-zeile { flex-wrap: wrap; }
   .fr-abr-was { flex-basis: 100%; margin-left: 26px; font-size: 13px; }
 }
+
+/* Anmeldemaske: ein Dialog, zwei Modi. Die Felder fuer "Konto anlegen" sind im
+   Normalfall weg und erscheinen erst ueber .modus-neu am Kasten. */
+.pw-nur-neu { display: none; }
+.pw-box.modus-neu .pw-nur-neu { display: block; }
+.pw-box.modus-neu #pw-text-login { display: none; }
+.pw-label {
+  display: block;
+  text-align: left;
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pw-box .pw-eingabe { margin-bottom: 0; }
+.pw-box .pw-knopf { margin-top: 16px; }

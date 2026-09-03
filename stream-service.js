@@ -608,8 +608,13 @@ const streamService = {
   datumLabel: skDatumLabel,
   heuteIso: skHeuteIso,
   datumPlus: skDatumPlus,
+  // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,
+  // unter dem abgerechnet wird. Steht kein Konto bereit (aeltere Anmeldung,
+  // privater Modus), gilt weiter der zuletzt benutzte Name.
   getGespeicherterName: () => {
     try {
+      const konto = window.__AGELAN_KONTO__;
+      if (konto && konto.nickname) return konto.nickname;
       return localStorage.getItem(SK_NAME_KEY) || localStorage.getItem("agelan_spieler_name") || "";
     } catch (e) {
       return "";
