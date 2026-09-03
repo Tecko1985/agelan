@@ -515,6 +515,13 @@ function skZiehStart(e, knopf, istProgramm) {
     istProgramm,
     eintrag,
     tag,
+    // ⚠️ Die Bloecke werden gegen die ACHSE positioniert, nicht gegen den
+    // Tagesbeginn (skBlockStil: top = skPx(von - achseVon)). Beginnt ein Tag
+    // spaeter als die Achse, sind das zwei verschiedene Nullpunkte - der Block
+    // sprang beim ersten Ziehen um die Differenz nach oben und lag danach
+    // dauerhaft ueber dem Mauszeiger. Michel: "die Hand ist ein, zwei
+    // Zentimeter unter dem Feld".
+    achseVon: Math.floor(z.achseVon / 60) * 60,
     startY: e.clientY,
     startOben: parseFloat(knopf.style.top) || 0,
     bewegt: false,
@@ -537,7 +544,7 @@ function skZiehBewegung(e) {
   // Innerhalb des Tagesfensters bleiben – sonst landet der Block im Nichts.
   neuVon = Math.max(skZiehen.tag.von, Math.min(neuVon, skZiehen.tag.bis - dauer));
   skZiehen.neuVon = neuVon;
-  skZiehen.knopf.style.top = skPx(neuVon - skZiehen.tag.von) + "px";
+  skZiehen.knopf.style.top = skPx(neuVon - skZiehen.achseVon) + "px";
 
   const zeit = skZiehen.knopf.querySelector(".sk-slot-zeit");
   if (zeit) zeit.textContent = streamService.zeitLabel(neuVon) + "–" + streamService.zeitLabel(neuVon + dauer);
