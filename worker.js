@@ -86,6 +86,7 @@ export default {
     if (aktion === "konto-login")    return kontoLogin(request, body, env, cors);
     if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
     if (aktion === "konto-admin")    return kontoAdmin(request, body, env, cors);
+    if (aktion === "konto-streamer") return kontoStreamer(body, env, cors);
     if (aktion === "konto-liste")    return kontoListe(body, env, cors);
     if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
@@ -274,9 +275,10 @@ async function tokenSchluessel(env) {
 
 // ⚠️ Das Admin-Merkmal steht MIT im signierten Token, ist also nicht faelschbar.
 // Der Client darf ihm deshalb glauben - er kann es nicht selbst setzen.
-async function tokenBauen(env, nick, admin) {
+async function tokenBauen(env, nick, admin, streamer) {
   const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000 };
   if (admin) nutzlast.a = 1;
+  if (streamer) nutzlast.s = 1;
   const teil = bytesZuB64Url(new TextEncoder().encode(JSON.stringify(nutzlast)));
   const key = await tokenSchluessel(env);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(teil));
@@ -300,7 +302,7 @@ async function tokenLesen(env, token) {
     if (!ok) return null;
     const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
     if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
-    return { nick: nutzlast.n, admin: nutzlast.a === 1 };
+    return { nick: nutzlast.n, admin: nutzlast.a === 1, streamer: nutzlast.s === 1 };
   } catch (e) {
     return null;
   }
@@ -343,6 +345,7 @@ async function kontoAnlegen(request, body, env, cors) {
     nick: geprueft.nick,
     pw: await passwortHashen(passwort),
     admin: istAdmin,
+    streamer: false,   // vergibt der Veranstalter, siehe konto-streamer
     angelegtAm: Date.now(),
   }));
 
@@ -350,7 +353,8 @@ async function kontoAnlegen(request, body, env, cors) {
     ok: true,
     nickname: geprueft.nick,
     admin: istAdmin,
-    token: await tokenBauen(env, geprueft.nick, istAdmin),
+    streamer: false,
+    token: await tokenBauen(env, geprueft.nick, istAdmin, false),
   }, 200, cors);
 }
 
@@ -384,7 +388,8 @@ async function kontoLogin(request, body, env, cors) {
     ok: true,
     nickname: konto.nick,
     admin: !!konto.admin,
-    token: await tokenBauen(env, konto.nick, !!konto.admin),
+    streamer: !!konto.streamer,
+    token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer),
   }, 200, cors);
 }
 
@@ -401,13 +406,17 @@ async function kontoPruefen(body, env, cors) {
   // Veranstalter-Recht muss sofort wirken und nicht erst, wenn das Token in
   // 120 Tagen abläuft.
   let admin = false;
+  let streamer = false;
   try {
-    admin = !!JSON.parse(roh).admin;
-  } catch (e) { /* kaputter Eintrag gilt als kein Admin */ }
+    const k = JSON.parse(roh);
+    admin = !!k.admin;
+    streamer = !!k.streamer;
+  } catch (e) { /* kaputter Eintrag gilt als ohne Rechte */ }
 
   // Weicht der Stand vom Token ab, bekommt der Client ein frisches.
-  const token = admin !== gelesen.admin ? await tokenBauen(env, gelesen.nick, admin) : null;
-  return json({ ok: true, nickname: gelesen.nick, admin, token }, 200, cors);
+  const abweichend = admin !== gelesen.admin || streamer !== gelesen.streamer;
+  const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer) : null;
+  return json({ ok: true, nickname: gelesen.nick, admin, streamer, token }, 200, cors);
 }
 
 // Ein bestehendes Konto zum Veranstalter machen (oder das Recht wieder abgeben).
@@ -448,8 +457,36 @@ async function kontoAdmin(request, body, env, cors) {
     ok: true,
     nickname: konto.nick,
     admin: anschalten,
-    token: await tokenBauen(env, konto.nick, anschalten),
+    streamer: !!konto.streamer,
+    token: await tokenBauen(env, konto.nick, anschalten, !!konto.streamer),
   }, 200, cors);
+}
+
+// Streamer-Merkmal setzen oder nehmen. Nur der Veranstalter - anders als beim
+// Veranstalter-Recht gibt es hier keinen Selbstbedienungsweg per Passwort.
+async function kontoStreamer(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+
+  const geprueft = nickPruefen(body.nickname);
+  if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+
+  const schluessel = nickSchluessel(geprueft.nick);
+  const roh = await env.KONTEN.get(schluessel);
+  if (!roh) return json({ error: "Dieses Konto gibt es nicht mehr." }, 404, cors);
+
+  let konto;
+  try {
+    konto = JSON.parse(roh);
+  } catch (e) {
+    return json({ error: "Das Konto ist beschädigt." }, 500, cors);
+  }
+
+  konto.streamer = body.streamer !== false;
+  await env.KONTEN.put(schluessel, JSON.stringify(konto));
+  // ⚠️ Kein neues Token: das gehört dem BETROFFENEN, nicht dem Veranstalter.
+  // Es zieht bei dessen nächster Startprüfung von selbst nach (konto-pruefen).
+  return json({ ok: true, nickname: konto.nick, streamer: konto.streamer }, 200, cors);
 }
 
 // --- Veranstalter: Konten sehen und leeren ---------------------------------
@@ -487,7 +524,7 @@ async function kontoListe(body, env, cors) {
       if (!roh) continue;
       try {
         const konto = JSON.parse(roh);
-        liste.push({ nickname: konto.nick, admin: !!konto.admin, angelegtAm: konto.angelegtAm || 0 });
+        liste.push({ nickname: konto.nick, admin: !!konto.admin, streamer: !!konto.streamer, angelegtAm: konto.angelegtAm || 0 });
       } catch (e) { /* kaputter Eintrag wird übersprungen */ }
     }
     cursor = seite.list_complete ? null : seite.cursor;

@@ -1255,6 +1255,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.0",
+    groups: [
+      { title: "Streamplan: eintragen nur mit Freigabe", items: [
+          "In den Einstellungen hat jetzt jedes Konto ein Häkchen Ἲ5. Wer es hat, darf sich in den Streamplan eintragen und seine Einträge ändern.",
+          "Alle anderen sehen den Plan weiterhin vollständig – sie können ihn nur nicht mehr verändern. Der Knopf zum Eintragen ist für sie weg.",
+          "Veranstalter dürfen immer, ihr Häkchen ist deshalb fest gesetzt."
+      ]}
+    ]
+  },
+  {
     version: "1.9",
     groups: [
       { title: "Einstellungen: wer hat ein Konto?", items: [
@@ -1513,10 +1523,26 @@ async function ladeKonten() {
         daten.konten.map((k) => `
           <div class="konto-zeile">
             <span class="konto-name">${k.admin ? "⭐ " : "👤 "}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
+            <label class="konto-streamer" title="Darf sich in den Streamplan eintragen">
+              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}>
+              🎥
+            </label>
             <span class="konto-datum">${kontenDatum(k.angelegtAm)}</span>
             <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}">🗑</button>
           </div>`).join("")
       : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
+
+    box.querySelectorAll("[data-konto-streamer]").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        try {
+          await kontenRufe("konto-streamer", { nickname: cb.dataset.kontoStreamer, streamer: cb.checked });
+          zeigeFehler("konten-fehler", "");
+        } catch (e) {
+          cb.checked = !cb.checked;   // zurueckdrehen, sonst behauptet der Haken etwas Falsches
+          zeigeFehler("konten-fehler", e.message);
+        }
+      });
+    });
 
     box.querySelectorAll("[data-konto-loeschen]").forEach((b) => {
       b.addEventListener("click", async () => {

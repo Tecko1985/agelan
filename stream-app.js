@@ -107,6 +107,10 @@ function skRenderPlan(z) {
 
   // Das Programm gibt die Veranstaltung vor – anlegen darf es nur der Veranstalter.
   skEl("sk-btn-programm").style.display = z.istAdmin ? "" : "none";
+  // ⚠️ Der Knopf verschwindet fuer alle ohne Streamer-Freigabe. Ein sichtbarer
+  // Knopf, der nur in eine Fehlermeldung fuehrt, ist schlechter als keiner -
+  // die Schranke selbst sitzt im Service, nicht hier.
+  skEl("sk-btn-belegen").style.display = z.darfEintragen ? "" : "none";
 
   skRenderChips(z);
   skRenderKalender(z);

@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.3">
+<link rel="stylesheet" href="style.css?v=2.4">
 </head>
 <body>
 
@@ -686,7 +686,7 @@
  <div class="tab-section" id="tab-einstellungen">
    <div class="karte-block">
      <h2>Angemeldete Nutzer</h2>
-     <p class="hinweis-text">Alle, die sich ein Konto angelegt haben. ⭐ heißt Veranstalter.</p>
+     <p class="hinweis-text">Alle, die sich ein Konto angelegt haben. ⭐ ist Veranstalter. Das Häkchen 🎥 gibt frei, sich in den Streamplan einzutragen – ohne das Häkchen darf man ihn nur lesen. Veranstalter dürfen es immer.</p>
      <button class="btn btn-secondary btn-grow" id="btn-konten-laden">Liste laden</button>
      <div id="konten-liste"></div>
      <p class="hinweis-text fehler" id="konten-fehler"></p>
@@ -835,10 +835,10 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
-    'turnier-service.js?v=1.2',
-    'app.js?v=2.1',
-    'stream-service.js?v=1.2',
-    'stream-app.js?v=1.0',
+    'turnier-service.js?v=1.3',
+    'app.js?v=2.2',
+    'stream-service.js?v=1.3',
+    'stream-app.js?v=1.1',
     'fruehstueck-service.js?v=1.3',
     'fruehstueck-app.js?v=1.4'
   ];
@@ -1008,7 +1008,7 @@
     }).then(function (resp) {
       return resp.json().catch(function () { return {}; }).then(function (b) {
         if (resp.ok && b.ok && b.token) {
-          var konto = { nickname: b.nickname, token: b.token, admin: !!b.admin };
+          var konto = { nickname: b.nickname, token: b.token, admin: !!b.admin, streamer: !!b.streamer };
           kontoSchreiben(konto);
           kontoAnzeigen(konto);
           msg.style.color = '#5a6b82';
@@ -1079,10 +1079,13 @@
         // ⚠️ Name UND Veranstalter-Stand kommen frisch vom Server: ein entzogenes
         // Recht muss sofort wirken, nicht erst wenn das Token in 120 Tagen abläuft.
         // Schickt der Server ein neues Token mit, ersetzt es das alte.
-        var geaendert = (b.nickname && b.nickname !== konto.nickname) || !!b.admin !== !!konto.admin;
+        var geaendert = (b.nickname && b.nickname !== konto.nickname)
+          || !!b.admin !== !!konto.admin
+          || !!b.streamer !== !!konto.streamer;
         if (geaendert || b.token) {
           if (b.nickname) konto.nickname = b.nickname;
           konto.admin = !!b.admin;
+          konto.streamer = !!b.streamer;
           if (b.token) konto.token = b.token;
           kontoSchreiben(konto);
           kontoAnzeigen(konto);

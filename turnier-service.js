@@ -211,6 +211,18 @@ function kontoIstVeranstalter() {
   }
 }
 
+// Darf diese Person im Streamplan eintragen? Veranstalter duerfen immer.
+// ⚠️ Wie alles hier eine BEDIEN-Sperre: die Firebase-Regeln lassen weiterhin
+// jeden anonymen Client schreiben.
+function kontoDarfStreamen() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return !!(k && (k.streamer || k.admin));
+  } catch (e) {
+    return false;
+  }
+}
+
 function istVeranstalterVon(id, meta) {
   if (!meta) return false;
   if (kontoIstVeranstalter()) return true;

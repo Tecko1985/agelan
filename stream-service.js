@@ -250,6 +250,7 @@ function skGetZustand() {
     slots,
     programm,
     istAdmin: admin,
+    darfEintragen: admin || (typeof kontoDarfStreamen === "function" && kontoDarfStreamen()),
     eigeneUid: skEigeneUid,
     turnierPin: skTurnierPin(),
     achseVon: Math.min.apply(null, tage.map((t) => t.von)),
@@ -417,6 +418,11 @@ async function skSetzeTagesfenster(liste) {
 
 async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
+  // sehen den Plan, aendern ihn aber nicht.
+  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+    return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
+  }
   const z = skGetZustand();
   if (!z.vorhanden) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
 
@@ -438,6 +444,11 @@ async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
 
 async function skAendereSlot(id, { datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
+  // sehen den Plan, aendern ihn aber nicht.
+  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+    return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
+  }
   const z = skGetZustand();
   if (!z.vorhanden) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
   const alt = z.slots.find((s) => s.id === id);
@@ -549,6 +560,11 @@ async function skLoescheProgramm(id) {
 
 async function skLoescheSlot(id) {
   await skAuthBereit;
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
+  // sehen den Plan, aendern ihn aber nicht.
+  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+    return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
+  }
   const z = skGetZustand();
   const slot = z.slots.find((s) => s.id === id);
   if (!slot) return { erfolg: false, fehler: "Diese Belegung gibt es nicht mehr." };

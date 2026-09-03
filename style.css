@@ -892,3 +892,6 @@ main#app.sk-breit { max-width: 980px; }
 .hub-ds-text p { margin: 0 0 10px; }
 .hub-ds-text p:last-child { margin-bottom: 0; }
 .hub-ds-text a { color: var(--primary); }
+.konto-streamer { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.konto-streamer input { width: 17px; height: 17px; accent-color: var(--primary); }
+.konto-streamer input:disabled { opacity: 0.5; cursor: not-allowed; }
