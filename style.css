@@ -923,3 +923,4 @@ main#app.sk-breit { max-width: 980px; }
 }
 /* Notausgang: da, aber nicht im Weg. */
 .notausgang > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; }
+.kopfzeile-status[hidden] { display: none; }

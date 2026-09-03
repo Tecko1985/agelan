@@ -1250,13 +1250,18 @@ window.addEventListener("unhandledrejection", (e) => {
 
 // --- Start ------------------------------------------------------------------
 (function init() {
-  // Sync-Status im Header
+  // Im Normalbetrieb steht hier NICHTS - dass die Seite laeuft, sieht man daran,
+  // dass sie laeuft. Nur der Test-Modus meldet sich, damit niemand gegen die
+  // Mock-Datenbank arbeitet und es fuer echt haelt.
   const status = document.getElementById("sync-status");
-  if (window.__AGELAN_MOCK__) {
-    status.textContent = "● lokal (Test)";
-    status.style.color = "#fde68a";
-  } else {
-    status.textContent = "● live";
+  if (status) {
+    if (window.__AGELAN_MOCK__) {
+      status.textContent = "● lokal (Test)";
+      status.style.color = "#fde68a";
+      status.hidden = false;
+    } else {
+      status.hidden = true;
+    }
   }
   wireEvents();
   turnierService.onZustandsAenderung(render);
