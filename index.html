@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.5">
+<link rel="stylesheet" href="style.css?v=1.6">
 </head>
 <body>
 
@@ -76,9 +76,12 @@
     <button type="button" class="kopfzeile-titel" id="kopf-titel" title="Zur Übersicht">🏆 AgeLan</button>
   </div>
   <div class="kopfzeile-right">
+    <!-- Wer ist hier angemeldet? Bleibt leer, solange es kein Konto gibt.
+         ⚠️ Kein Vereinslogo: die AgeLan ist Michels privates Event, das Wappen
+         des Vereins hat hier nichts zu suchen. -->
+    <span class="kopfzeile-konto" id="kopf-konto" hidden></span>
     <span class="kopfzeile-status" id="sync-status">● live</span>
     <button class="btn-abbrechen" id="btn-admin-oeffnen" title="Veranstalter">⚙️</button>
-    <img class="header-logo" src="https://sc1911heiligenstadt.github.io/logo.svg" alt="1. SC 1911 Heiligenstadt e.V." />
   </div>
 </header>
 

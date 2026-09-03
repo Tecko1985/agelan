@@ -62,7 +62,21 @@ body {
 }
 .kopfzeile-titel:hover { text-decoration: underline; }
 .kopfzeile-status { font-size: 12px; opacity: 0.9; }
-.header-logo { height: 32px; width: auto; display: block; }
+/* Anzeige des angemeldeten Kontos. Steht dort, wo bis 2026-09-03 das
+   Vereinswappen hing - die AgeLan ist ein privates Event. */
+.kopfzeile-konto[hidden] { display: none; }
+.kopfzeile-konto {
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  font-weight: 600;
+}
 .btn-abbrechen {
   background: rgba(255,255,255,0.15); color: #fff;
   border: 1px solid rgba(255,255,255,0.5); border-radius: var(--radius-sm);
