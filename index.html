@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.0">
+<link rel="stylesheet" href="style.css?v=2.1">
 </head>
 <body>
 
@@ -118,6 +118,9 @@
   <button data-tab="stream">Stream</button>
   <button data-tab="fruehstueck">Frühstück</button>
   <button data-tab="info" style="margin-left:auto;">Info</button>
+  <!-- Nur fuer Veranstalter. Versteckt per hidden, eingeblendet in app.js,
+       sobald das Konto das Merkmal traegt. -->
+  <button data-tab="einstellungen" id="nav-einstellungen" hidden>Einstellungen</button>
 </nav>
 
 <main id="app">
@@ -645,6 +648,23 @@
 
  </div>
 
+ <div class="tab-section" id="tab-einstellungen">
+   <div class="karte-block">
+     <h2>Angemeldete Nutzer</h2>
+     <p class="hinweis-text">Alle, die sich ein Konto angelegt haben. ⭐ heißt Veranstalter.</p>
+     <button class="btn btn-secondary btn-grow" id="btn-konten-laden">Liste laden</button>
+     <div id="konten-liste"></div>
+     <p class="hinweis-text fehler" id="konten-fehler"></p>
+   </div>
+
+   <div class="karte-block">
+     <h2>Nach der Veranstaltung</h2>
+     <p class="hinweis-text">Löscht ALLE Konten – auch dein eigenes. Danach legt jede:r für die nächste AgeLan ein neues an. Nicht umkehrbar.</p>
+     <button class="btn btn-danger btn-grow" id="btn-konten-leeren">Alle Konten löschen</button>
+     <p class="hinweis-text fehler" id="konten-leeren-fehler"></p>
+   </div>
+ </div>
+
  <div class="tab-section" id="tab-info">
    <div class="info-card">
      <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
@@ -818,7 +838,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.2',
-    'app.js?v=2.0',
+    'app.js?v=2.1',
     'stream-service.js?v=1.2',
     'stream-app.js?v=1.0',
     'fruehstueck-service.js?v=1.3',

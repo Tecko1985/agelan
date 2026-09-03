@@ -1255,6 +1255,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.9",
+    groups: [
+      { title: "Einstellungen: wer hat ein Konto?", items: [
+          "Neuer Reiter „Einstellungen“ ganz rechts – nur für Veranstalter sichtbar.",
+          "Dort stehen alle angemeldeten Nutzer mit Datum. Ein ⭐ markiert die Veranstalter, „(du)“ dein eigenes Konto.",
+          "Einzelne Konten lassen sich löschen; bereits abgegebene Bestellungen bleiben davon unberührt.",
+          "„Alle Konten löschen“ macht den Schnitt nach der Veranstaltung – danach legt jede:r für die nächste AgeLan ein neues an."
+      ]}
+    ]
+  },
+  {
     version: "1.8",
     groups: [
       { title: "Das Logo der AgeLan", items: [
@@ -1456,7 +1467,111 @@ function renderVersionInfo() {
     </div>`).join("");
 }
 
+
+// ---------- Einstellungen: die angemeldeten Konten ----------
+// Nur für Veranstalter. Der Nachweis ist das Anmelde-Token; der Worker prüft es
+// gegen den KV-Bestand, ein entzogenes Recht wirkt also sofort.
+const KONTEN_GATEWAY = "https://agelan.michel-brunner.workers.dev";
+
+function kontenToken() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return (k && k.token) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+async function kontenRufe(aktion, extra) {
+  const antwort = await fetch(KONTEN_GATEWAY, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(Object.assign({ action: aktion, token: kontenToken() }, extra || {})),
+  });
+  const daten = await antwort.json().catch(() => ({}));
+  if (!antwort.ok || !daten.ok) throw new Error(daten.error || "HTTP " + antwort.status);
+  return daten;
+}
+
+function kontenDatum(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return d.getDate() + "." + (d.getMonth() + 1) + "." + d.getFullYear();
+}
+
+async function ladeKonten() {
+  const box = document.getElementById("konten-liste");
+  const knopf = document.getElementById("btn-konten-laden");
+  zeigeFehler("konten-fehler", "");
+  knopf.disabled = true;
+  knopf.textContent = "Lade …";
+  try {
+    const daten = await kontenRufe("konto-liste");
+    const eigener = (window.__AGELAN_KONTO__ || {}).nickname;
+    box.innerHTML = daten.konten.length
+      ? `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
+        daten.konten.map((k) => `
+          <div class="konto-zeile">
+            <span class="konto-name">${k.admin ? "⭐ " : "👤 "}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
+            <span class="konto-datum">${kontenDatum(k.angelegtAm)}</span>
+            <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}">🗑</button>
+          </div>`).join("")
+      : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
+
+    box.querySelectorAll("[data-konto-loeschen]").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const name = b.dataset.kontoLoeschen;
+        if (!confirm(`Konto „${name}" wirklich löschen? Die Person muss sich danach ein neues anlegen. Bereits abgegebene Bestellungen bleiben stehen.`)) return;
+        try {
+          await kontenRufe("konto-loeschen", { nickname: name });
+          await ladeKonten();
+        } catch (e) {
+          zeigeFehler("konten-fehler", e.message);
+        }
+      });
+    });
+  } catch (e) {
+    box.innerHTML = "";
+    zeigeFehler("konten-fehler", e.message);
+  } finally {
+    knopf.disabled = false;
+    knopf.textContent = "Liste neu laden";
+  }
+}
+
+function setupEinstellungenTab() {
+  const knopf = document.getElementById("btn-konten-laden");
+  if (!knopf) return;
+  knopf.addEventListener("click", ladeKonten);
+
+  document.getElementById("btn-konten-leeren").addEventListener("click", async () => {
+    if (!confirm("Wirklich ALLE Konten löschen? Auch dein eigenes – du musst dich danach neu anlegen. Das lässt sich nicht rückgängig machen.")) return;
+    zeigeFehler("konten-leeren-fehler", "");
+    try {
+      const daten = await kontenRufe("konto-loeschen", { alle: true });
+      zeigeFehler("konten-leeren-fehler", daten.geloescht + " Konten gelöscht. Lade die Seite neu.");
+      document.getElementById("konten-liste").innerHTML = "";
+    } catch (e) {
+      zeigeFehler("konten-leeren-fehler", e.message);
+    }
+  });
+}
+
+// Der Tab erscheint nur für Veranstalter. ⚠️ Läuft auch nach dem Anmelden noch
+// einmal, weil das Konto beim ersten Zeichnen der Tabs noch nicht feststeht.
+function zeigeEinstellungenTab() {
+  const knopf = document.getElementById("nav-einstellungen");
+  if (!knopf) return;
+  const darf = typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
+  knopf.hidden = !darf;
+  // Steht man im Tab und verliert das Recht, gehört man dort nicht mehr hin.
+  if (!darf && document.getElementById("tab-einstellungen").classList.contains("active")) {
+    activateTab("turnier");
+  }
+}
+
 function setupInfoTab() {
+  setupEinstellungenTab();
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
     b.addEventListener("click", () => activateTab(b.dataset.tab));
   });
@@ -1473,6 +1588,7 @@ function setupInfoTab() {
   if (startTab && document.getElementById("tab-" + startTab)) {
     if (startTab !== "turnier" || TURNIER_SICHTBAR) activateTab(startTab);
   }
+  zeigeEinstellungenTab();
   renderVersionInfo();
 }
 

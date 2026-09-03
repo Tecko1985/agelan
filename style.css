@@ -850,3 +850,16 @@ main#app.sk-breit { max-width: 980px; }
   margin-right: 2px;
 }
 .fr-besteller { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+
+/* Kontoliste im Einstellungs-Tab */
+.konto-zeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.konto-zeile:first-of-type { border-top: none; }
+.konto-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.konto-du { font-weight: 400; color: var(--muted); }
+.konto-datum { flex: 0 0 auto; font-size: 13px; color: var(--muted); }

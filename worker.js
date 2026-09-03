@@ -422,7 +422,11 @@ async function kontoAdmin(request, body, env, cors) {
 
   // Das Recht ABGEBEN darf man ohne Passwort - es ist der eigene Verzicht.
   const anschalten = body.admin !== false;
-  if (anschalten && !(await veranstalterOk(body, env))) {
+  // ⚠️ HIER zaehlt nur das Passwort: sonst koennte sich ein Veranstalter-Konto
+  // selbst bestaetigen, und der Nachweis waere ein Zirkelschluss.
+  const mitPasswort = !!env.PW_AGELAN_VERANSTALTER && !!body.veranstalterPasswort
+    && await passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
+  if (anschalten && !mitPasswort) {
     bremseFehlschlag(request);
     return json({ error: "Falsches Veranstalter-Passwort." }, 403, cors);
   }
@@ -449,9 +453,25 @@ async function kontoAdmin(request, body, env, cors) {
 }
 
 // --- Veranstalter: Konten sehen und leeren ---------------------------------
+// Zwei Wege zum Veranstalter-Nachweis: das Passwort (fuer den ersten Zugang und
+// fuer Skripte) oder ein angemeldetes Veranstalter-Konto. Letzteres ist der
+// Alltagsweg - wer angemeldet ist, soll sein Passwort nicht dauernd wiederholen.
 async function veranstalterOk(body, env) {
+  if (body.token) {
+    const gelesen = await tokenLesen(env, body.token);
+    if (gelesen && gelesen.admin) {
+      // ⚠️ Gegenprobe am Bestand: das Recht kann seit Ausstellung entzogen sein.
+      const roh = await env.KONTEN.get(nickSchluessel(gelesen.nick));
+      if (roh) {
+        try {
+          if (JSON.parse(roh).admin) return true;
+        } catch (e) { /* kaputter Eintrag zaehlt nicht */ }
+      }
+    }
+  }
   if (!env.PW_AGELAN_VERANSTALTER) return false;
-  return passwortGleich(String(body.veranstalterPasswort || ""), env.PW_AGELAN_VERANSTALTER);
+  if (!body.veranstalterPasswort) return false;
+  return passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
 }
 
 async function kontoListe(body, env, cors) {
