@@ -181,7 +181,7 @@ function frRenderTagInhalt(z) {
              <input type="text" id="fr-best-name" class="eingabe" maxlength="40" autocomplete="off" value="${escapeHtml(frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName()))}">`}
 
         <label class="feld-label" for="fr-best-notiz">Notiz (freiwillig)</label>
-        <input type="text" id="fr-best-notiz" class="eingabe" maxlength="200" autocomplete="off" placeholder="z. B. ohne Milch" value="${escapeHtml(frEntwurf.notiz || "")}">
+        <input type="text" id="fr-best-notiz" class="eingabe" maxlength="200" autocomplete="off" value="${escapeHtml(frEntwurf.notiz || "")}">
 
         <button class="btn btn-primary btn-grow" id="fr-btn-bestellen">${tag.meineBestellung ? "Bestellung aktualisieren" : "Bestellen"}</button>
         ${tag.meineBestellung ? `<button class="btn btn-link" id="fr-btn-stornieren">Bestellung stornieren</button>` : ""}
