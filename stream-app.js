@@ -482,8 +482,12 @@ function skSchliesseProgrammDialog() {
 const SK_ZIEH_SCHWELLE = 4;
 let skZiehen = null;
 
+// ⚠️ Beim Ziehen wird auf 5 Minuten gerastet, NICHT auf die Viertelstunden der
+// Auswahllisten. Mit 15 lag ein Zug um 25 Minuten bei 30 - das fuehlt sich an,
+// als wuerde der Block der Maus nicht folgen.
+const SK_ZIEH_SCHRITT = 5;
 function skZiehRaster(minuten) {
-  return Math.round(minuten / SK_SCHRITT_UI) * SK_SCHRITT_UI;
+  return Math.round(minuten / SK_ZIEH_SCHRITT) * SK_ZIEH_SCHRITT;
 }
 
 // Darf diese Person diesen Block verschieben? Gleiche Regel wie fürs Bearbeiten:

@@ -29,7 +29,11 @@ const SK_BASIS = "streamplan/aktuell";
 const SK_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie beim Turnier: ein PIN für beides
 const SK_NAME_KEY = "agelan_streamer_name";
 
-const SK_SCHRITT = 15;        // Raster der Zeitauswahl in Minuten
+// ⚠️ Das ist die FEINSTE erlaubte Einheit, nicht das Raster der Auswahllisten.
+// Die stehen weiter auf Viertelstunden (SK_SCHRITT_UI in stream-app.js) - beim
+// Ziehen mit der Maus waren 15 Minuten aber zu grob: gemessen sprang ein Zug um
+// 25 Minuten auf 30, einer um 38 auf 45. Michel: "ziemlich ungenau".
+const SK_SCHRITT = 5;
 const SK_MIN_DAUER = 15;
 const SK_MAX_BIS = 1800;      // 30:00 – weiter als 6 Uhr früh geht ein Tagesfenster nicht
 const SK_MAX_TAGE = 7;
@@ -347,7 +351,7 @@ function skPruefeFenster(von, bis) {
   if (!(von >= 0 && von < 1440)) return { erfolg: false, fehler: "Der Beginn muss zwischen 0:00 und 23:45 liegen." };
   if (!(bis > von)) return { erfolg: false, fehler: "Das Ende muss nach dem Beginn liegen." };
   if (bis > SK_MAX_BIS) return { erfolg: false, fehler: "Später als 6:00 in der Nacht geht ein Tag nicht." };
-  if (von % SK_SCHRITT || bis % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle Viertelstunden." };
+  if (von % SK_SCHRITT || bis % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle 5 Minuten." };
   return { erfolg: true };
 }
 
@@ -471,7 +475,7 @@ function skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, ausser
 
   const v = Math.round(skZahl(von, -1));
   const b = Math.round(skZahl(bis, -1));
-  if (v % SK_SCHRITT || b % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle Viertelstunden." };
+  if (v % SK_SCHRITT || b % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle 5 Minuten." };
   if (!(b - v >= SK_MIN_DAUER)) return { erfolg: false, fehler: "Das Ende muss mindestens " + SK_MIN_DAUER + " Minuten nach dem Beginn liegen." };
   if (v < tag.von || b > tag.bis) {
     return { erfolg: false, fehler: "An " + tag.label + " läuft der Stream von " + skZeitLabel(tag.von) + " bis " + skZeitLabel(tag.bis) + "." };
@@ -507,7 +511,7 @@ function skPruefeProgramm(z, { datum, von, bis, titel, notiz }) {
 
   const v = Math.round(skZahl(von, -1));
   const b = Math.round(skZahl(bis, -1));
-  if (v % SK_SCHRITT || b % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle Viertelstunden." };
+  if (v % SK_SCHRITT || b % SK_SCHRITT) return { erfolg: false, fehler: "Bitte nur volle 5 Minuten." };
   if (!(b - v >= SK_MIN_DAUER)) return { erfolg: false, fehler: "Das Ende muss mindestens " + SK_MIN_DAUER + " Minuten nach dem Beginn liegen." };
   if (v < tag.von || b > tag.bis) {
     return { erfolg: false, fehler: "An " + tag.label + " läuft der Plan von " + skZeitLabel(tag.von) + " bis " + skZeitLabel(tag.bis) + "." };

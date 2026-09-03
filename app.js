@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.3",
+    groups: [
+      { title: "Streamplan: Ziehen ist jetzt genau", items: [
+          "Beim Verschieben rastet ein Termin auf 5 Minuten statt auf eine Viertelstunde. Vorher sprang ein Zug um 25 Minuten auf 30 – das fühlte sich an, als folge der Block der Maus nicht.",
+          "Die Auswahllisten in den Dialogen bleiben bei Viertelstunden, dort wären 5-Minuten-Schritte nur eine endlose Liste."
+      ]}
+    ]
+  },
+  {
     version: "2.2",
     groups: [
       { title: "Turnier anlegen: das Konto reicht", items: [
