@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.4",
+    groups: [
+      { title: "Streamplan: der Termin klebt jetzt an der Maus", items: [
+          "Beim Anfassen sprang ein Termin nach oben weg, danach lief er dauerhaft über dem Mauszeiger – Positionieren war Glückssache.",
+          "Ursache war ein falscher Nullpunkt: gezeichnet wird ab dem Beginn der Zeitleiste, verschoben wurde ab dem Beginn des Tages. Beginnt ein Tag später als die Leiste, klaffen die beiden auseinander."
+      ]}
+    ]
+  },
+  {
     version: "2.3",
     groups: [
       { title: "Streamplan: Ziehen ist jetzt genau", items: [
