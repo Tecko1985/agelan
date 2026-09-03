@@ -279,22 +279,27 @@ async function tokenBauen(env, nick) {
   return teil + "." + bytesZuB64Url(new Uint8Array(sig));
 }
 
+// ⚠️ Der GANZE Rumpf steht im try: atob() wirft bei allem, was kein sauberes
+// base64 ist, und ein geworfener Fehler nimmt hier den ganzen Worker mit
+// (Cloudflare-Fehler 1101). Genau das passiert im Alltag – ein abgeschnittenes
+// oder von Hand verstelltes Token im localStorage darf niemanden aussperren,
+// sondern muss schlicht als „nicht angemeldet" gelten. Live nachgemessen am
+// 2026-09-03: vorher 1101, danach {"ok":false}.
 async function tokenLesen(env, token) {
-  const teile = String(token || "").split(".");
-  if (teile.length !== 2) return null;
-  const key = await tokenSchluessel(env);
-  const ok = await crypto.subtle.verify(
-    "HMAC", key, b64UrlZuBytes(teile[1]), new TextEncoder().encode(teile[0])
-  );
-  if (!ok) return null;
-  let nutzlast;
   try {
-    nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
+    const teile = String(token || "").split(".");
+    if (teile.length !== 2) return null;
+    const key = await tokenSchluessel(env);
+    const ok = await crypto.subtle.verify(
+      "HMAC", key, b64UrlZuBytes(teile[1]), new TextEncoder().encode(teile[0])
+    );
+    if (!ok) return null;
+    const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
+    if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
+    return nutzlast.n;
   } catch (e) {
     return null;
   }
-  if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
-  return nutzlast.n;
 }
 
 async function kontoAnlegen(request, body, env, cors) {
