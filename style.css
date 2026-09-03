@@ -921,3 +921,5 @@ main#app.sk-breit { max-width: 980px; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   z-index: 5;
 }
+/* Notausgang: da, aber nicht im Weg. */
+.notausgang > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; }

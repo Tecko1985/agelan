@@ -18,6 +18,12 @@ const AGELAN_GATEWAY = "https://agelan.michel-brunner.workers.dev";
 const VERANSTALTER_SCOPE = "agelan-veranstalter";
 const VERANSTALTER_KEY = "agelan_veranstalter_ok";
 
+// Nur der alte Passwort-Weg, ohne das Konto. Fuer die Frage "gibt es hier etwas
+// zum Abmelden?" - das Konto meldet man in der Anmeldung ab, nicht hier.
+function veranstalterPasswortMerker() {
+  try { return localStorage.getItem(VERANSTALTER_KEY) === "1"; } catch (e) { return false; }
+}
+
 function veranstalterFrei() {
   // Ein Veranstalter-Konto braucht das zweite Passwort nicht mehr.
   if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
@@ -284,6 +290,11 @@ function renderAuswahl(z) {
   const frei = veranstalterFrei();
   document.getElementById("veranstalter-gate").style.display = frei ? "none" : "";
   document.getElementById("anlegen-block").style.display = frei ? "" : "none";
+  // Der Abmelde-Knopf gilt nur dem Passwort-Notausgang: wer ueber sein KONTO
+  // Veranstalter ist, kann sich hier nichts abgewoehnen - er wuerde nur einen
+  // Merker loeschen, den er gar nicht gesetzt hat.
+  const sperrKnopf = document.getElementById("btn-veranstalter-sperren");
+  if (sperrKnopf) sperrKnopf.hidden = !veranstalterPasswortMerker();
 }
 
 // --- START -----------------------------------------------------------------
@@ -1254,6 +1265,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "2.2",
+    groups: [
+      { title: "Turnier anlegen: das Konto reicht", items: [
+          "Wer als Veranstalter angemeldet ist, sieht das Formular sofort – ohne das Veranstalter-Passwort noch einmal einzugeben.",
+          "Der Passwortkasten ist für dich damit weg. Für alle anderen steht dort nur noch ein Hinweis, dahinter zugeklappt ein Notweg über das Passwort."
+      ]}
+    ]
+  },
   {
     version: "2.1",
     groups: [

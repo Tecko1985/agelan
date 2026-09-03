@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.5">
+<link rel="stylesheet" href="style.css?v=2.6">
 </head>
 <body>
 
@@ -177,15 +177,20 @@
       <p class="hinweis-text" id="auswahl-leer" style="display:none">Aktuell läuft kein Turnier.</p>
       <p class="hinweis-text fehler" id="auswahl-fehler"></p>
 
-      <!-- Turniere anlegen darf nur der Veranstalter. Das Seiten-Passwort kennt
-           jeder Teilnehmer, deshalb hier ein zweites, engeres (Scope
-           agelan-veranstalter, serverseitig gegen PW_AGELAN_VERANSTALTER). -->
+      <!-- Turniere anlegen darf, wessen KONTO als Veranstalter gekennzeichnet ist.
+           ⚠️ Der Passwort-Weg darunter ist nur noch der Notausgang und bewusst
+           zugeklappt: waere er ersatzlos weg, kaeme jemand ohne
+           Veranstalter-Konto (etwa nach „alle Konten loeschen") an das Anlegen
+           gar nicht mehr heran. Michel sieht ihn nie – bei ihm greift das Konto. -->
       <div class="karte-block" id="veranstalter-gate">
         <h2>🔒 Turnier anlegen</h2>
-        <p class="hinweis-text">Turniere legt nur der Veranstalter an. Zum Öffnen das Veranstalter-Passwort eingeben – das ist ein anderes als das Passwort für die Seite.</p>
-        <input type="password" id="veranstalter-pw" class="eingabe" placeholder="Veranstalter-Passwort" autocomplete="current-password">
-        <button class="btn btn-secondary btn-grow" id="btn-veranstalter-oeffnen">Öffnen</button>
-        <p class="hinweis-text fehler" id="veranstalter-fehler"></p>
+        <p class="hinweis-text">Turniere legt der Veranstalter an. Melde dich mit deinem Veranstalter-Konto an, dann erscheint hier das Formular.</p>
+        <details class="notausgang">
+          <summary>Kein Veranstalter-Konto? Mit Passwort öffnen</summary>
+          <input type="password" id="veranstalter-pw" class="eingabe" placeholder="Veranstalter-Passwort" autocomplete="current-password">
+          <button class="btn btn-secondary btn-grow" id="btn-veranstalter-oeffnen">Öffnen</button>
+          <p class="hinweis-text fehler" id="veranstalter-fehler"></p>
+        </details>
       </div>
 
       <div class="karte-block" id="anlegen-block" style="display:none">
@@ -201,7 +206,7 @@
         <p class="hinweis-text">Erst die Anmeldung, dann das Format: Turnierform und Ablauf wählst du später in der
           Lobby – dann siehst du, wie viele da sind, und die App rechnet dir jedes Format vor.</p>
         <p class="hinweis-text fehler" id="neu-fehler"></p>
-        <button class="btn btn-link" id="btn-veranstalter-sperren">Veranstalter-Zugang auf diesem Gerät beenden</button>
+        <button class="btn btn-link" id="btn-veranstalter-sperren" hidden>Veranstalter-Zugang auf diesem Gerät beenden</button>
       </div>
     </div>
   </section>
@@ -836,7 +841,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.3',
-    'app.js?v=2.3',
+    'app.js?v=2.4',
     'stream-service.js?v=1.3',
     'stream-app.js?v=1.2',
     'fruehstueck-service.js?v=1.3',
