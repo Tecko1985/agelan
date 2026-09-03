@@ -181,7 +181,12 @@ function skRenderKalender(z) {
 
   skEl("sk-kalender").innerHTML =
     '<div class="sk-raster">' +
-    '<div class="sk-zeitspalte"><div class="sk-tagkopf sk-zeitkopf"></div>' +
+    // ⚠️ Der Kopf ueber der Zeitleiste MUSS denselben Aufbau haben wie der
+    // Tageskopf daneben - zwei Zeilen, nicht leer. visibility:hidden haelt zwar
+    // Platz, aber nur den des tatsaechlichen Inhalts: ein leeres Div war 34 px
+    // flacher, und dadurch standen SAEMTLICHE Bloecke 34 px unter ihrer
+    // Stundenlinie. Von Michel im Bild gemeldet ("nicht ganz mittig").
+    '<div class="sk-zeitspalte"><div class="sk-tagkopf sk-zeitkopf">&nbsp;<span class="sk-tagzeit">&nbsp;</span></div>' +
     '<div class="sk-spurkopf sk-zeitkopf"><span class="sk-spurname">&nbsp;</span></div>' +
     marken.join("") + "</div>" +
     spalten.join("") +
