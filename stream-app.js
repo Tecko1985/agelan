@@ -114,6 +114,7 @@ function skRenderPlan(z) {
 
   skRenderChips(z);
   skRenderKalender(z);
+  skZiehAnbinden();
   skRenderListe(z);
   skRenderAdmin(z);
 }
@@ -173,8 +174,8 @@ function skRenderKalender(z) {
       '<span class="sk-tagzeit">' + streamService.zeitLabel(tag.von) + "–" + streamService.zeitLabel(tag.bis) + "</span></div>" +
       '<div class="sk-spurkopf"><span class="sk-spurname programm">Programm</span><span class="sk-spurname streams">Streams</span></div>' +
       '<div class="sk-spuren">' +
-      flaeche("sk-programmflaeche", "programm", programm.map((p) => skProgrammBlock(p, achseVon)).join("")) +
-      flaeche("sk-streamflaeche", "streams", slots.map((s) => skStreamBlock(s, achseVon)).join("")) +
+      flaeche("sk-programmflaeche", "programm", skFaerbeKetten(programm).map((p) => skProgrammBlock(p, achseVon)).join("")) +
+      flaeche("sk-streamflaeche", "streams", skFaerbeKetten(slots).map((s) => skStreamBlock(s, achseVon)).join("")) +
       "</div></div>";
   });
 
@@ -185,6 +186,23 @@ function skRenderKalender(z) {
     marken.join("") + "</div>" +
     spalten.join("") +
     "</div>";
+}
+
+// ⚠️ Zwei Bloecke, bei denen das Ende des einen der Beginn des naechsten ist,
+// verschmelzen optisch zu EINEM Block - im Bild nicht zu unterscheiden. Deshalb
+// bekommt jeder zweite einer solchen Kette einen dunkleren Ton. Verglichen wird
+// bis auf die Minute; nur echte Nahtstellen zaehlen, eine Luecke bricht die Kette.
+function skFaerbeKetten(liste) {
+  const sortiert = liste.slice().sort((a, b) => a.von - b.von || a.bis - b.bis);
+  let letztesEnde = null;
+  let zweiter = false;
+  sortiert.forEach((e) => {
+    if (letztesEnde !== null && e.von === letztesEnde) zweiter = !zweiter;
+    else zweiter = false;
+    e.kettenZweiter = zweiter;
+    letztesEnde = e.bis;
+  });
+  return liste;
 }
 
 function skBlockStil(eintrag, achseVon) {
@@ -200,6 +218,7 @@ function skBlockStil(eintrag, achseVon) {
 function skStreamBlock(s, achseVon) {
   const klassen = ["sk-slot"];
   if (s.istEigener) klassen.push("eigen");
+  if (s.kettenZweiter) klassen.push("kette");
   const titel = s.titel ? '<span class="sk-slot-titel">' + escapeHtml(s.titel) + "</span>" : "";
   return '<button type="button" class="' + klassen.join(" ") + '" data-slot="' + s.id + '" style="' + skBlockStil(s, achseVon) + '">' +
     '<span class="sk-slot-zeit">' + streamService.zeitLabel(s.von) + "–" + streamService.zeitLabel(s.bis) + "</span>" +
@@ -209,7 +228,7 @@ function skStreamBlock(s, achseVon) {
 }
 
 function skProgrammBlock(p, achseVon) {
-  return '<button type="button" class="sk-slot programm" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
+  return '<button type="button" class="sk-slot programm' + (p.kettenZweiter ? " kette" : "") + '" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
     '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + "</span>" +
     '<span class="sk-slot-name">' + escapeHtml(p.titel) + "</span>" +
     "</button>";
@@ -445,6 +464,135 @@ function skSchliesseProgrammDialog() {
 // ===========================================================================
 // Events
 // ===========================================================================
+
+// ---------- Termine mit der Maus verschieben ----------
+// ⚠️ BEWUSST NUR MIT DER MAUS (pointerType === "mouse"). Am Handy müsste der
+// Block „touch-action: none" tragen, und dann liesse sich über dem Kalender
+// nicht mehr scrollen – man käme an die unteren Stunden nicht mehr heran.
+// Am Handy bleibt der Weg über den Dialog (Zeiten auswählen).
+//
+// ⚠️ Ein Klick MUSS weiterhin den Dialog öffnen. Deshalb gilt erst als
+// Verschieben, wer sich mehr als SK_ZIEH_SCHWELLE Pixel bewegt hat; darunter
+// läuft der normale Klick.
+const SK_ZIEH_SCHWELLE = 4;
+let skZiehen = null;
+
+function skZiehRaster(minuten) {
+  return Math.round(minuten / SK_SCHRITT_UI) * SK_SCHRITT_UI;
+}
+
+// Darf diese Person diesen Block verschieben? Gleiche Regel wie fürs Bearbeiten:
+// der Dialog würde es sonst gleich wieder ablehnen.
+function skZiehErlaubt(eintrag, istProgramm, z) {
+  if (istProgramm) return !!z.istAdmin;
+  return !!(eintrag && eintrag.darfBearbeiten);
+}
+
+function skZiehStart(e, knopf, istProgramm) {
+  if (e.pointerType !== "mouse" || e.button !== 0) return;
+  const z = streamService.getZustand();
+  if (!z.vorhanden) return;
+
+  const id = istProgramm ? knopf.dataset.programm : knopf.dataset.slot;
+  const eintrag = (istProgramm ? z.programm : z.slots).find((x) => x.id === id);
+  if (!skZiehErlaubt(eintrag, istProgramm, z)) return;
+
+  const tag = z.tage.find((t) => t.datum === eintrag.datum);
+  if (!tag) return;
+
+  skZiehen = {
+    knopf,
+    id,
+    istProgramm,
+    eintrag,
+    tag,
+    startY: e.clientY,
+    startOben: parseFloat(knopf.style.top) || 0,
+    bewegt: false,
+  };
+  knopf.setPointerCapture(e.pointerId);
+}
+
+function skZiehBewegung(e) {
+  if (!skZiehen) return;
+  const dy = e.clientY - skZiehen.startY;
+  if (!skZiehen.bewegt && Math.abs(dy) < SK_ZIEH_SCHWELLE) return;
+  skZiehen.bewegt = true;
+  skZiehen.knopf.classList.add("zieht");
+
+  // Pixel zurück in Minuten, auf das Viertelstunden-Raster gerundet.
+  const dauer = skZiehen.eintrag.bis - skZiehen.eintrag.von;
+  const rohVon = skZiehen.eintrag.von + (dy / SK_STUNDE_PX) * 60;
+  let neuVon = skZiehRaster(rohVon);
+
+  // Innerhalb des Tagesfensters bleiben – sonst landet der Block im Nichts.
+  neuVon = Math.max(skZiehen.tag.von, Math.min(neuVon, skZiehen.tag.bis - dauer));
+  skZiehen.neuVon = neuVon;
+  skZiehen.knopf.style.top = skPx(neuVon - skZiehen.tag.von) + "px";
+
+  const zeit = skZiehen.knopf.querySelector(".sk-slot-zeit");
+  if (zeit) zeit.textContent = streamService.zeitLabel(neuVon) + "–" + streamService.zeitLabel(neuVon + dauer);
+}
+
+async function skZiehEnde(e) {
+  const zieh = skZiehen;
+  skZiehen = null;
+  if (!zieh) return;
+  try { zieh.knopf.releasePointerCapture(e.pointerId); } catch (err) { /* schon weg */ }
+  zieh.knopf.classList.remove("zieht");
+  // Merker fuer den gleich folgenden click: ein Verschieben ist kein Klick.
+  if (zieh.bewegt) zieh.knopf.dataset.wurdeGezogen = "1";
+
+  // Nicht wirklich bewegt: das war ein Klick, der Dialog übernimmt.
+  if (!zieh.bewegt || zieh.neuVon === undefined || zieh.neuVon === zieh.eintrag.von) {
+    zieh.knopf.style.top = zieh.startOben + "px";
+    return;
+  }
+
+  const dauer = zieh.eintrag.bis - zieh.eintrag.von;
+  const werte = {
+    datum: zieh.eintrag.datum,
+    von: zieh.neuVon,
+    bis: zieh.neuVon + dauer,
+    titel: zieh.eintrag.titel,
+    notiz: zieh.eintrag.notiz,
+  };
+  if (!zieh.istProgramm) werte.streamer = zieh.eintrag.streamer;
+
+  const res = zieh.istProgramm
+    ? await streamService.aendereProgramm(zieh.id, werte)
+    : await streamService.aendereSlot(zieh.id, werte);
+
+  if (!res.erfolg) {
+    // ⚠️ Zurücksetzen ist Pflicht: sonst bleibt der Block optisch verschoben,
+    // während gespeichert die alte Zeit steht – und niemand merkt es.
+    zieh.knopf.style.top = zieh.startOben + "px";
+    alert(res.fehler || "Verschieben hat nicht geklappt.");
+    skRender(streamService.getZustand());
+  }
+  // Bei Erfolg zeichnet das Live-Update von Firebase ohnehin neu.
+}
+
+// Wird nach jedem Neuzeichnen des Kalenders aufgerufen – die Blöcke sind dann
+// neue Elemente und tragen die alten Lauscher nicht mehr.
+function skZiehAnbinden() {
+  document.querySelectorAll("#sk-kalender [data-slot], #sk-kalender [data-programm]").forEach((k) => {
+    const istProgramm = !!k.dataset.programm;
+    k.addEventListener("pointerdown", (e) => skZiehStart(e, k, istProgramm));
+    k.addEventListener("pointermove", skZiehBewegung);
+    k.addEventListener("pointerup", skZiehEnde);
+    k.addEventListener("pointercancel", skZiehEnde);
+    // Ein echtes Verschieben darf den Dialog NICHT öffnen.
+    k.addEventListener("click", (e) => {
+      if (k.dataset.wurdeGezogen === "1") {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        delete k.dataset.wurdeGezogen;
+      }
+    }, true);
+  });
+}
+
 function skWireEvents() {
   // Plan anlegen
   skEl("sk-btn-erstellen").addEventListener("click", async () => {

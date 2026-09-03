@@ -895,3 +895,29 @@ main#app.sk-breit { max-width: 980px; }
 .konto-streamer { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .konto-streamer input { width: 17px; height: 17px; accent-color: var(--primary); }
 .konto-streamer input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Zwei nahtlos aneinandergrenzende Termine sehen sonst wie EIN Block aus.
+   Jeder zweite einer solchen Kette wird dunkler - dazu eine helle Trennlinie
+   an der Oberkante, die die Naht sichtbar macht. */
+.sk-slot.kette { filter: brightness(0.78); }
+.sk-slot.kette::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 2px;
+}
+/* Waehrend des Ziehens: angehoben und halbdurchsichtig, damit man sieht, was
+   unter dem Block liegt. cursor nur bei der Maus - Ziehen gibt es nur dort. */
+@media (hover: hover) and (pointer: fine) {
+  .sk-slot[data-slot], .sk-slot[data-programm] { cursor: grab; }
+  .sk-slot.zieht { cursor: grabbing; }
+}
+.sk-slot.zieht {
+  opacity: 0.85;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}

@@ -1255,6 +1255,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.1",
+    groups: [
+      { title: "Streamplan: Termine verschieben und besser unterscheiden", items: [
+          "Termine lassen sich mit der Maus greifen und nach oben oder unten ziehen. Beim Ziehen siehst du die neue Uhrzeit sofort; losgelassen wird auf volle Viertelstunden gerundet.",
+          "Am Handy geht das bewusst NICHT – sonst könntest du über dem Kalender nicht mehr scrollen. Dort bleibt der Weg über den Dialog.",
+          "Termine, die direkt aneinander anschließen, verschmolzen bisher optisch zu einem Block. Jeder zweite ist jetzt dunkler und hat eine helle Trennlinie."
+      ]}
+    ]
+  },
+  {
     version: "2.0",
     groups: [
       { title: "Streamplan: eintragen nur mit Freigabe", items: [
