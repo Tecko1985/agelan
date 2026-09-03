@@ -14,7 +14,7 @@ const TURNIER_SICHTBAR = true;
 // ⚠️ Das ist eine Bedien-Sperre, kein Datenriegel: die Firebase-Regeln lassen
 // jeden angemeldeten (anonymen) Client schreiben. Wer die Datenbank-URL kennt,
 // kommt daran vorbei – genau wie am Passwort-Gate der Seite.
-const AGELAN_GATEWAY = "https://landingpage.michel-brunner.workers.dev";
+const AGELAN_GATEWAY = "https://agelan.michel-brunner.workers.dev";
 const VERANSTALTER_SCOPE = "agelan-veranstalter";
 const VERANSTALTER_KEY = "agelan_veranstalter_ok";
 
