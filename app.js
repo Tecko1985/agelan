@@ -1247,6 +1247,18 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.2",
+    groups: [
+      { title: "Startseite offen, Passwort erst beim Öffnen", items: [
+          "Die Seite beginnt jetzt mit einer Übersicht, die für alle offen ist: Turnier, Stream und Frühstück stehen als Kacheln nebeneinander, jede mit einem Satz dazu.",
+          "Das Passwort wird erst abgefragt, wenn du einen der drei Bereiche öffnest – vorher siehst du, was es überhaupt gibt.",
+          "Nach der Eingabe geht genau der Bereich auf, den du angeklickt hast.",
+          "Ein Passwort für alle drei Bereiche, wie bisher. Einmal eingegeben, bleibt der Zugang auf diesem Gerät bestehen.",
+          "Es bleibt dabei: vor der Freigabe wird nichts aus der Datenbank geladen. Die Übersicht ist reine Anzeige."
+      ]}
+    ]
+  },
+  {
     version: "1.1",
     groups: [
       { title: "Neu: Frühstücksbestellung", items: [
@@ -1362,6 +1374,13 @@ function setupInfoTab() {
     if (turnierKnopf) turnierKnopf.style.display = "none";
     document.getElementById("btn-admin-oeffnen").style.display = "none";
     activateTab("stream");
+  }
+  // Kam der Einstieg über eine Kachel des Vorraums, gehört die App genau dort
+  // auf — sonst landet jemand, der auf „Frühstück" geklickt hat, im Turnier.
+  // Das Gate setzt den Wert VOR dem Nachladen dieser Datei.
+  const startTab = window.__AGELAN_START_TAB__;
+  if (startTab && document.getElementById("tab-" + startTab)) {
+    if (startTab !== "turnier" || TURNIER_SICHTBAR) activateTab(startTab);
   }
   renderVersionInfo();
 }

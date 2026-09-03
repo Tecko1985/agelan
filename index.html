@@ -3,25 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgeLan – Turnier & Streamplan</title>
+<title>AgeLan – alles zur LAN</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.1">
+<link rel="stylesheet" href="style.css?v=1.2">
 </head>
 <body>
 
-<!-- Passwort-Gate: die ganze Seite erst nach serverseitiger Prüfung freigeben (Scope agelan-zugang).
-     Die App-Skripte werden bewusst NICHT hier eingebunden, sondern unten vom Gate nachgeladen –
-     sonst stünde die Firebase-Verbindung schon, während das Overlay nur optisch davorliegt. -->
-<div id="pw-gate" style="position:fixed;inset:0;z-index:99999;background:#eef1f6;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif">
-  <div style="background:#fff;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.15);padding:28px 26px;max-width:360px;width:100%;text-align:center">
-    <div style="font-size:32px;line-height:1;margin-bottom:8px">🔒</div>
-    <h2 style="margin:0 0 6px;font-size:19px;color:#12325b">AgeLan – Turnier &amp; Streamplan</h2>
-    <p style="margin:0 0 16px;font-size:14px;color:#5a6b82">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
-    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" style="width:100%;box-sizing:border-box;padding:11px 12px;font-size:16px;border:1px solid #c7d0db;border-radius:8px;margin-bottom:10px" />
-    <button id="pw-gate-btn" type="button" style="width:100%;padding:11px 12px;font-size:15px;font-weight:600;color:#fff;background:#1a56a0;border:none;border-radius:8px;cursor:pointer">Öffnen</button>
-    <p id="pw-gate-msg" style="margin:10px 0 0;font-size:13px;min-height:16px"></p>
+<!-- Vorraum: für alle offen. Zeigt, was es auf der AgeLan gibt, ohne dass dafür
+     ein Passwort nötig wäre. Erst der Klick auf einen Bereich öffnet die
+     Passwortabfrage – und erst deren Freigabe lädt die App-Skripte nach.
+     ⚠️ Vor der Freigabe steht bewusst KEINE Firebase-Verbindung: die Kacheln
+     hier sind statisches HTML, keine Daten aus der Datenbank. -->
+<div id="start-hub" class="hub">
+  <div class="hub-box">
+    <div class="hub-logo">🏆</div>
+    <h1 class="hub-titel">AgeLan</h1>
+    <p class="hub-untertitel">Alles zur LAN an einem Ort.</p>
+
+    <button type="button" class="hub-kachel" data-hub-ziel="turnier">
+      <span class="hub-icon">🏆</span>
+      <span class="hub-kachel-text">
+        <span class="hub-name">Turnier</span>
+        <span class="hub-beschreibung">Alle Turniere der Veranstaltung – einschreiben, Ergebnisse melden, Tabellen und Bracket verfolgen.</span>
+      </span>
+      <span class="hub-schloss" aria-hidden="true">🔒</span>
+    </button>
+
+    <button type="button" class="hub-kachel" data-hub-ziel="stream">
+      <span class="hub-icon">📺</span>
+      <span class="hub-kachel-text">
+        <span class="hub-name">Stream</span>
+        <span class="hub-beschreibung">Der Sendeplan über alle Tage – wer sendet wann vom Kanal.</span>
+      </span>
+      <span class="hub-schloss" aria-hidden="true">🔒</span>
+    </button>
+
+    <button type="button" class="hub-kachel" data-hub-ziel="fruehstueck">
+      <span class="hub-icon">🥐</span>
+      <span class="hub-kachel-text">
+        <span class="hub-name">Frühstück</span>
+        <span class="hub-beschreibung">Frühstückspakete für den nächsten Morgen – bestellt wird am Abend vorher.</span>
+      </span>
+      <span class="hub-schloss" aria-hidden="true">🔒</span>
+    </button>
+
+    <p class="hub-fuss">🔒 Zum Öffnen brauchst du das Passwort. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
+  </div>
+</div>
+
+<!-- Passwortabfrage: liegt über dem Vorraum und öffnet sich erst auf Klick.
+     Die App-Skripte werden bewusst NICHT im <head> eingebunden, sondern unten
+     von hier nachgeladen – sonst stünde die Firebase-Verbindung schon, während
+     das Overlay nur optisch davorliegt. -->
+<div id="pw-gate" class="pw-overlay" hidden>
+  <div class="pw-box">
+    <div class="pw-icon">🔒</div>
+    <h2 class="pw-titel" id="pw-gate-titel">AgeLan öffnen</h2>
+    <p class="pw-text">Bitte Passwort eingeben. Du hast keins? Schreib Michel im <b>Discord</b> an.</p>
+    <input id="pw-gate-input" type="password" autocomplete="current-password" placeholder="Passwort" class="pw-eingabe" />
+    <button id="pw-gate-btn" type="button" class="pw-knopf">Öffnen</button>
+    <button id="pw-gate-zurueck" type="button" class="pw-zurueck">← Zurück zur Übersicht</button>
+    <p id="pw-gate-msg" class="pw-meldung"></p>
   </div>
 </div>
 
@@ -738,7 +782,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.0',
-    'app.js?v=1.2',
+    'app.js?v=1.3',
     'stream-service.js?v=1.0',
     'stream-app.js?v=1.0',
     'fruehstueck-service.js?v=1.0',
@@ -748,6 +792,15 @@
   var input = document.getElementById('pw-gate-input');
   var btn = document.getElementById('pw-gate-btn');
   var msg = document.getElementById('pw-gate-msg');
+  var gate = document.getElementById('pw-gate');
+  var gateTitel = document.getElementById('pw-gate-titel');
+  var hub = document.getElementById('start-hub');
+  var zurueck = document.getElementById('pw-gate-zurueck');
+
+  // Welchen Bereich hat der Klick im Vorraum gemeint? Nach der Freigabe soll
+  // die App genau dort aufgehen und nicht auf dem Turnier-Tab.
+  var zielTab = null;
+  var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück' };
 
   // Nacheinander, nicht parallel: firebase-config braucht das Firebase-SDK,
   // die Services brauchen die Konfiguration, die Oberflächen die Services.
@@ -768,15 +821,42 @@
 
   function freigeben(merken) {
     if (merken) { try { localStorage.setItem(SPEICHER_KEY, '1'); } catch (e) {} }
+    // Das Ziel muss VOR dem Laden stehen: app.js wertet es beim Start aus.
+    if (zielTab) { window.__AGELAN_START_TAB__ = zielTab; }
     ladeSkripte(function () {
-      var g = document.getElementById('pw-gate');
-      if (g) g.remove();
+      if (gate) gate.remove();
+      if (hub) hub.remove();
     });
   }
 
   var schonFrei = false;
   try { schonFrei = localStorage.getItem(SPEICHER_KEY) === '1'; } catch (e) {}
   if (schonFrei) { freigeben(false); return; }
+
+  // --- Vorraum: Klick auf eine Kachel öffnet die Passwortabfrage ------------
+  function oeffneGate(ziel) {
+    zielTab = ziel;
+    gateTitel.textContent = (ZIEL_NAMEN[ziel] || 'AgeLan') + ' öffnen';
+    msg.textContent = '';
+    btn.disabled = false;
+    gate.hidden = false;
+    input.value = '';
+    input.focus();
+  }
+
+  function schliesseGate() {
+    gate.hidden = true;
+    zielTab = null;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
+    k.addEventListener('click', function () { oeffneGate(k.getAttribute('data-hub-ziel')); });
+  });
+  zurueck.addEventListener('click', schliesseGate);
+  gate.addEventListener('click', function (e) { if (e.target === gate) schliesseGate(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !gate.hidden) schliesseGate();
+  });
 
   function pruefe() {
     var pw = input.value;
@@ -809,7 +889,7 @@
 
   btn.addEventListener('click', pruefe);
   input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
-  input.focus();
+  // Kein focus() beim Laden: der Dialog ist erst nach einem Klick im Vorraum da.
 })();
 </script>
 </body>
