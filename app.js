@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.5",
+    groups: [
+      { title: "Streamplan: Termine sitzen mittig in ihrer Spalte", items: [
+          "Die Blöcke klebten am linken Rand ihrer Spalte – gemessen 1 Pixel Luft links gegen 5 rechts. Jetzt sind es auf beiden Seiten gleich viel.",
+          "Betrifft auch nebeneinanderliegende Streams: jede Spur ist für sich mittig."
+      ]}
+    ]
+  },
+  {
     version: "2.4",
     groups: [
       { title: "Streamplan: der Termin klebt jetzt an der Maus", items: [

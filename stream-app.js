@@ -215,7 +215,10 @@ function skBlockStil(eintrag, achseVon) {
   return [
     "top:" + skPx(eintrag.von - achseVon) + "px",
     "height:" + Math.max(18, skPx(eintrag.bis - eintrag.von)) + "px",
-    "left:" + (eintrag.spur * breite) + "%",
+    // ⚠️ Die 4 px Luft gehoeren zur HAELFTE nach links, sonst klebt der Block am
+    // linken Rand seiner Spur und hat rechts die ganze Luecke. Gemessen: 1 px
+    // links gegen 5 px rechts. Michel: "mittig ist es immer noch nicht".
+    "left:calc(" + (eintrag.spur * breite) + "% + 2px)",
     "width:calc(" + breite + "% - 4px)",
   ].join(";");
 }
