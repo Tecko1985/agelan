@@ -239,6 +239,27 @@ function frWireAbholButtons() {
 }
 
 // --- Anlegen -----------------------------------------------------------------
+
+// „3 Tage" sagt niemandem, welche Tage das sind – und „Morgen" als Feldname war
+// von „morgen" (dem Tag nach heute) nicht zu unterscheiden. Deshalb rechnet die
+// Eingabe hier sofort in echte Tage um.
+function frAktualisiereVorschau() {
+  const ziel = frEl("fr-neu-vorschau");
+  if (!ziel) return;
+  const start = frEl("fr-neu-start").value;
+  const anzahl = Math.round(Number(frEl("fr-neu-tage").value));
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !(anzahl >= 1 && anzahl <= fruehstueckService.MAX_TAGE)) {
+    ziel.textContent = "";
+    return;
+  }
+  const tage = [];
+  for (let i = 0; i < anzahl; i++) tage.push(fruehstueckService.datumLabel(fruehstueckService.datumPlus(start, i)));
+  // Kein Satzpunkt am Ende: die Datumskürzel enden selbst schon auf einen Punkt
+  // („So 6.9.") und es stünden sonst zwei nebeneinander.
+  ziel.textContent = "Frühstück gibt es an " + anzahl + " Morgen: " + tage.join(", ");
+}
+
 async function frErstellePlan() {
   const titel = frEl("fr-neu-titel").value;
   const startDatum = frEl("fr-neu-start").value;
@@ -321,6 +342,8 @@ async function frSpeicherePaket() {
 // --- Events -------------------------------------------------------------------
 function frWireEvents() {
   frEl("fr-btn-erstellen").addEventListener("click", frErstellePlan);
+  frEl("fr-neu-start").addEventListener("input", frAktualisiereVorschau);
+  frEl("fr-neu-tage").addEventListener("input", frAktualisiereVorschau);
   frEl("fr-btn-pak-anlegen").addEventListener("click", frSpeicherePaket);
 
   frEl("fr-btn-admin-anmelden").addEventListener("click", () => {
@@ -355,5 +378,6 @@ function frWireEvents() {
   frWireEvents();
   // Vorschlag für den Anlege-Screen: morgen als erster Frühstücksmorgen.
   frEl("fr-neu-start").value = fruehstueckService.datumPlus(fruehstueckService.heuteIso(), 1);
+  frAktualisiereVorschau();
   fruehstueckService.onZustandsAenderung(frRender);
 })();

@@ -394,10 +394,15 @@ main#app.sk-breit { max-width: 980px; }
 .turnier-karte:hover { border-color: var(--primary); }
 .turnier-karte.dabei { border-left: 4px solid var(--success); }
 
+/* Gleicher Aufbau wie die Kacheln des Vorraums: Symbol links, Text in der
+   Mitte, Aktion rechts. Vorher standen alle Zeilen untereinander und die
+   Kachel sah anders aus als der Rest der Seite. */
 .turnier-karte .tk-oeffnen {
   flex: 1 1 auto;
   min-width: 0;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   text-align: left;
   background: none;
   border: none;
@@ -406,23 +411,28 @@ main#app.sk-breit { max-width: 980px; }
   color: var(--text);
   font: inherit;
 }
+.turnier-karte .tk-symbol { flex: 0 0 auto; font-size: 26px; line-height: 1; }
+.turnier-karte .tk-text { flex: 1 1 auto; min-width: 0; }
 .turnier-karte .tk-name {
   display: block;
-  font-weight: 600;
-  font-size: 1.05rem;
+  font-weight: 700;
+  font-size: 17px;
   margin-bottom: 2px;
 }
 .turnier-karte .tk-meta {
   display: block;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 13px;
+  line-height: 1.35;
 }
+/* Rechts neben dem Text statt darunter - so steht die Handlung dort, wo im
+   Vorraum das Schloss sitzt, und die Kachel bleibt flach. */
 .turnier-karte .tk-aktion {
-  display: inline-block;
-  margin-top: 8px;
+  flex: 0 0 auto;
   color: var(--primary);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 14px;
+  white-space: nowrap;
 }
 .turnier-karte.dabei .tk-aktion { color: var(--success); }
 
@@ -704,3 +714,12 @@ main#app.sk-breit { max-width: 980px; }
   cursor: pointer;
 }
 .pw-meldung { margin: 10px 0 0; font-size: 13px; min-height: 16px; line-height: 1.35; }
+
+/* Turnier-Kacheln am Handy: "Einschreiben" braucht neben Symbol, Text und
+   Papierkorb rund 80px – dann bleiben für den Namen keine 130px mehr und er
+   bricht mitten im Wort um. Unter 520px rutscht die Aktion deshalb in eine
+   eigene Zeile unter den Text, eingerückt auf dessen Höhe. */
+@media (max-width: 520px) {
+  .turnier-karte .tk-oeffnen { flex-wrap: wrap; }
+  .turnier-karte .tk-aktion { flex-basis: 100%; margin-left: 38px; margin-top: 6px; }
+}

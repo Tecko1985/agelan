@@ -260,11 +260,17 @@ function renderAuswahl(z) {
       const loeschen = t.binIchVeranstalter
         ? `<button class="tk-loeschen" data-loeschen="${escapeHtml(t.id)}" title="Turnier löschen" aria-label="Turnier löschen">🗑</button>`
         : "";
+      // Symbol je Phase: auf einen Blick sichtbar, wo ein Turnier gerade steht,
+      // ohne dafür die Zeilen darunter lesen zu müssen.
+      const symbol = t.phase === "beendet" ? "🏅" : t.phase === "anmeldung" ? "📝" : "⚔️";
       return `<div class="turnier-karte${t.binIchDrin ? " dabei" : ""}">
         <button class="tk-oeffnen" data-turnier="${escapeHtml(t.id)}">
-          <span class="tk-name">${escapeHtml(t.name)}</span>
-          <span class="tk-meta">${escapeHtml(art)}</span>
-          <span class="tk-meta">${escapeHtml(phase)} · ${escapeHtml(zahl)}</span>
+          <span class="tk-symbol" aria-hidden="true">${symbol}</span>
+          <span class="tk-text">
+            <span class="tk-name">${escapeHtml(t.name)}</span>
+            ${art ? `<span class="tk-meta">${escapeHtml(art)}</span>` : ""}
+            <span class="tk-meta">${escapeHtml(phase)} · ${escapeHtml(zahl)}</span>
+          </span>
           <span class="tk-aktion">${escapeHtml(aktion)}</span>
         </button>
         ${loeschen}
@@ -1246,6 +1252,20 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "1.3",
+    groups: [
+      { title: "Turniere jetzt als Kacheln wie auf der Startseite", items: [
+          "Jedes Turnier hat ein Symbol, das den Stand zeigt: 📝 Anmeldung läuft, ⚔️ Spiele laufen, 🏅 beendet.",
+          "Name, Format und Stand stehen untereinander, „Einschreiben“ steht rechts daneben – am Handy darunter, damit der Name nicht mitten im Wort umbricht.",
+          "Gleicher Aufbau wie die Kacheln auf der Startseite: Symbol links, Text in der Mitte, Handlung rechts."
+      ]},
+      { title: "Frühstück: klarer, über wie viele Tage bestellt wird", items: [
+          "Das Feld hieß „Morgen“ und ließ sich als „morgen“ lesen. Jetzt heißt es „Wie viele Tage?“.",
+          "Darunter steht sofort, welche Tage dabei herauskommen – etwa „Frühstück gibt es an 3 Morgen: Fr 4.9., Sa 5.9., So 6.9.“."
+      ]}
+    ]
+  },
   {
     version: "1.2",
     groups: [
