@@ -810,7 +810,12 @@ main#app.sk-breit { max-width: 980px; }
 
 /* Anmeldemaske: ein Dialog, zwei Modi. Die Felder fuer "Konto anlegen" sind im
    Normalfall weg und erscheinen erst ueber .modus-neu am Kasten. */
-.pw-nur-neu { display: none; }
+/* ⚠️ Diese beiden Regeln MUESSEN staerker sein als .pw-label darunter.
+   Erste Fassung hatte beide auf Spezifitaet 0-1-0, und .pw-label kam spaeter
+   in der Datei - damit gewann sein display:block, und die Beschriftungen der
+   versteckten Felder standen ohne ihre Felder im Dialog. Von Michel im Bild
+   gemeldet. Gleiche Familie wie [hidden] gegen display:flex. */
+.pw-box .pw-nur-neu { display: none; }
 .pw-box.modus-neu .pw-nur-neu { display: block; }
 .pw-box.modus-neu #pw-text-login { display: none; }
 .pw-label {
