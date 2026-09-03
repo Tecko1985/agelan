@@ -48,7 +48,19 @@ body {
 }
 .kopfzeile-left, .kopfzeile-right { display: flex; align-items: center; gap: 10px; flex: 1 1 100px; }
 .kopfzeile-right { justify-content: flex-end; }
-.kopfzeile-titel { font-weight: 700; font-size: clamp(15px, 4vw, 18px); }
+/* Als Knopf gebaut (Weg zurueck aufs Dashboard), soll aber aussehen wie der
+   Titel, der er vorher war. */
+.kopfzeile-titel {
+  font-weight: 700;
+  font-size: clamp(15px, 4vw, 18px);
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.kopfzeile-titel:hover { text-decoration: underline; }
 .kopfzeile-status { font-size: 12px; opacity: 0.9; }
 .header-logo { height: 32px; width: auto; display: block; }
 .btn-abbrechen {
@@ -612,6 +624,9 @@ main#app.sk-breit { max-width: 980px; }
 /* Der Vorraum liegt über der App, bis das Passwort stimmt. Er nutzt die
    Farbvariablen der App, damit er im Dunkelmodus nicht als heller Block
    herausfällt. */
+/* ⚠️ Gleiche Falle wie beim Passwort-Overlay: display:flex schlaegt das
+   hidden-Attribut. Ohne diese Zeile laesst sich das Dashboard nicht schliessen. */
+.hub[hidden] { display: none; }
 .hub {
   position: fixed;
   inset: 0;
@@ -723,3 +738,8 @@ main#app.sk-breit { max-width: 980px; }
   .turnier-karte .tk-oeffnen { flex-wrap: wrap; }
   .turnier-karte .tk-aktion { flex-basis: 100%; margin-left: 38px; margin-top: 6px; }
 }
+
+/* Zugang schon frei: dann sind die Kacheln reine Navigation und die Schloesser
+   wuerden eine Sperre behaupten, die es nicht mehr gibt. */
+.hub.frei .hub-schloss,
+.hub.frei .hub-fuss { display: none; }

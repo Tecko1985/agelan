@@ -1253,6 +1253,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "1.4",
+    groups: [
+      { title: "„AgeLan“ oben führt zurück zur Übersicht", items: [
+          "Ein Tipp auf „🏆 AgeLan“ in der Kopfzeile bringt dich jederzeit zurück auf die Übersicht mit den drei Kacheln.",
+          "Von dort geht es mit einem Tipp weiter – ohne dass du das Passwort noch einmal eingeben musst.",
+          "Die Schlösser auf den Kacheln verschwinden, sobald der Zugang auf deinem Gerät frei ist. Sie würden sonst eine Sperre behaupten, die es nicht mehr gibt.",
+          "Mit der Escape-Taste geht die Übersicht wieder zu."
+      ]}
+    ]
+  },
+  {
     version: "1.3",
     groups: [
       { title: "Turniere jetzt als Kacheln wie auf der Startseite", items: [

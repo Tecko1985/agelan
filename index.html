@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.3">
+<link rel="stylesheet" href="style.css?v=1.4">
 </head>
 <body>
 
@@ -71,7 +71,9 @@
 
 <header class="kopfzeile">
   <div class="kopfzeile-left">
-    <span class="kopfzeile-titel">🏆 AgeLan</span>
+    <!-- Führt zurück aufs Dashboard mit den Kacheln. Als <button>, nicht als
+         <span>: der Weg muss auch mit Tastatur erreichbar sein. -->
+    <button type="button" class="kopfzeile-titel" id="kopf-titel" title="Zur Übersicht">🏆 AgeLan</button>
   </div>
   <div class="kopfzeile-right">
     <span class="kopfzeile-status" id="sync-status">● live</span>
@@ -786,7 +788,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.0',
-    'app.js?v=1.4',
+    'app.js?v=1.5',
     'stream-service.js?v=1.0',
     'stream-app.js?v=1.0',
     'fruehstueck-service.js?v=1.0',
@@ -823,19 +825,45 @@
     })();
   }
 
+  // Ist der Zugang frei? Dann sind die Kacheln keine Passwortabfrage mehr,
+  // sondern reine Navigation.
+  var frei = false;
+
+  // ⚠️ Der Vorraum wird NICHT aus dem DOM entfernt, nur versteckt: er ist das
+  // Dashboard, auf das der Kopfzeilen-Titel jederzeit zurückführt.
+  function zeigeHub() {
+    if (!hub) return;
+    hub.hidden = false;
+  }
+  function versteckeHub() {
+    if (!hub) return;
+    hub.hidden = true;
+  }
+
   function freigeben(merken) {
     if (merken) { try { localStorage.setItem(SPEICHER_KEY, '1'); } catch (e) {} }
     // Das Ziel muss VOR dem Laden stehen: app.js wertet es beim Start aus.
     if (zielTab) { window.__AGELAN_START_TAB__ = zielTab; }
+    frei = true;
+    if (hub) hub.classList.add('frei');   // blendet Schlösser und Passwort-Hinweis aus
     ladeSkripte(function () {
-      if (gate) gate.remove();
-      if (hub) hub.remove();
+      if (gate) gate.hidden = true;
+      versteckeHub();
     });
+  }
+
+  // Klick auf eine Kachel: solange gesperrt, fragt sie nach dem Passwort –
+  // danach ist sie einfach der Weg in den Bereich.
+  function oeffneBereich(ziel) {
+    if (!frei) return oeffneGate(ziel);
+    // activateTab kommt aus app.js und steht erst nach dem Nachladen bereit.
+    if (typeof activateTab === 'function') activateTab(ziel);
+    versteckeHub();
   }
 
   var schonFrei = false;
   try { schonFrei = localStorage.getItem(SPEICHER_KEY) === '1'; } catch (e) {}
-  if (schonFrei) { freigeben(false); return; }
+  if (schonFrei) { freigeben(false); }
 
   // --- Vorraum: Klick auf eine Kachel öffnet die Passwortabfrage ------------
   function oeffneGate(ziel) {
@@ -854,12 +882,25 @@
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
-    k.addEventListener('click', function () { oeffneGate(k.getAttribute('data-hub-ziel')); });
+    k.addEventListener('click', function () { oeffneBereich(k.getAttribute('data-hub-ziel')); });
   });
   zurueck.addEventListener('click', schliesseGate);
   gate.addEventListener('click', function (e) { if (e.target === gate) schliesseGate(); });
+
+  // Der Titel in der Kopfzeile führt zurück aufs Dashboard – erst wenn der
+  // Zugang frei ist, denn vorher IST das Dashboard schon zu sehen.
+  var kopfTitel = document.getElementById('kopf-titel');
+  if (kopfTitel) {
+    kopfTitel.addEventListener('click', function () {
+      if (frei) zeigeHub();
+    });
+  }
+
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !gate.hidden) schliesseGate();
+    if (e.key !== 'Escape') return;
+    if (!gate.hidden) { schliesseGate(); return; }
+    // Das Dashboard lässt sich nur schließen, wenn dahinter auch etwas liegt.
+    if (frei && hub && !hub.hidden) versteckeHub();
   });
 
   function pruefe() {
