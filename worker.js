@@ -12,8 +12,22 @@
 // keine Datenbank. Was er nicht kann, kann auch nicht missbraucht werden.
 //
 // Secrets (im Cloudflare-Dashboard bei DIESEM Worker zu setzen):
-//   PW_AGELAN              = Zugang zu den drei Bereichen (kennt jeder Teilnehmer)
-//   PW_AGELAN_VERANSTALTER = Turniere anlegen (nur Michel)
+//   PW_AGELAN              = Einladung: einmal noetig, um sich ein Konto anzulegen
+//   PW_AGELAN_VERANSTALTER = Turniere anlegen und Konten verwalten (nur Michel)
+//
+// Bindings:
+//   KONTEN (KV) = die Benutzerkonten. Fehlt das Binding, laufen die Konto-
+//   Aktionen mit einer klaren Meldung ins Leere; das alte gemeinsame Passwort
+//   (verify-action-password) funktioniert unabhaengig davon weiter.
+//
+// ⚠️ Konten liegen im KV des Workers, NICHT in Firebase: die Firebase-Daten
+// sind oeffentlich lesbar, dort waeren die Passwort-Hashes fuer jeden abrufbar
+// und offline angreifbar.
+//
+// ⚠️ Das Konto ist eine Zugangs- und Namenssache, KEIN Datenriegel. Die
+// Firebase-Regeln lassen weiterhin jeden anonymen Client schreiben. Was das
+// Konto bringt: ein fester Nickname (und damit eine saubere Abrechnung) und
+// dass nach der Anmeldung kein gemeinsames Passwort mehr herumgereicht wird.
 //
 // ⚠️ Ein PUT ohne keep_bindings löscht sämtliche Secrets. deploy-worker.ps1
 // schickt es mit, der Dashboard-Weg nicht.
@@ -66,11 +80,14 @@ export default {
       return json({ error: "Kein gültiges JSON" }, 400, cors);
     }
 
-    if (String(body.action || "") !== "verify-action-password") {
-      return json({ error: "Unbekannte Aktion" }, 400, cors);
-    }
-
-    return pruefePasswort(request, body, env, cors);
+    const aktion = String(body.action || "");
+    if (aktion === "verify-action-password") return pruefePasswort(request, body, env, cors);
+    if (aktion === "konto-anlegen")  return kontoAnlegen(request, body, env, cors);
+    if (aktion === "konto-login")    return kontoLogin(request, body, env, cors);
+    if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
+    if (aktion === "konto-liste")    return kontoListe(body, env, cors);
+    if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
+    return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
 };
 
@@ -163,4 +180,269 @@ function json(daten, status, cors) {
     status: status,
     headers: Object.assign({ "Content-Type": "application/json; charset=utf-8" }, cors),
   });
+}
+
+// ===========================================================================
+// Benutzerkonten (Nickname + eigenes Passwort)
+//
+// Ablauf: einmal mit dem LAN-Passwort ein Konto anlegen, danach nur noch
+// Nickname + eigenes Passwort. Das LAN-Passwort ist die Einladung, nicht mehr
+// der tägliche Zugang.
+// ===========================================================================
+
+const NICK_MIN = 2;
+const NICK_MAX = 20;
+const PW_MIN = 4;              // Fun-Event, kein Bankkonto – aber nicht leer
+const TOKEN_TAGE = 120;        // deckt eine Veranstaltung samt Vorlauf ab
+const PBKDF2_RUNDEN = 100000;
+
+// Die Rundenzahl wandert MIT in den gespeicherten Hash. Sonst ließen sich alte
+// Konten nach einer Änderung dieser Zahl nicht mehr prüfen.
+function hashFormat(salt, runden, hash) {
+  return "pbkdf2$" + runden + "$" + salt + "$" + hash;
+}
+
+async function pbkdf2(passwort, saltB64, runden) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(passwort), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: b64ZuBytes(saltB64), iterations: runden },
+    key,
+    256
+  );
+  return bytesZuB64(new Uint8Array(bits));
+}
+
+async function passwortHashen(passwort) {
+  const salt = bytesZuB64(crypto.getRandomValues(new Uint8Array(16)));
+  const hash = await pbkdf2(passwort, salt, PBKDF2_RUNDEN);
+  return hashFormat(salt, PBKDF2_RUNDEN, hash);
+}
+
+async function passwortStimmt(passwort, gespeichert) {
+  const teile = String(gespeichert || "").split("$");
+  if (teile.length !== 4 || teile[0] !== "pbkdf2") return false;
+  const runden = parseInt(teile[1], 10);
+  if (!(runden > 0 && runden <= 1000000)) return false;
+  const hash = await pbkdf2(passwort, teile[2], runden);
+  return zeitgleich(hash, teile[3]);
+}
+
+// Vergleich ohne vorzeitigen Abbruch.
+function zeitgleich(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// Der Schlüssel im KV. Kleinbuchstaben, damit "Tecko" und "tecko" nicht zwei
+// Konten werden – angezeigt wird trotzdem die Schreibweise der Anmeldung.
+function nickSchluessel(nick) {
+  return "konto:" + String(nick).trim().toLowerCase();
+}
+
+function nickPruefen(nick) {
+  const n = String(nick == null ? "" : nick).trim();
+  if (n.length < NICK_MIN) return { fehler: "Der Name braucht mindestens " + NICK_MIN + " Zeichen." };
+  if (n.length > NICK_MAX) return { fehler: "Der Name darf höchstens " + NICK_MAX + " Zeichen haben." };
+  if (!/^[\wÄÖÜäöüß .\-]+$/u.test(n)) {
+    return { fehler: "Erlaubt sind Buchstaben, Zahlen, Punkt, Bindestrich und Leerzeichen." };
+  }
+  return { nick: n };
+}
+
+function kvDa(env) {
+  return !!(env.KONTEN && typeof env.KONTEN.get === "function");
+}
+
+// Schlüssel zum Signieren der Anmelde-Token. Wird beim ersten Mal selbst
+// erzeugt und im KV abgelegt – so muss dafür kein Secret von Hand gesetzt
+// werden. Fällt er weg, sind nur alle Anmeldungen ungültig; niemand verliert
+// sein Konto.
+async function tokenSchluessel(env) {
+  let roh = await env.KONTEN.get("_tokenSecret");
+  if (!roh) {
+    roh = bytesZuB64(crypto.getRandomValues(new Uint8Array(32)));
+    await env.KONTEN.put("_tokenSecret", roh);
+  }
+  return crypto.subtle.importKey(
+    "raw", b64ZuBytes(roh), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]
+  );
+}
+
+async function tokenBauen(env, nick) {
+  const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000 };
+  const teil = bytesZuB64Url(new TextEncoder().encode(JSON.stringify(nutzlast)));
+  const key = await tokenSchluessel(env);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(teil));
+  return teil + "." + bytesZuB64Url(new Uint8Array(sig));
+}
+
+async function tokenLesen(env, token) {
+  const teile = String(token || "").split(".");
+  if (teile.length !== 2) return null;
+  const key = await tokenSchluessel(env);
+  const ok = await crypto.subtle.verify(
+    "HMAC", key, b64UrlZuBytes(teile[1]), new TextEncoder().encode(teile[0])
+  );
+  if (!ok) return null;
+  let nutzlast;
+  try {
+    nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
+  } catch (e) {
+    return null;
+  }
+  if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
+  return nutzlast.n;
+}
+
+async function kontoAnlegen(request, body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet (KV-Binding KONTEN fehlt)." }, 500, cors);
+  if (!bremseOffen(request)) {
+    return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+  }
+  if (!env.PW_AGELAN) return json({ error: "Worker-Secret PW_AGELAN ist nicht konfiguriert" }, 500, cors);
+
+  // Die Einladung: einmalig, danach nie wieder nötig.
+  const einladungOk = await passwortGleich(String(body.lanPasswort || ""), env.PW_AGELAN);
+  if (!einladungOk) {
+    bremseFehlschlag(request);
+    return json({ error: "Falsches Passwort für die Anmeldung." }, 403, cors);
+  }
+
+  const geprueft = nickPruefen(body.nickname);
+  if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+
+  const passwort = String(body.passwort || "");
+  if (passwort.length < PW_MIN) {
+    return json({ error: "Das Passwort braucht mindestens " + PW_MIN + " Zeichen." }, 400, cors);
+  }
+
+  const schluessel = nickSchluessel(geprueft.nick);
+  if (await env.KONTEN.get(schluessel)) {
+    return json({ error: "Diesen Namen gibt es schon. Nimm einen anderen – oder melde dich damit an." }, 409, cors);
+  }
+
+  await env.KONTEN.put(schluessel, JSON.stringify({
+    nick: geprueft.nick,
+    pw: await passwortHashen(passwort),
+    angelegtAm: Date.now(),
+  }));
+
+  return json({ ok: true, nickname: geprueft.nick, token: await tokenBauen(env, geprueft.nick) }, 200, cors);
+}
+
+async function kontoLogin(request, body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet (KV-Binding KONTEN fehlt)." }, 500, cors);
+  if (!bremseOffen(request)) {
+    return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+  }
+
+  const geprueft = nickPruefen(body.nickname);
+  if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+
+  const roh = await env.KONTEN.get(nickSchluessel(geprueft.nick));
+  // Bewusst dieselbe Meldung wie bei falschem Passwort: sonst ließe sich von
+  // außen durchprobieren, welche Namen es überhaupt gibt.
+  const fehlmeldung = { error: "Name oder Passwort stimmt nicht." };
+  if (!roh) { bremseFehlschlag(request); return json(fehlmeldung, 403, cors); }
+
+  let konto;
+  try {
+    konto = JSON.parse(roh);
+  } catch (e) {
+    return json({ error: "Das Konto ist beschädigt." }, 500, cors);
+  }
+
+  if (!(await passwortStimmt(String(body.passwort || ""), konto.pw))) {
+    bremseFehlschlag(request);
+    return json(fehlmeldung, 403, cors);
+  }
+  return json({ ok: true, nickname: konto.nick, token: await tokenBauen(env, konto.nick) }, 200, cors);
+}
+
+async function kontoPruefen(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  const nick = await tokenLesen(env, body.token);
+  if (!nick) return json({ ok: false }, 200, cors);
+  // Gegenprobe am Bestand: ein gelöschtes Konto darf mit altem Token nicht
+  // weiterlaufen – genau das passiert nach "alle Konten leeren".
+  if (!(await env.KONTEN.get(nickSchluessel(nick)))) return json({ ok: false }, 200, cors);
+  return json({ ok: true, nickname: nick }, 200, cors);
+}
+
+// --- Veranstalter: Konten sehen und leeren ---------------------------------
+async function veranstalterOk(body, env) {
+  if (!env.PW_AGELAN_VERANSTALTER) return false;
+  return passwortGleich(String(body.veranstalterPasswort || ""), env.PW_AGELAN_VERANSTALTER);
+}
+
+async function kontoListe(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+
+  const liste = [];
+  let cursor;
+  do {
+    const seite = await env.KONTEN.list({ prefix: "konto:", cursor: cursor });
+    for (const k of seite.keys) {
+      const roh = await env.KONTEN.get(k.name);
+      if (!roh) continue;
+      try {
+        const konto = JSON.parse(roh);
+        liste.push({ nickname: konto.nick, angelegtAm: konto.angelegtAm || 0 });
+      } catch (e) { /* kaputter Eintrag wird übersprungen */ }
+    }
+    cursor = seite.list_complete ? null : seite.cursor;
+  } while (cursor);
+
+  liste.sort((a, b) => a.nickname.localeCompare(b.nickname));
+  return json({ ok: true, konten: liste }, 200, cors);
+}
+
+async function kontoLoeschen(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+
+  // Ein einzelnes Konto ...
+  if (body.nickname) {
+    const geprueft = nickPruefen(body.nickname);
+    if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+    await env.KONTEN.delete(nickSchluessel(geprueft.nick));
+    return json({ ok: true, geloescht: 1 }, 200, cors);
+  }
+
+  // ... oder alle auf einmal: der Schnitt nach einer Veranstaltung.
+  if (body.alle !== true) return json({ error: "Weder ein Name noch alle:true angegeben." }, 400, cors);
+  let anzahl = 0;
+  let cursor;
+  do {
+    const seite = await env.KONTEN.list({ prefix: "konto:", cursor: cursor });
+    for (const k of seite.keys) { await env.KONTEN.delete(k.name); anzahl++; }
+    cursor = seite.list_complete ? null : seite.cursor;
+  } while (cursor);
+  return json({ ok: true, geloescht: anzahl }, 200, cors);
+}
+
+// --- base64-Helfer ----------------------------------------------------------
+function bytesZuB64(bytes) {
+  let s = "";
+  bytes.forEach((b) => { s += String.fromCharCode(b); });
+  return btoa(s);
+}
+function b64ZuBytes(b64) {
+  const s = atob(b64);
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+  return bytes;
+}
+// Für Token: base64url ohne Polster, damit nichts in einer URL kaputtgeht.
+function bytesZuB64Url(bytes) {
+  return bytesZuB64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64UrlZuBytes(s) {
+  let b64 = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  return b64ZuBytes(b64);
 }
