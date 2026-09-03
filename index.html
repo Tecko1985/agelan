@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.1">
+<link rel="stylesheet" href="style.css?v=2.2">
 </head>
 <body>
 
@@ -49,6 +49,41 @@
       </span>
       <span class="hub-schloss" aria-hidden="true">🔒</span>
     </button>
+
+    <!-- ⚠️ Der Datenschutz-Hinweis stand bis 2026-09-03 im Info-Reiter. Der ist
+         weg (Michel: die Änderungsliste braucht niemand), der Hinweis MUSS aber
+         bleiben: die App speichert Namen und Bestellungen bei Google. Hier steht
+         er sogar besser – im Vorraum sieht ihn jede:r VOR der Anmeldung. -->
+    <details class="hub-ds">
+      <summary>Datenschutz</summary>
+      <div class="hub-ds-text">
+      
+      <p>Dieses Werkzeug gehört zu den internen Anwendungen des
+      1. SC 1911 Heiligenstadt. Gespeichert wird der Name, unter dem du dich in
+      ein Turnier einschreibst, deine Team-Zuordnung und die gemeldeten
+      Ergebnisse. Es gibt kein Konto und keine E-Mail-Adresse; die Anmeldung an
+      der Datenbank läuft anonym. Firebase legt dafür in deinem Browser eine
+      zufällige Kennung ab; sie bleibt, bis du die Website-Daten löschst.</p>
+      <p><strong>Die Turnierdaten verlassen den Verein.</strong> Damit alle
+      Geräte denselben Stand sehen, laufen sie über die Echtzeit-Datenbank von
+      Google (Firebase); das Rechenzentrum steht in Belgien, nicht in
+      Deutschland, und betrieben wird es von Google. <strong>Wenn du das nicht
+      möchtest, schreib dich mit einem Spitznamen statt deines Namens
+      ein.</strong></p>
+      <p>Eine Weitergabe an weitere Dritte findet nur statt, soweit sie für den
+      jeweiligen Zweck erforderlich oder gesetzlich vorgeschrieben ist.</p>
+      <p>Verantwortlich ist der 1. SC 1911 Heiligenstadt, Leineberg 2,
+      37308 Heilbad Heiligenstadt, Telefon 03606 612206,
+      <a href="mailto:info@sc1911-heiligenstadt.de">info@sc1911-heiligenstadt.de</a>.
+      Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
+      Datenübertragbarkeit und Widerspruch lassen sich unter dieser Anschrift
+      geltend machen. Beschwerden nimmt der Thüringer Landesbeauftragte für
+      den Datenschutz und die Informationsfreiheit entgegen.</p>
+      <p><a href="https://www.sc1911-heiligenstadt.de/datenschutz/" target="_blank" rel="noopener">Datenschutzerklärung des Vereins</a>
+      &middot;
+      <a href="https://www.sc1911-heiligenstadt.de/impressum-2/" target="_blank" rel="noopener">Impressum</a></p>
+      </div>
+    </details>
 
     <!-- Hier stand bis 2026-09-03 „Zum Öffnen brauchst du das Passwort".
          Überholt: es gibt kein gemeinsames Passwort mehr, jede:r legt sich ein
@@ -117,10 +152,9 @@
   <button data-tab="turnier" class="active">Turnier</button>
   <button data-tab="stream">Stream</button>
   <button data-tab="fruehstueck">Frühstück</button>
-  <button data-tab="info" style="margin-left:auto;">Info</button>
   <!-- Nur fuer Veranstalter. Versteckt per hidden, eingeblendet in app.js,
        sobald das Konto das Merkmal traegt. -->
-  <button data-tab="einstellungen" id="nav-einstellungen" hidden>Einstellungen</button>
+  <button data-tab="einstellungen" id="nav-einstellungen" style="margin-left:auto;" hidden>Einstellungen</button>
 </nav>
 
 <main id="app">
@@ -665,43 +699,6 @@
    </div>
  </div>
 
- <div class="tab-section" id="tab-info">
-   <div class="info-card">
-     <h2>Über AgeLan <span class="version-badge" id="version-badge-2"></span></h2>
-     <p>Turniere, Streamplan und Frühstücksbestellung für die Veranstaltungstage. Im Tab „Turnier“ stehen alle Turniere nebeneinander – du schreibst dich in jedes einzeln ein. Im Tab „Stream“ trägst du ein, wer wann vom Kanal sendet. Im Tab „Frühstück“ bestellst du am Vorabend ein Paket für den nächsten Morgen. Alle Geräte sehen den Stand live.</p>
-   </div>
-   <div class="info-card">
-     <h2>Änderungen</h2>
-     <div id="changelog-list"></div>
-   </div>
- 
-    <div class="card" id="ds-info-karte">
-      <h2>Datenschutz</h2>
-      <p>Dieses Werkzeug gehört zu den internen Anwendungen des
-      1. SC 1911 Heiligenstadt. Gespeichert wird der Name, unter dem du dich in
-      ein Turnier einschreibst, deine Team-Zuordnung und die gemeldeten
-      Ergebnisse. Es gibt kein Konto und keine E-Mail-Adresse; die Anmeldung an
-      der Datenbank läuft anonym. Firebase legt dafür in deinem Browser eine
-      zufällige Kennung ab; sie bleibt, bis du die Website-Daten löschst.</p>
-      <p><strong>Die Turnierdaten verlassen den Verein.</strong> Damit alle
-      Geräte denselben Stand sehen, laufen sie über die Echtzeit-Datenbank von
-      Google (Firebase); das Rechenzentrum steht in Belgien, nicht in
-      Deutschland, und betrieben wird es von Google. <strong>Wenn du das nicht
-      möchtest, schreib dich mit einem Spitznamen statt deines Namens
-      ein.</strong></p>
-      <p>Eine Weitergabe an weitere Dritte findet nur statt, soweit sie für den
-      jeweiligen Zweck erforderlich oder gesetzlich vorgeschrieben ist.</p>
-      <p>Verantwortlich ist der 1. SC 1911 Heiligenstadt, Leineberg 2,
-      37308 Heilbad Heiligenstadt, Telefon 03606 612206,
-      <a href="mailto:info@sc1911-heiligenstadt.de">info@sc1911-heiligenstadt.de</a>.
-      Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
-      Datenübertragbarkeit und Widerspruch lassen sich unter dieser Anschrift
-      geltend machen. Beschwerden nimmt der Thüringer Landesbeauftragte für
-      den Datenschutz und die Informationsfreiheit entgegen.</p>
-      <p><a href="https://www.sc1911-heiligenstadt.de/datenschutz/" target="_blank" rel="noopener">Datenschutzerklärung des Vereins</a>
-      &middot;
-      <a href="https://www.sc1911-heiligenstadt.de/impressum-2/" target="_blank" rel="noopener">Impressum</a></p>
-    </div>
 </div>
 </main>
 

@@ -863,3 +863,32 @@ main#app.sk-breit { max-width: 980px; }
 .konto-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
 .konto-du { font-weight: 400; color: var(--muted); }
 .konto-datum { flex: 0 0 auto; font-size: 13px; color: var(--muted); }
+
+/* Datenschutz im Vorraum. Zugeklappt, damit er die Kacheln nicht erschlaegt -
+   aber ohne Anmeldung erreichbar, und das ist der Punkt. */
+.hub-ds { margin-top: 18px; text-align: left; }
+.hub-ds > summary {
+  cursor: pointer;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px;
+  list-style: none;
+}
+.hub-ds > summary::-webkit-details-marker { display: none; }
+.hub-ds > summary::before { content: "🔒 "; }
+.hub-ds-text {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.hub-ds-text p { margin: 0 0 10px; }
+.hub-ds-text p:last-child { margin-bottom: 0; }
+.hub-ds-text a { color: var(--primary); }
