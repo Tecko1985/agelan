@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.6",
+    groups: [
+      { title: "Discord-Nachricht mit Uhrzeiten", items: [
+          "Unter der Essensliste steht jetzt <b>„Bestellt: 04.09., 12:31“</b> und <b>„Da seit: 04.09., 13:32“</b> – wann bestellt wurde und wann das Essen angekommen ist.",
+          "Wer zweimal bestellt hat, sieht die <b>frühere</b> Zeit: er wartet ja seit dem ersten Mal.",
+          "In der Liste steht jetzt auch die Bestellnummer: „1x Nr. 13 Salami“. Danach fragt man vorn an der Ausgabe."
+      ]}
+    ]
+  },
+  {
     version: "4.5",
     groups: [
       { title: "Speisekarte: Bestellnummern, Suche, Gruppen zum Aufklappen", items: [

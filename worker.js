@@ -936,11 +936,12 @@ async function discordSammel(body, env, cors) {
   const rohLeute = Array.isArray(body.leute) ? body.leute : [];
   const rohNamen = Array.isArray(body.nicknames) ? body.nicknames : [];
   const eintraege = rohLeute.length
-    ? rohLeute.map((l) => ({ name: (l && l.name), posten: (l && l.posten) }))
-    : rohNamen.map((n) => ({ name: n, posten: null }));
+    ? rohLeute.map((l) => ({ name: (l && l.name), posten: (l && l.posten), bestelltAm: (l && l.bestelltAm) }))
+    : rohNamen.map((n) => ({ name: n, posten: null, bestelltAm: null }));
 
   const namen = [];
   const postenZuName = new Map();
+  const postenZeit = new Map();
   const gesehen = new Set();
   for (const e of eintraege) {
     const wert = String(e.name == null ? "" : e.name).trim();
@@ -950,6 +951,7 @@ async function discordSammel(body, env, cors) {
     gesehen.add(schluessel);
     namen.push(wert);
     postenZuName.set(schluessel, postenListe(e.posten));
+    postenZeit.set(schluessel, e.bestelltAm);
   }
   if (!namen.length) return json({ error: "Es sind keine Namen mitgekommen." }, 400, cors);
   if (namen.length > DISCORD_SAMMEL_MAX) {
@@ -958,6 +960,8 @@ async function discordSammel(body, env, cors) {
 
   const was = String(body.titel || "").trim().slice(0, 60);
   const zusatz = String(body.hinweis || "").trim().slice(0, 200);
+  // Wann das Essen angekommen ist – fuer alle in dieser Lieferung dieselbe Zeit.
+  const daSeit = discordSauber(body.daSeit, 20);
 
   const erreicht = [];
   const offen = [];
@@ -991,10 +995,22 @@ async function discordSammel(body, env, cors) {
         ).join("\n")
       : "";
 
+    // Wann bestellt, wann da. \u26a0\ufe0f Beide Zeiten kommen FERTIG FORMATIERT vom
+    // Client, nicht als Zeitstempel: der Worker laeuft in UTC, und aus einem
+    // Zeitstempel wuerde hier \u201e11:12" statt \u201e13:12". Der Client steht dort, wo
+    // die Veranstaltung ist, und kennt die richtige Zeit. Beide Werte gehen
+    // durch discordSauber, sind also auf 20 harmlose Zeichen begrenzt.
+    const bestelltText = discordSauber(postenZeit.get(name.toLowerCase()), 20);
+    const zeilen = [];
+    if (bestelltText) zeilen.push("Bestellt: " + bestelltText);
+    if (daSeit) zeilen.push("Da seit: " + daSeit);
+    const zeiten = zeilen.length ? "\n\n" + zeilen.join("\n") : "";
+
     const text =
       "Hallo " + (konto.nick || name) + "! \ud83c\udf55\n\n" +
       "Dein Essen ist da" + (was ? " (" + was + ")" : "") + " \u2013 du kannst es vorne abholen." +
       liste +
+      zeiten +
       (zusatz ? "\n\n" + zusatz : "");
 
     const ergebnis = await discordDm(env, konto.discordId, text);

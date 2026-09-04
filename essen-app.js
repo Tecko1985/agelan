@@ -634,6 +634,7 @@ async function esBescheidGeben(runde, knopf) {
   // gegessen hat, macht die Nachricht wertlos.
   const namen = [];
   const posten = new Map();
+  const bestelltAm = new Map();
   const gesehen = new Set();
   const schonDa = [];
   runde.bestellungen.forEach((b) => {
@@ -649,8 +650,19 @@ async function esBescheidGeben(runde, knopf) {
       namen.push(roh);
       posten.set(k, []);
     }
+    // ⚠️ Die FRÜHESTE Bestellung der Person zählt: wer zweimal bestellt hat,
+    // wartet seit dem ersten Mal. `bestellungen` ist zwar nach Zeit sortiert,
+    // aber darauf verlassen sich hier zwei Zeilen weniger gut als ein Vergleich.
+    const bisher = bestelltAm.get(k);
+    if (!bisher || b.erstelltAm < bisher) bestelltAm.set(k, b.erstelltAm);
     b.positionen.forEach((p) => {
-      posten.get(k).push({ anzahl: p.anzahl, gericht: p.name, sonderwunsch: p.sonderwunsch });
+      // Die Bestellnummer gehört mit in die Nachricht: danach fragt man vorn
+      // an der Ausgabe, nicht nach dem Namen.
+      posten.get(k).push({
+        anzahl: p.anzahl,
+        gericht: (p.nummer ? "Nr. " + p.nummer + " " : "") + p.name,
+        sonderwunsch: p.sonderwunsch,
+      });
     });
   });
   // Hat jemand zwei Bestellungen und nur eine davon abgeholt, gehoert er nicht
@@ -676,10 +688,18 @@ async function esBescheidGeben(runde, knopf) {
   try {
     // `nicknames` bleibt mit drin: rollt der Worker einmal zurueck, geht der
     // Bescheid weiterhin raus – nur ohne die Essensliste.
+    // ⚠️ Die Zeiten gehen FERTIG FORMATIERT raus, nicht als Zeitstempel: der
+    // Worker läuft in UTC und würde daraus eine Uhrzeit machen, die zwei
+    // Stunden danebenliegt. Der Browser steht dort, wo die Veranstaltung ist.
     const daten = await kontenRufe("discord-sammel", {
-      leute: namen.map((n) => ({ name: n, posten: posten.get(n.toLowerCase()) || [] })),
+      leute: namen.map((n) => ({
+        name: n,
+        posten: posten.get(n.toLowerCase()) || [],
+        bestelltAm: essenService.zeitLabel(bestelltAm.get(n.toLowerCase())),
+      })),
       nicknames: namen,
       titel: runde.titel,
+      daSeit: essenService.zeitLabel(Date.now()),
     });
     esBescheidStand[runde.id] = {
       geschickt: daten.geschickt || 0,
