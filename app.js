@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.9",
+    groups: [
+      { title: "Discord-Nachricht sagt jetzt auch, was man bestellt hat", items: [
+          "Bisher stand nur „Dein Essen ist da (Donnerstag 2)“. Jetzt steht darunter, was für einen dabei ist – zum Beispiel „1x Salami (Extra Käse)“ und „2x Pommes“.",
+          "Jede:r bekommt nur die eigenen Zeilen. Was die anderen essen, geht niemanden etwas an.",
+          "Wer zwei Bestellungen in derselben Lieferung hat, bekommt weiter genau eine Nachricht – mit allen seinen Zeilen darin.",
+          "Der Text wird weiterhin auf dem Server gebaut, nicht in der App. Gerichtnamen und Sonderwünsche werden dabei gekürzt und von Zeilenumbrüchen, Erwähnungen und Formatierung befreit."
+      ]}
+    ]
+  },
+  {
     version: "3.8",
     groups: [
       { title: "Essen: die nächste Sammelbestellung geht sofort", items: [

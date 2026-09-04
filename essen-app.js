@@ -518,14 +518,26 @@ async function esBescheidGeben(runde, knopf) {
   // Dieselbe Person kann mehrere Bestellungen in einer Lieferung haben; der
   // Worker wirft Doppelte weg, aber die Zahl in der R\u00fcckfrage muss schon hier
   // stimmen, sonst steht dort eine Zahl, die niemand wiederfindet.
-  const alle = runde.bestellungen.map((b) => b.name).filter(Boolean);
+  //
+  // ⚠️ Mitgeschickt wird auch, WAS die Person bestellt hat – Michel am
+  // 04.09.2026: „nicht nur donnerstag 2 sondern auch das bestellte essen".
+  // Hat jemand zwei Bestellungen in derselben Lieferung, werden deren Posten
+  // hier zusammengelegt: eine Person, eine Nachricht, alle ihre Zeilen darin.
   const namen = [];
+  const posten = new Map();
   const gesehen = new Set();
-  alle.forEach((n) => {
-    const k = String(n).trim().toLowerCase();
-    if (!k || gesehen.has(k)) return;
-    gesehen.add(k);
-    namen.push(String(n).trim());
+  runde.bestellungen.forEach((b) => {
+    const roh = String(b.name || "").trim();
+    const k = roh.toLowerCase();
+    if (!k) return;
+    if (!gesehen.has(k)) {
+      gesehen.add(k);
+      namen.push(roh);
+      posten.set(k, []);
+    }
+    b.positionen.forEach((p) => {
+      posten.get(k).push({ anzahl: p.anzahl, gericht: p.name, sonderwunsch: p.sonderwunsch });
+    });
   });
 
   if (!namen.length) {
@@ -539,7 +551,13 @@ async function esBescheidGeben(runde, knopf) {
   esBescheidStand[runde.id] = { laeuft: true };
   esRender(esZustand);
   try {
-    const daten = await kontenRufe("discord-sammel", { nicknames: namen, titel: runde.titel });
+    // `nicknames` bleibt mit drin: rollt der Worker einmal zurueck, geht der
+    // Bescheid weiterhin raus – nur ohne die Essensliste.
+    const daten = await kontenRufe("discord-sammel", {
+      leute: namen.map((n) => ({ name: n, posten: posten.get(n.toLowerCase()) || [] })),
+      nicknames: namen,
+      titel: runde.titel,
+    });
     esBescheidStand[runde.id] = {
       geschickt: daten.geschickt || 0,
       offen: daten.offen || [],

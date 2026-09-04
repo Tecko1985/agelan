@@ -233,6 +233,24 @@ const DISCORD_TEST_PAUSE_MS = 60000;
 // ein Zeitbudget. Lieber sauber ablehnen als mittendrin sterben - dann wäre
 // unklar, wer schon Bescheid weiß und wer nicht.
 const DISCORD_SAMMEL_MAX = 60;
+// Wie viele Zeilen "was du bestellt hast" hoechstens in einer Nachricht stehen.
+const DISCORD_POSTEN_MAX = 20;
+
+// Gerichtnamen und Sonderwuensche kommen aus einem Formular, das jeder
+// Teilnehmer ausfuellt, und landen hier in einer Nachricht, die der Bot unter
+// Michels Namen verschickt.
+// ⚠️ Deshalb: Zeilenumbrueche raus (sonst baut sich jemand eigene Absaetze und
+// damit eine eigene Nachricht), `@` raus (keine Erwaehnungen), Backticks und
+// Sternchen raus (kein Markdown), harte Laengengrenze. Der Text bleibt lesbar,
+// aber er kann den Rahmen nicht mehr sprengen.
+function discordSauber(wert, maxLaenge) {
+  return String(wert == null ? "" : wert)
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/[@`*_~|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLaenge);
+}
 
 // Leer ist erlaubt und heisst "nicht hinterlegt": die ID ist FREIWILLIG. Als
 // Pflichtfeld wuerde sie jeden aussperren, der sie gerade nicht findet - und
@@ -879,6 +897,26 @@ async function discordTest(body, env, cors) {
 // \u26a0\ufe0f Die Antwort ist IMMER eine Nachfassliste: wer NICHT erreicht wurde und
 // warum. Ohne die h\u00e4lt der Veranstalter alle f\u00fcr informiert, und drei Leute
 // holen ihr Essen nie ab.
+// Die Zeilen „das ist deins" aus dem, was der Client mitschickt.
+// ⚠️ Der Client wird NICHT geglaubt: Anzahl wird auf 1..99 gestutzt, Texte
+// werden gesaeubert und gekuerzt, und mehr als DISCORD_POSTEN_MAX Zeilen gibt
+// es nicht. Sonst waere die Aktion ueber den Umweg „Sonderwunsch" doch wieder
+// ein Versandweg fuer beliebigen Text unter Michels Bot-Namen.
+function postenListe(roh) {
+  if (!Array.isArray(roh)) return [];
+  const raus = [];
+  for (const p of roh) {
+    if (raus.length >= DISCORD_POSTEN_MAX) break;
+    const gericht = discordSauber(p && p.gericht, 80);
+    if (!gericht) continue;
+    let anzahl = Math.round(Number(p && p.anzahl));
+    if (!Number.isFinite(anzahl) || anzahl < 1) anzahl = 1;
+    if (anzahl > 99) anzahl = 99;
+    raus.push({ anzahl, gericht, sonderwunsch: discordSauber(p && p.sonderwunsch, 120) });
+  }
+  return raus;
+}
+
 async function discordSammel(body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
   if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
@@ -888,16 +926,30 @@ async function discordSammel(body, env, cors) {
 
   // Doppelte Namen fallen raus: dieselbe Person hat oft mehrere Bestellungen in
   // einer Lieferung, soll aber genau EINE Nachricht bekommen.
-  const roh = Array.isArray(body.nicknames) ? body.nicknames : [];
+  //
+  // Zwei Eingabeformen:
+  //   body.leute     = [{ name, posten: [{anzahl, gericht, sonderwunsch}] }]
+  //   body.nicknames = ["Anna", "Bernd"]            (aeltere Fassung des Clients)
+  // ⚠️ Die alte Form muss bleiben: der Worker wird VOR den Seiten ausgerollt
+  // (erweiternde Aenderung), und in der Zwischenzeit ruft der alte Client an.
+  // Ohne sie waere der Bescheid-Knopf fuer alle kaputt, bis Pages durch ist.
+  const rohLeute = Array.isArray(body.leute) ? body.leute : [];
+  const rohNamen = Array.isArray(body.nicknames) ? body.nicknames : [];
+  const eintraege = rohLeute.length
+    ? rohLeute.map((l) => ({ name: (l && l.name), posten: (l && l.posten) }))
+    : rohNamen.map((n) => ({ name: n, posten: null }));
+
   const namen = [];
+  const postenZuName = new Map();
   const gesehen = new Set();
-  for (const n of roh) {
-    const wert = String(n == null ? "" : n).trim();
+  for (const e of eintraege) {
+    const wert = String(e.name == null ? "" : e.name).trim();
     if (!wert) continue;
     const schluessel = wert.toLowerCase();
     if (gesehen.has(schluessel)) continue;
     gesehen.add(schluessel);
     namen.push(wert);
+    postenZuName.set(schluessel, postenListe(e.posten));
   }
   if (!namen.length) return json({ error: "Es sind keine Namen mitgekommen." }, 400, cors);
   if (namen.length > DISCORD_SAMMEL_MAX) {
@@ -927,9 +979,22 @@ async function discordSammel(body, env, cors) {
       continue;
     }
 
+    // Was diese Person bestellt hat, kommt mit in die Nachricht. Michel am
+    // 04.09.2026: \u201ein die discord nachricht nicht nur donnerstag 2 sondern auch
+    // das bestellte essen".
+    // \u26a0\ufe0f Jede:r bekommt nur die EIGENEN Zeilen. Die ganze Lieferung an alle zu
+    // schicken hiesse, jedem zu verraten, was die anderen essen.
+    const posten = postenZuName.get(name.toLowerCase()) || [];
+    const liste = posten.length
+      ? "\n\nDas ist deins:\n" + posten.map((p) =>
+          "\u2022 " + p.anzahl + "x " + p.gericht + (p.sonderwunsch ? " (" + p.sonderwunsch + ")" : "")
+        ).join("\n")
+      : "";
+
     const text =
       "Hallo " + (konto.nick || name) + "! \ud83c\udf55\n\n" +
       "Dein Essen ist da" + (was ? " (" + was + ")" : "") + " \u2013 du kannst es vorne abholen." +
+      liste +
       (zusatz ? "\n\n" + zusatz : "");
 
     const ergebnis = await discordDm(env, konto.discordId, text);
