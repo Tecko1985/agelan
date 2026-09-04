@@ -1240,6 +1240,48 @@ main#app.sk-breit { max-width: 980px; }
   .es-altbestand-note { color: #f0c46b; }
 }
 
+/* --- Speisekarte: Suche, Bestellnummer, Gruppen zum Aufklappen --- */
+.es-suche-zeile { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
+.es-suche { flex: 1 1 auto; min-width: 0; }
+.es-suche-stand { margin-top: -4px; }
+/* Die Bestellnummer steht vorn und in fester Breite, damit die Gerichtnamen
+   untereinander auf einer Linie beginnen. ⚠️ `flex-shrink: 0` – eine Nummer,
+   die auf „1…" zusammengedrueckt wird, ist als Nummer wertlos. */
+.es-gericht-nr {
+  flex: 0 0 auto; min-width: 30px;
+  font-size: 13px; font-weight: 700; color: var(--primary);
+  text-align: center; white-space: nowrap;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+/* Dieselbe Marke in den Verwaltungs- und Import-Listen, nur kleiner. */
+.es-pv-nr {
+  display: inline-block; font-size: 12px; font-weight: 700; color: var(--primary);
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;
+}
+/* ⚠️ `--primary` (#1a56a0) ist im Dunkelmodus nicht umdefiniert und kommt auf
+   der dunklen Karte auf 2.01 – die Nummer waere kaum zu lesen. Gemessen am
+   04.09.2026. Muss NACH den Grundregeln stehen: gleiche Spezifitaet, spaetere
+   Regel gewinnt. Gleiche Aufhellung wie beim Statistik-Balken. */
+@media (prefers-color-scheme: dark) {
+  .es-gericht-nr, .es-pv-nr { color: #7fb3f5; }
+}
+
+.es-gruppe { border-top: 1px solid var(--border); }
+.es-gruppe:first-of-type { border-top: none; }
+.es-gruppe > summary {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; list-style: none; min-height: 34px;
+}
+.es-gruppe > summary::-webkit-details-marker { display: none; }
+.es-gruppe > summary::before {
+  content: "›"; flex: 0 0 auto; font-size: 17px; line-height: 1;
+  color: var(--muted); transition: transform 0.15s;
+}
+.es-gruppe[open] > summary::before { transform: rotate(90deg); }
+.es-gruppe > summary .es-kategorie { flex: 1 1 auto; margin: 0; }
+.es-gruppe-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
+
 /* --- Aufklappbare Verwaltungs-Kaesten (Speisekarte, Import, Einstellungen) ---
    ⚠️ Zugeklappt eingerichtet, kein `open`. Diese Kaesten braucht man einmal beim
    Aufsetzen; danach stehen sie zwischen der Bestellliste und dem, was am Abend

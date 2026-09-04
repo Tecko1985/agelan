@@ -65,6 +65,12 @@ const ES_MAX_PREIS_CENT = 10000;  // 100 € für ein Gericht ist die Obergrenze
 const ES_MAX_BESTELLUNGEN = 300;
 const ES_MAX_SONDERWUNSCH = 120;
 const ES_MAX_RUNDEN = 60;         // Sammelbestellungen, die an einem Wochenende rausgehen
+const ES_MAX_NUMMER = 10;         // „12", „3a", „A17" – laenger ist keine Bestellnummer
+// Was als Bestellnummer am Zeilenanfang eines Imports durchgeht.
+// ⚠️ Bewusst eng: sonst wuerde aus einem Gericht, das mit einer Zahl beginnt
+// („4 Kaese Pizza"), die Nummer 4 und der Name ginge verloren. Nur ein Feld,
+// das NUR aus Ziffern und hoechstens einem Buchstaben besteht, ist eine Nummer.
+const ES_NUMMER_RE = /^[0-9]{1,4}[a-zA-Z]?$|^[a-zA-Z][0-9]{1,3}$/;
 
 // Die Kette, die eine Bestellung durchläuft. Die Reihenfolge im Array IST die
 // Reihenfolge des Ablaufs – „weiter" und „zurück" rechnen darüber.
@@ -234,6 +240,10 @@ function esVorhandenerPin() {
 function esKarteListe(karteRoh) {
   const liste = Object.entries(karteRoh || {}).map(([id, g]) => ({
     id,
+    // Die Bestellnummer der Karte des Lieferanten („12", „3a"). Beim Lieferanten
+    // wird nach der Nummer bestellt, nicht nach dem Namen – sie gehoert deshalb
+    // in die Anzeige, in die Suche UND in die Mail.
+    nummer: esText(g && g.nummer, ES_MAX_NUMMER),
     name: esText(g && g.name, 80),
     beschreibung: esText(g && g.beschreibung, 200),
     kategorie: esText(g && g.kategorie, 40),
@@ -249,6 +259,20 @@ function esKarteListe(karteRoh) {
 // Kategorien zum ersten Mal vorkommen. ⚠️ Nicht alphabetisch sortieren: eine
 // Speisekarte hat eine gewollte Reihenfolge (Vorspeisen vor Nachtisch), und
 // genau die bringt der Import mit.
+// Freitext-Suche über die Karte. Trifft auf Nummer, Name, Beschreibung und
+// Kategorie. ⚠️ Mehrere Wörter müssen ALLE vorkommen, aber nicht nebeneinander:
+// „pizza sala" soll „Pizza Salami" finden. Ein einzelner Suchbegriff, der nur
+// aus Ziffern besteht, trifft die Nummer zuerst – danach sucht man auf einer
+// Karte mit Bestellnummern.
+function esKarteSuche(karte, suche) {
+  const worte = String(suche == null ? "" : suche).toLowerCase().split(/\s+/).filter(Boolean);
+  if (!worte.length) return karte;
+  return (karte || []).filter((g) => {
+    const heuhaufen = (g.nummer + " " + g.name + " " + g.beschreibung + " " + g.kategorie).toLowerCase();
+    return worte.every((w) => heuhaufen.indexOf(w) >= 0);
+  });
+}
+
 function esKarteNachKategorie(karte) {
   const gruppen = [];
   const index = new Map();
@@ -270,6 +294,10 @@ function esPositionenListe(positionenRoh) {
     return {
       id,
       gerichtId: esText(p && p.gerichtId, 60),
+      // ⚠️ Wie Name und Preis festgeschrieben: die Nummer, unter der beim
+      // Lieferanten bestellt wurde. Ändert er seine Karte, stimmt sie für
+      // diesen Beleg trotzdem weiter.
+      nummer: esText(p && p.nummer, ES_MAX_NUMMER),
       name: esText(p && p.name, 80) || "Gericht",
       sonderwunsch: esText(p && p.sonderwunsch, ES_MAX_SONDERWUNSCH),
       anzahl,
@@ -350,6 +378,7 @@ function esSammelliste(bestellungen) {
       const schluessel = JSON.stringify([p.gerichtId || p.name, p.sonderwunsch.toLowerCase()]);
       if (!nach.has(schluessel)) {
         nach.set(schluessel, {
+          nummer: p.nummer,
           name: p.name,
           sonderwunsch: p.sonderwunsch,
           anzahl: 0,
@@ -777,7 +806,9 @@ function esBestelltext(bestellungen, meta) {
   liste.forEach((p) => {
     // Kopfzeile: Menge, Gericht, Stückpreis, Zeilensumme.
     // Der Stückpreis entfällt, wenn die Zeile verschiedene Preise mischt.
-    let kopf = p.anzahl + "x " + p.name;
+    // ⚠️ Die Bestellnummer steht VOR dem Namen: beim Lieferanten wird nach der
+    // Nummer bestellt, der Name ist die Kontrolle.
+    let kopf = p.anzahl + "x " + (p.nummer ? "Nr. " + p.nummer + " " : "") + p.name;
     if (p.preisCent || p.summeCent) {
       kopf += p.preisEinheitlich
         ? " à " + esCentLabel(p.preisCent) + " = " + esCentLabel(p.summeCent)
@@ -861,14 +892,25 @@ function esParseImport(roh) {
     }
 
     const felder = zeile.split(/\t|\||;/).map((f) => f.trim());
-    const name = esText(felder[0], 80);
+
+    // Steht vorn eine Bestellnummer? „12 | Pizza Salami | 9,50" ist die Form,
+    // in der eine Karte abgetippt wird. ⚠️ Nur wenn danach noch etwas kommt –
+    // sonst waere „12" allein ein Gericht ohne Namen statt einer Nummer.
+    let nummer = "";
+    let rest = felder;
+    if (felder.length > 1 && ES_NUMMER_RE.test(felder[0])) {
+      nummer = esText(felder[0], ES_MAX_NUMMER);
+      rest = felder.slice(1);
+    }
+
+    const name = esText(rest[0], 80);
     if (!name) {
       fehler.push("Zeile " + (i + 1) + ": kein Name.");
       return;
     }
 
     let preisCent = 0;
-    let beschreibungsFelder = felder.slice(1);
+    let beschreibungsFelder = rest.slice(1);
     if (beschreibungsFelder.length) {
       const letztes = beschreibungsFelder[beschreibungsFelder.length - 1];
       const alsPreis = esPreisNachCent(letztes);
@@ -886,6 +928,7 @@ function esParseImport(roh) {
     }
 
     gerichte.push({
+      nummer,
       name,
       beschreibung: esText(beschreibungsFelder.filter(Boolean).join(", "), 200),
       preisCent,
@@ -988,9 +1031,13 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
   return { erfolg: true };
 }
 
-function esPruefeGericht({ name, beschreibung, kategorie, preis }) {
+function esPruefeGericht({ nummer, name, beschreibung, kategorie, preis }) {
   const n = esText(name, 80);
   if (!n) return { erfolg: false, fehler: "Das Gericht braucht einen Namen." };
+  // ⚠️ Die Nummer wird NICHT auf ein Format geprüft und NICHT auf Eindeutigkeit:
+  // sie gehört der Karte des Lieferanten, und was dort steht, ist gesetzt –
+  // auch „12a", „A3" oder zweimal dieselbe. Nur die Länge ist begrenzt.
+  const nr = esText(nummer, ES_MAX_NUMMER);
   const cent = esPreisNachCent(preis);
   if (cent === null) return { erfolg: false, fehler: "Der Preis ist keine gültige Zahl." };
   if (cent > ES_MAX_PREIS_CENT) {
@@ -999,6 +1046,7 @@ function esPruefeGericht({ name, beschreibung, kategorie, preis }) {
   return {
     erfolg: true,
     werte: {
+      nummer: nr,
       name: n,
       beschreibung: esText(beschreibung, 200),
       kategorie: esText(kategorie, 40),
@@ -1106,6 +1154,7 @@ async function esImportiereKarte(gerichte, ersetzen) {
   const jetzt = Date.now();
   gerichte.forEach((g, idx) => {
     updates["karte/" + esNeueId("ger")] = {
+      nummer: esText(g.nummer, ES_MAX_NUMMER),
       name: esText(g.name, 80),
       beschreibung: esText(g.beschreibung, 200),
       kategorie: esText(g.kategorie, 40),
@@ -1165,6 +1214,7 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     if (anzahlPositionen >= ES_MAX_POSITIONEN) return;
     sauber["pos" + anzahlPositionen] = {
       gerichtId: gericht.id,
+      nummer: gericht.nummer,
       name: gericht.name,
       preisCent: gericht.preisCent,
       anzahl: Math.min(ES_MAX_STUECK, anzahl),
@@ -1527,6 +1577,8 @@ const essenService = {
   loeschePlan: esLoeschePlan,
   authentifiziereAlsAdmin: esAuthentifiziereAlsAdmin,
   sammelliste: esSammelliste,
+  sucheKarte: esKarteSuche,
+  nachKategorie: esKarteNachKategorie,
   statistik: esStatistik,
   bestelltext: esBestelltext,
   centLabel: esCentLabel,

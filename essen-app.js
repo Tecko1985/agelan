@@ -16,6 +16,11 @@ const esOffeneBestellungen = new Set();  // aufgeklappte Bestellungen im Admin-B
 // mit acht Lieferungen ist das eine Bildschirmlänge, durch die man erst
 // scrollen muss.
 const esOffeneRunden = new Set();
+// Suche und aufgeklappte Kategorien der Speisekarte. ⚠️ Beides lebt nur hier im
+// Speicher: eine Suche gehört zum Moment, nicht in die Datenbank, und der
+// Aufklapp-Zustand geht nach dem Neuladen bewusst wieder auf Anfang.
+let esSuchtext = "";
+const esOffeneKategorien = new Set();
 
 // Der Warenkorb. Lebt NUR hier im Speicher – erst „Bestellung abschicken"
 // schreibt ihn nach Firebase.
@@ -112,6 +117,22 @@ function esRenderKopf(z) {
 }
 
 // --- Speisekarte -------------------------------------------------------------
+// Eine Zeile der Speisekarte.
+function esGerichtHtml(g, darfBestellen) {
+  return `
+          <div class="es-gericht">
+            ${g.nummer ? `<div class="es-gericht-nr">${escapeHtml(g.nummer)}</div>` : ""}
+            <div class="es-gericht-info">
+              <div class="es-gericht-name">${escapeHtml(g.name)}</div>
+              ${g.beschreibung ? `<div class="es-gericht-beschreibung">${escapeHtml(g.beschreibung)}</div>` : ""}
+            </div>
+            <div class="es-gericht-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}</div>
+            <button type="button" class="es-plus" data-es-hinzu="${escapeHtml(g.id)}"
+              title="Auf die Bestellung setzen" aria-label="${escapeHtml(g.nummer ? "Nummer " + g.nummer + ", " : "")}${escapeHtml(g.name)} auf die Bestellung setzen"
+              ${darfBestellen ? "" : "disabled"}>+</button>
+          </div>`;
+}
+
 function esRenderKarte(z) {
   const box = esEl("es-karte");
   if (!z.karte.length) {
@@ -119,7 +140,27 @@ function esRenderKarte(z) {
     return;
   }
 
+  // ⚠️ VOR dem Ersetzen des innerHTML merken, ob im Suchfeld getippt wird und
+  // wo der Cursor steht. Ein `blur`-Merker taugt dafür nicht: das Entfernen des
+  // alten Feldes löst selbst ein `blur` aus und würde den Merker gerade dann
+  // löschen, wenn er gebraucht wird. Genau so beim Bauen gemessen – nach jedem
+  // Buchstaben war der Fokus weg.
+  const altesFeld = esEl("es-suche");
+  const sucheAktiv = !!altesFeld && document.activeElement === altesFeld;
+  const cursor = sucheAktiv ? altesFeld.selectionStart : null;
+
   const darfBestellen = z.annahmeOffen || z.istAdmin;
+  const treffer = essenService.sucheKarte(z.karte, esSuchtext);
+  const gruppen = essenService.nachKategorie(treffer);
+  const suchtLaeuft = !!esSuchtext.trim();
+
+  // ⚠️ Gruppen sind zugeklappt, sobald es mehr als eine gibt. Bei einer
+  // einzigen waere das Zuklappen nur ein zusätzlicher Klick vor der ganzen
+  // Karte. Wird gesucht, gehen alle Treffergruppen auf – eine zugeklappte
+  // Gruppe hinter einer Suche sieht aus wie „nichts gefunden".
+  const aufGeklappt = (kategorie) =>
+    suchtLaeuft || gruppen.length <= 1 || esOffeneKategorien.has(kategorie);
+
   box.innerHTML = `
     <div class="karte-block">
       <h3 class="es-abschnitt">Speisekarte</h3>
@@ -130,24 +171,66 @@ function esRenderKarte(z) {
              ? "Bestellt werden kann nur zwischen " + escapeHtml(z.fensterLabel) + "."
              : "Gerade wird nichts angenommen."} Du kannst die Karte ansehen.</p>`
         : ""}
-      ${z.kategorien.map((gruppe) => `
-        ${gruppe.kategorie ? `<div class="es-kategorie">${escapeHtml(gruppe.kategorie)}</div>` : ""}
-        ${gruppe.gerichte.map((g) => `
-          <div class="es-gericht">
-            <div class="es-gericht-info">
-              <div class="es-gericht-name">${escapeHtml(g.name)}</div>
-              ${g.beschreibung ? `<div class="es-gericht-beschreibung">${escapeHtml(g.beschreibung)}</div>` : ""}
-            </div>
-            <div class="es-gericht-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}</div>
-            <button type="button" class="es-plus" data-es-hinzu="${escapeHtml(g.id)}"
-              title="Auf die Bestellung setzen" aria-label="${escapeHtml(g.name)} auf die Bestellung setzen"
-              ${darfBestellen ? "" : "disabled"}>+</button>
-          </div>`).join("")}
-      `).join("")}
+
+      <div class="es-suche-zeile">
+        <input type="search" id="es-suche" class="eingabe es-suche" autocomplete="off"
+          placeholder="Suchen – Nummer, Gericht, Zutat" value="${escapeHtml(esSuchtext)}">
+        ${suchtLaeuft ? `<button type="button" class="mini-btn" id="es-suche-weg" title="Suche zurücksetzen">✕</button>` : ""}
+      </div>
+      ${suchtLaeuft
+        ? `<p class="hinweis-text es-suche-stand">${treffer.length
+            ? treffer.length + (treffer.length === 1 ? " Gericht gefunden." : " Gerichte gefunden.")
+            : "Nichts gefunden. Andere Schreibweise oder nur ein Wort probieren."}</p>`
+        : ""}
+
+      ${gruppen.map((gruppe) => !gruppe.kategorie
+        // Gerichte ohne Kategorie stehen ohne Aufklapper da – sonst hätte man
+        // eine Gruppe mit leerer Überschrift.
+        ? gruppe.gerichte.map((g) => esGerichtHtml(g, darfBestellen)).join("")
+        : `<details class="es-gruppe"${aufGeklappt(gruppe.kategorie) ? " open" : ""} data-es-kat="${escapeHtml(gruppe.kategorie)}">
+             <summary>
+               <span class="es-kategorie">${escapeHtml(gruppe.kategorie)}</span>
+               <span class="es-gruppe-kurz">${gruppe.gerichte.length}</span>
+             </summary>
+             ${gruppe.gerichte.map((g) => esGerichtHtml(g, darfBestellen)).join("")}
+           </details>`).join("")}
     </div>`;
 
   box.querySelectorAll("[data-es-hinzu]").forEach((b) => {
     b.addEventListener("click", () => esLegeInKorb(b.dataset.esHinzu));
+  });
+  // ⚠️ Am `summary`-Klick hängen, NICHT am `toggle`-Ereignis. `toggle` feuert
+  // auch für Gruppen, die eine laufende Suche von selbst aufgeklappt hat, und
+  // zwar asynchron – danach galt jede Kategorie als „vom Benutzer geöffnet" und
+  // nach dem Leeren der Suche blieb alles offen. Genau so beim Bauen gemessen.
+  // Der Klick kommt nur von einer echten Bedienung (Maus wie Tastatur).
+  // ⚠️ Beim Klick steht `open` noch auf dem ALTEN Wert – der Browser dreht ihn
+  // erst danach um.
+  box.querySelectorAll("[data-es-kat] > summary").forEach((s) => {
+    s.addEventListener("click", () => {
+      const d = s.parentElement;
+      if (d.open) esOffeneKategorien.delete(d.dataset.esKat);
+      else esOffeneKategorien.add(d.dataset.esKat);
+    });
+  });
+
+  // Fokus und Cursor zurückholen – siehe oben.
+  const feld = esEl("es-suche");
+  if (feld) {
+    if (sucheAktiv) {
+      feld.focus();
+      const pos = cursor === null ? feld.value.length : cursor;
+      feld.setSelectionRange(pos, pos);
+    }
+    feld.addEventListener("input", () => {
+      esSuchtext = feld.value;
+      esRenderKarte(esZustand);
+    });
+  }
+  const weg = esEl("es-suche-weg");
+  if (weg) weg.addEventListener("click", () => {
+    esSuchtext = "";
+    esRenderKarte(esZustand);
   });
 }
 
@@ -1080,7 +1163,7 @@ function esRenderKarteVerwalten(z) {
     ? z.karte.map((g, i) => `
         <div class="fr-paket-verwalten">
           <div class="fr-pv-info">
-            <div class="fr-pv-name">${escapeHtml(g.name)}</div>
+            <div class="fr-pv-name">${g.nummer ? `<span class="es-pv-nr">${escapeHtml(g.nummer)}</span> ` : ""}${escapeHtml(g.name)}</div>
             <div class="fr-pv-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}${g.kategorie ? " · " + escapeHtml(g.kategorie) : ""}${g.beschreibung ? " · " + escapeHtml(g.beschreibung) : ""}</div>
           </div>
           <div class="fr-pv-aktionen">
@@ -1103,6 +1186,7 @@ function esRenderKarteVerwalten(z) {
     const g = esZustand.karte.find((x) => x.id === b.dataset.esEdit);
     if (!g) return;
     esBearbeitetesGerichtId = g.id;
+    esEl("es-ger-nummer").value = g.nummer;
     esEl("es-ger-name").value = g.name;
     esEl("es-ger-beschreibung").value = g.beschreibung;
     esEl("es-ger-kategorie").value = g.kategorie;
@@ -1114,6 +1198,7 @@ function esRenderKarteVerwalten(z) {
 
 async function esSpeichereGericht() {
   const werte = {
+    nummer: esEl("es-ger-nummer").value,
     name: esEl("es-ger-name").value,
     beschreibung: esEl("es-ger-beschreibung").value,
     kategorie: esEl("es-ger-kategorie").value,
@@ -1126,7 +1211,7 @@ async function esSpeichereGericht() {
   if (!res.erfolg) { esZeigeFehler("es-gericht-fehler", res.fehler); return; }
   esZeigeFehler("es-gericht-fehler", "");
   esBearbeitetesGerichtId = null;
-  ["es-ger-name", "es-ger-beschreibung", "es-ger-preis"].forEach((id) => { esEl(id).value = ""; });
+  ["es-ger-nummer", "es-ger-name", "es-ger-beschreibung", "es-ger-preis"].forEach((id) => { esEl(id).value = ""; });
   // ⚠️ Die Kategorie bleibt stehen: wer eine Karte abtippt, legt mehrere
   // Gerichte derselben Kategorie hintereinander an.
   esEl("es-btn-ger-anlegen").textContent = "Gericht hinzufügen";
@@ -1147,17 +1232,22 @@ function esPruefeImport() {
 
   const kategorien = new Set(ergebnis.gerichte.map((g) => g.kategorie).filter(Boolean));
   const ohnePreis = ergebnis.gerichte.filter((g) => !g.preisCent).length;
+  // ⚠️ Wie viele Bestellnummern erkannt wurden, muss VOR dem Übernehmen
+  // dastehen. Steht dort 0, ist das Format falsch - und das fällt sonst erst
+  // auf, wenn die Karte schon drin ist.
+  const mitNummer = ergebnis.gerichte.filter((g) => g.nummer).length;
 
   box.innerHTML = `
     <div class="es-import-kopf">
       <b>${ergebnis.gerichte.length} Gericht${ergebnis.gerichte.length === 1 ? "" : "e"}</b>
       ${kategorien.size ? " in " + kategorien.size + " Kategorie" + (kategorien.size === 1 ? "" : "n") : " ohne Kategorie"}
       ${ohnePreis ? " · " + ohnePreis + " ohne Preis" : ""}
+      ${mitNummer ? " · " + mitNummer + " mit Bestellnummer" : " · keine Bestellnummern erkannt"}
     </div>
     <div class="es-import-liste">
       ${ergebnis.gerichte.map((g) => `
         <div class="es-import-zeile">
-          <span>${g.kategorie ? `<span class="es-import-kat">${escapeHtml(g.kategorie)}</span> ` : ""}${escapeHtml(g.name)}${g.beschreibung ? ` <i>${escapeHtml(g.beschreibung)}</i>` : ""}</span>
+          <span>${g.kategorie ? `<span class="es-import-kat">${escapeHtml(g.kategorie)}</span> ` : ""}${g.nummer ? `<span class="es-pv-nr">${escapeHtml(g.nummer)}</span> ` : ""}${escapeHtml(g.name)}${g.beschreibung ? ` <i>${escapeHtml(g.beschreibung)}</i>` : ""}</span>
           <b>${g.preisCent ? essenService.centLabel(g.preisCent) : "–"}</b>
         </div>`).join("")}
     </div>

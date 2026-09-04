@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=3.9">
+<link rel="stylesheet" href="style.css?v=4.0">
 </head>
 <body>
 
@@ -883,8 +883,9 @@
         <summary><span class="es-klapp-titel">Speisekarte</span><span class="es-klapp-kurz" id="es-karte-anzahl"></span></summary>
         <div id="es-karte-verwalten"></div>
 
-        <label class="feld-label" for="es-ger-name">Neues Gericht</label>
-        <input type="text" id="es-ger-name" class="eingabe" placeholder="Name, z. B. Pizza Salami" maxlength="80" autocomplete="off">
+        <label class="feld-label" for="es-ger-nummer">Neues Gericht</label>
+        <input type="text" id="es-ger-nummer" class="eingabe" placeholder="Bestellnummer, z. B. 12 (freiwillig)" maxlength="10" autocomplete="off">
+        <input type="text" id="es-ger-name" class="eingabe" placeholder="Name, z. B. Pizza Salami" maxlength="80" autocomplete="off" style="margin-top:8px">
         <input type="text" id="es-ger-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
         <input type="text" id="es-ger-kategorie" class="eingabe" placeholder="Kategorie, z. B. Pizza (freiwillig)" maxlength="40" autocomplete="off" style="margin-top:8px">
         <input type="text" id="es-ger-preis" class="eingabe" placeholder="Preis in €, z. B. 9,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
@@ -900,8 +901,9 @@
       <div class="karte-block">
         <details class="es-klapp">
         <summary><span class="es-klapp-titel">Speisekarte importieren</span></summary>
-        <p class="hinweis-text">Ein Gericht je Zeile. Felder mit <b>|</b> trennen: <i>Name | Beschreibung | Preis</i>. Eine Zeile mit <b>#</b> davor beginnt eine Kategorie. Beschreibung und Preis darf man weglassen.</p>
-        <textarea id="es-import-text" class="eingabe es-import-feld" rows="8" spellcheck="false" placeholder="# Pizza&#10;Margherita | Tomate, Käse | 8,50&#10;Salami | Tomate, Käse, Salami | 9,50&#10;&#10;# Beilagen&#10;Pommes | 3,00"></textarea>
+        <p class="hinweis-text">Ein Gericht je Zeile. Felder mit <b>|</b> trennen: <i>Nummer | Name | Beschreibung | Preis</i>. Eine Zeile mit <b>#</b> davor beginnt eine Kategorie. Nummer, Beschreibung und Preis darf man weglassen.</p>
+        <p class="hinweis-text">Die <b>Bestellnummer</b> wird nur erkannt, wenn sie ganz vorn steht und aus Ziffern besteht (auch „12a“ oder „A3“). Ein Gericht, das mit einer Zahl anfängt – „4 Käse Pizza“ – bleibt dadurch ein Name und wird nicht zur Nummer.</p>
+        <textarea id="es-import-text" class="eingabe es-import-feld" rows="8" spellcheck="false" placeholder="# Pizza&#10;12 | Margherita | Tomate, Käse | 8,50&#10;13 | Salami | Tomate, Käse, Salami | 9,50&#10;&#10;# Beilagen&#10;40 | Pommes | 3,00"></textarea>
         <button class="btn btn-secondary btn-grow" id="es-btn-import-pruefen">Vorschau anzeigen</button>
         <div id="es-import-vorschau"></div>
         <p class="hinweis-text fehler" id="es-import-fehler"></p>
@@ -1153,13 +1155,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.17',
+    'app.js?v=3.18',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',
     'fruehstueck-app.js?v=1.5',
-    'essen-service.js?v=1.9',
-    'essen-app.js?v=2.5'
+    'essen-service.js?v=2.0',
+    'essen-app.js?v=2.6'
   ];
 
   var input = document.getElementById('pw-gate-input');

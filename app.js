@@ -1271,6 +1271,18 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.5",
+    groups: [
+      { title: "Speisekarte: Bestellnummern, Suche, Gruppen zum Aufklappen", items: [
+          "Jedes Gericht kann jetzt die <b>Bestellnummer</b> der Karte des Lieferanten tragen („12“, „14a“). Sie steht vorn in der Zeile – und in der E-Mail: „1x Nr. 13 Salami à 9,50 €“. Beim Lieferanten wird nach der Nummer bestellt.",
+          "Über der Karte ist ein <b>Suchfeld</b>. Es sucht in Nummer, Name, Zutaten und Kategorie; mehrere Wörter müssen alle vorkommen, „pizza sala“ findet „Pizza Salami“.",
+          "Die Kategorien (Pizza, Nudeln, Beilagen …) sind <b>zugeklappt</b>, wenn es mehr als eine gibt. Bei einer Suche gehen alle Treffergruppen von allein auf.",
+          "Der Import versteht die Nummer vorn: <i>12 | Margherita | Tomate, Käse | 8,50</i>. Ein Gericht, das mit einer Zahl anfängt – „4 Käse Brot“ – bleibt ein Name. Die Vorschau sagt vorher, wie viele Nummern erkannt wurden.",
+          "Die Nummer wird wie Name und Preis auf der Bestellung festgeschrieben. Ändert der Lieferant seine Karte, stimmt der alte Beleg trotzdem weiter."
+      ]}
+    ]
+  },
+  {
     version: "4.4",
     groups: [
       { title: "Verwaltungs-Kästen zum Aufklappen", items: [
