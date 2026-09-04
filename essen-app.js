@@ -571,13 +571,37 @@ function esRenderAdminBestellungen(z) {
         ? " und " + essenService.centLabel(z.orgaGesamtCent) + " auf die Organisation (" + z.anzahlOrga + " Bestellung" + (z.anzahlOrga === 1 ? "" : "en") + ")"
         : ""}.</p>
 
-    <p class="feld-label es-gruppe-titel">Stapel – noch nicht rausgeschickt (${z.ohneRunde.length})</p>
-    ${z.ohneRunde.length
-      ? z.ohneRunde.map(esBestellungHtml).join("")
+    <p class="feld-label es-gruppe-titel">Stapel – noch nicht rausgeschickt (${z.stapel.length})</p>
+    ${z.stapel.length
+      ? z.stapel.map(esBestellungHtml).join("")
       : `<p class="fr-leer-hinweis">Alles ist beim Lieferanten. Was neu bestellt wird, sammelt sich hier.</p>`}
+
+    ${!z.altbestand.length ? "" : `
+      <p class="feld-label es-gruppe-titel">Ohne Sammelbestellung (${z.altbestand.length})</p>
+      <p class="hinweis-text es-altbestand-note">${z.altbestand.length === 1
+        ? "Diese Bestellung ist beim Lieferanten, gehört aber zu keiner Sammelbestellung – sie stammt noch aus der Zeit davor. Trag sie nach, dann lässt sie sich mit abrechnen. Oder hak sie einfach ab."
+        : "Diese Bestellungen sind beim Lieferanten, gehören aber zu keiner Sammelbestellung – sie stammen noch aus der Zeit davor. Trag sie nach, dann lassen sie sich mit abrechnen. Oder hak sie einfach ab."}</p>
+      <div class="es-best-aktionen es-runde-knoepfe">
+        <button type="button" class="mini-btn primary" id="es-btn-nachtragen"
+          title="Als eigene Sammelbestellung eintragen">Als „${escapeHtml((z.meta && z.meta.titel ? z.meta.titel : "Bestellung") + " " + z.naechsteRundeNr)}“ nachtragen</button>
+      </div>
+      ${z.altbestand.map(esBestellungHtml).join("")}`}
 
     ${z.runden.length ? `<p class="feld-label es-gruppe-titel">Beim Lieferanten (${z.runden.length})</p>` : ""}
     ${z.runden.map(esRundeHtml).join("")}`;
+
+  // Altbestand nachtragen: eine Sammelbestellung aus dem, was schon raus ist.
+  // ⚠️ Der Stand bleibt dabei stehen – ein „abgeholt" darf nicht wieder auf
+  // „bestellt" zurückfallen, siehe esSchickeRunde.
+  const nachtragen = esEl("es-btn-nachtragen");
+  if (nachtragen) nachtragen.addEventListener("click", async () => {
+    const ids = esZustand.altbestand.map((b) => b.id);
+    if (!ids.length) return;
+    if (!confirm("Diese " + ids.length + (ids.length === 1 ? " Bestellung" : " Bestellungen") +
+        " als eine Sammelbestellung eintragen?")) return;
+    const res = await essenService.schickeRunde(ids);
+    if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+  });
 
   box.querySelectorAll("[data-es-runde]").forEach((d) => {
     d.addEventListener("toggle", () => {

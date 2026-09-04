@@ -542,6 +542,8 @@ function esGetZustand() {
       bestellungen: [],
       runden: [],
       ohneRunde: [],
+      stapel: [],
+      altbestand: [],
       naechsteRundeNr: 1,
       meine: [],
       istAdmin: false,
@@ -563,6 +565,15 @@ function esGetZustand() {
   ohneRunde.forEach((b) => { b.inRunde = false; });
   runden.forEach((r) => r.bestellungen.forEach((b) => { b.inRunde = true; }));
   bestellungen.forEach(esSchritteSetzen);
+
+  // ⚠️ „Noch nicht rausgeschickt" stimmt nicht für ALLES ohne Runde. Eine
+  // Bestellung aus der Zeit vor den Sammelbestellungen steht auf „bestellt"
+  // oder „abgeholt" und hat trotzdem keine – die gehört nicht unter eine
+  // Überschrift, die das Gegenteil behauptet. Michel am 2026-09-04 im Bild:
+  // seine Testbestellung stand als „bestellt" unter „noch nicht rausgeschickt".
+  const grenze = ES_STATUS_KETTE.indexOf("bestellt");
+  const stapel = ohneRunde.filter((b) => b.statusIndex < grenze);
+  const altbestand = ohneRunde.filter((b) => b.statusIndex >= grenze);
 
   const zaehler = {};
   ES_STATUS_KETTE.forEach((s) => { zaehler[s] = 0; });
@@ -600,6 +611,8 @@ function esGetZustand() {
     bestellungen,
     runden,
     ohneRunde,
+    stapel,
+    altbestand,
     naechsteRundeNr: esNaechsteRundeNr(),
     meine,
     zaehler,
@@ -1204,7 +1217,13 @@ async function esSchickeRunde(bestellungIds) {
     // zu sehen, dass er noch Geld schuldet, und „noch zu kassieren" stünde für
     // immer auf 0,00 €. Orga-Bestellungen zählen als erledigt: da ist nichts
     // zu holen.
-    if (b.status !== "neu" || b.orga) updates["bestellungen/" + b.id + "/status"] = "bestellt";
+    // ⚠️ Wer schon weiter ist als „bestellt" (Altbestand, der nachgetragen
+    // wird), behält seinen Stand. Ein nachgetragenes „abgeholt" wieder auf
+    // „bestellt" zu setzen wäre ein Rückschritt, den niemand gewollt hat.
+    const zielIndex = ES_STATUS_KETTE.indexOf("bestellt");
+    if (b.statusIndex < zielIndex && (b.status !== "neu" || b.orga)) {
+      updates["bestellungen/" + b.id + "/status"] = "bestellt";
+    }
     updates["bestellungen/" + b.id + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
   });
   // ⚠️ EIN update(): entweder die Runde entsteht mitsamt ihren Bestellungen

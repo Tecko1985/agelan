@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.5",
+    groups: [
+      { title: "Essen: Bestellungen ohne Sammelbestellung stehen jetzt richtig", items: [
+          "Bestellungen aus der Zeit vor den Sammelbestellungen standen unter „Stapel – noch nicht rausgeschickt“, obwohl daneben „bestellt“ stand. Sie haben jetzt einen eigenen Abschnitt <b>„Ohne Sammelbestellung“</b>.",
+          "Ein Knopf trägt sie als eigene Sammelbestellung nach – danach sind sie wie alle anderen abzurechnen. Wer sie nur abhaken will, kann das weiter tun.",
+          "Beim Nachtragen bleibt der Stand stehen: aus „abgeholt“ wird nicht wieder „bestellt“."
+      ]}
+    ]
+  },
+  {
     version: "3.4",
     groups: [
       { title: "Essen ist da – alle auf einen Klick benachrichtigen", items: [
