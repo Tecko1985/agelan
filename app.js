@@ -1271,7 +1271,7 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
-    version: "3.0",
+    version: "3.1",
     groups: [
       { title: "Bestellungen einzeln abwickeln", items: [
           "Neben jeder einzelnen Bestellung steht jetzt „✉ nur diese“. Damit geht genau diese eine an den Lieferanten, statt auf eine Sammelbestellung zu warten – auf der LAN kommt nicht jeder gleichzeitig, und wer um 18 Uhr bezahlt, soll sein Essen nicht erst um 20 Uhr bestellt bekommen.",
@@ -1282,7 +1282,7 @@ const APP_CHANGELOG = [
     ]
   },
   {
-    version: "2.9",
+    version: "3.0",
     groups: [
       { title: "Neu: Bescheid per Discord, wenn das Essen da ist", items: [
           "Unter „Mein Konto“ – oben in der Kopfzeile auf den eigenen Namen tippen – lässt sich die eigene Discord-Benutzer-ID hinterlegen. Der AgeLan-Bot schickt dann eine Direktnachricht, sobald das Essen zum Abholen bereitliegt.",
