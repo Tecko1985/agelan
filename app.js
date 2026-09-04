@@ -1271,6 +1271,22 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.8",
+    groups: [
+      { title: "Organisation: eigenes Merkmal am Konto", items: [
+          "Wer zur Organisation gehört, bekommt im Reiter „Einstellungen“ ein Häkchen 🛠. Damit hat die Person alle Rechte – wie ein Veranstalter, nur ohne dass das Veranstalter-Passwort weitergegeben werden muss.",
+          "Veranstalter gehören immer zur Organisation, bei ihnen ist das Häkchen fest gesetzt.",
+          "Das Merkmal steht im signierten Anmelde-Token und wird bei jedem Start frisch geprüft: ein entzogenes Recht wirkt sofort, nicht erst in 120 Tagen."
+      ]},
+      { title: "Essen: die Organisation zahlt nichts", items: [
+          "Bestellungen von Leuten aus der Organisation sind kostenlos. Statt eines Betrags steht dort „kostenlos“, und der Schritt „Hat bezahlt“ heißt bei ihnen „Freigeben“.",
+          "Der Veranstalter sieht getrennt, was noch zu kassieren ist und was auf die Organisation geht.",
+          "In der E-Mail an den Lieferanten stehen zwei Blöcke: die Teilnehmer-Bestellungen und darunter die der Organisation, mit dem Zusatz, dass die Teilnehmer die nicht mitbezahlen. Dazu die Summen einzeln und zusammen.",
+          "Jede einzelne Bestellung lässt sich vom Veranstalter auf Orga umstellen oder wieder zahlungspflichtig machen – für den Fall, dass sich jemand vertan hat."
+      ]}
+    ]
+  },
+  {
     version: "2.7",
     groups: [
       { title: "Neu: Essensbestellung", items: [
@@ -1619,15 +1635,35 @@ async function ladeKonten() {
       ? `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
         daten.konten.map((k) => `
           <div class="konto-zeile">
-            <span class="konto-name">${k.admin ? "⭐ " : "👤 "}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
+            <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
+            <label class="konto-streamer" title="Gehört zur Organisation: hat alle Rechte und zahlt beim Essen nichts">
+              <input type="checkbox" data-konto-orga="${escapeHtml(k.nickname)}" ${k.orga || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}>
+              🛠
+            </label>
             <label class="konto-streamer" title="Darf sich in den Streamplan eintragen">
-              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}>
+              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin || k.orga ? "checked" : ""} ${k.admin || k.orga ? "disabled" : ""}>
               🎥
             </label>
             <span class="konto-datum">${kontenDatum(k.angelegtAm)}</span>
             <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}">🗑</button>
           </div>`).join("")
       : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
+
+    // ⚠️ Nach dem Umstellen die ganze Liste neu holen, nicht nur den einen
+    // Haken stehen lassen: „Orga" schaltet auch das Streamer-Haekchen fest und
+    // aendert das Symbol vor dem Namen. Ohne Neuladen behauptet die Zeile
+    // daneben etwas, das nicht mehr stimmt.
+    box.querySelectorAll("[data-konto-orga]").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        try {
+          await kontenRufe("konto-orga", { nickname: cb.dataset.kontoOrga, orga: cb.checked });
+          await ladeKonten();
+        } catch (e) {
+          cb.checked = !cb.checked;   // zurueckdrehen, sonst behauptet der Haken etwas Falsches
+          zeigeFehler("konten-fehler", e.message);
+        }
+      });
+    });
 
     box.querySelectorAll("[data-konto-streamer]").forEach((cb) => {
       cb.addEventListener("change", async () => {

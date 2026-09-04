@@ -87,6 +87,7 @@ export default {
     if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
     if (aktion === "konto-admin")    return kontoAdmin(request, body, env, cors);
     if (aktion === "konto-streamer") return kontoStreamer(body, env, cors);
+    if (aktion === "konto-orga")     return kontoOrga(body, env, cors);
     if (aktion === "konto-liste")    return kontoListe(body, env, cors);
     if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
@@ -275,10 +276,17 @@ async function tokenSchluessel(env) {
 
 // ⚠️ Das Admin-Merkmal steht MIT im signierten Token, ist also nicht faelschbar.
 // Der Client darf ihm deshalb glauben - er kann es nicht selbst setzen.
-async function tokenBauen(env, nick, admin, streamer) {
+async function tokenBauen(env, nick, admin, streamer, orga) {
   const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000 };
   if (admin) nutzlast.a = 1;
   if (streamer) nutzlast.s = 1;
+  // ⚠️ `orga` entscheidet ueber Geld (wer beim Essen nichts zahlt) und gehoert
+  // deshalb genauso ins signierte Token wie die Rechte. Im Browser bleibt es
+  // trotzdem eine BEDIEN-Sperre: wer sein localStorage verstellt, sieht sich
+  // selbst als Orga. Die Firebase-Regeln pruefen das nicht — der Veranstalter
+  // sieht in der Bestellliste, wer sich als Orga eingetragen hat, und kann es
+  // je Bestellung umstellen.
+  if (orga) nutzlast.o = 1;
   const teil = bytesZuB64Url(new TextEncoder().encode(JSON.stringify(nutzlast)));
   const key = await tokenSchluessel(env);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(teil));
@@ -302,7 +310,7 @@ async function tokenLesen(env, token) {
     if (!ok) return null;
     const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
     if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
-    return { nick: nutzlast.n, admin: nutzlast.a === 1, streamer: nutzlast.s === 1 };
+    return { nick: nutzlast.n, admin: nutzlast.a === 1, streamer: nutzlast.s === 1, orga: nutzlast.o === 1 };
   } catch (e) {
     return null;
   }
@@ -346,6 +354,7 @@ async function kontoAnlegen(request, body, env, cors) {
     pw: await passwortHashen(passwort),
     admin: istAdmin,
     streamer: false,   // vergibt der Veranstalter, siehe konto-streamer
+    orga: false,       // vergibt der Veranstalter, siehe konto-orga
     angelegtAm: Date.now(),
   }));
 
@@ -354,7 +363,12 @@ async function kontoAnlegen(request, body, env, cors) {
     nickname: geprueft.nick,
     admin: istAdmin,
     streamer: false,
-    token: await tokenBauen(env, geprueft.nick, istAdmin, false),
+    // ⚠️ Ein Veranstalter gehoert immer zur Organisation — er RICHTET sie aus.
+    // Deshalb hier nicht `false`, sondern `istAdmin`; im KV steht bewusst
+    // weiter `orga: false`, damit ein abgegebenes Veranstalter-Recht die
+    // Orga-Zugehoerigkeit nicht heimlich mitnimmt.
+    orga: istAdmin,
+    token: await tokenBauen(env, geprueft.nick, istAdmin, false, istAdmin),
   }, 200, cors);
 }
 
@@ -389,7 +403,8 @@ async function kontoLogin(request, body, env, cors) {
     nickname: konto.nick,
     admin: !!konto.admin,
     streamer: !!konto.streamer,
-    token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer),
+    orga: !!konto.orga || !!konto.admin,
+    token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer, !!konto.orga || !!konto.admin),
   }, 200, cors);
 }
 
@@ -407,16 +422,19 @@ async function kontoPruefen(body, env, cors) {
   // 120 Tagen abläuft.
   let admin = false;
   let streamer = false;
+  let orga = false;
   try {
     const k = JSON.parse(roh);
     admin = !!k.admin;
     streamer = !!k.streamer;
+    orga = !!k.orga;
   } catch (e) { /* kaputter Eintrag gilt als ohne Rechte */ }
+  orga = orga || admin;   // Veranstalter gehoeren immer dazu
 
   // Weicht der Stand vom Token ab, bekommt der Client ein frisches.
-  const abweichend = admin !== gelesen.admin || streamer !== gelesen.streamer;
-  const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer) : null;
-  return json({ ok: true, nickname: gelesen.nick, admin, streamer, token }, 200, cors);
+  const abweichend = admin !== gelesen.admin || streamer !== gelesen.streamer || orga !== gelesen.orga;
+  const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer, orga) : null;
+  return json({ ok: true, nickname: gelesen.nick, admin, streamer, orga, token }, 200, cors);
 }
 
 // Ein bestehendes Konto zum Veranstalter machen (oder das Recht wieder abgeben).
@@ -453,12 +471,14 @@ async function kontoAdmin(request, body, env, cors) {
 
   konto.admin = anschalten;
   await env.KONTEN.put(schluessel, JSON.stringify(konto));
+  const orgaJetzt = !!konto.orga || anschalten;
   return json({
     ok: true,
     nickname: konto.nick,
     admin: anschalten,
     streamer: !!konto.streamer,
-    token: await tokenBauen(env, konto.nick, anschalten, !!konto.streamer),
+    orga: orgaJetzt,
+    token: await tokenBauen(env, konto.nick, anschalten, !!konto.streamer, orgaJetzt),
   }, 200, cors);
 }
 
@@ -489,19 +509,56 @@ async function kontoStreamer(body, env, cors) {
   return json({ ok: true, nickname: konto.nick, streamer: konto.streamer }, 200, cors);
 }
 
+// Orga-Merkmal setzen oder nehmen. Wer dazugehoert, zahlt beim Essen nichts.
+// Nur der Veranstalter, genau wie beim Streamer-Merkmal.
+// ⚠️ Bei einem Veranstalter laesst es sich nicht abschalten — er richtet die
+// Veranstaltung aus und gehoert damit zur Organisation. Der Weg dorthin ist,
+// ihm zuerst das Veranstalter-Recht zu nehmen.
+async function kontoOrga(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+
+  const geprueft = nickPruefen(body.nickname);
+  if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+
+  const schluessel = nickSchluessel(geprueft.nick);
+  const roh = await env.KONTEN.get(schluessel);
+  if (!roh) return json({ error: "Dieses Konto gibt es nicht mehr." }, 404, cors);
+
+  let konto;
+  try {
+    konto = JSON.parse(roh);
+  } catch (e) {
+    return json({ error: "Das Konto ist beschädigt." }, 500, cors);
+  }
+
+  konto.orga = body.orga !== false;
+  await env.KONTEN.put(schluessel, JSON.stringify(konto));
+  // ⚠️ Kein neues Token: das gehoert dem BETROFFENEN, nicht dem Veranstalter.
+  // Es zieht bei dessen naechster Startpruefung von selbst nach (konto-pruefen).
+  return json({ ok: true, nickname: konto.nick, orga: !!konto.orga || !!konto.admin }, 200, cors);
+}
+
 // --- Veranstalter: Konten sehen und leeren ---------------------------------
 // Zwei Wege zum Veranstalter-Nachweis: das Passwort (fuer den ersten Zugang und
 // fuer Skripte) oder ein angemeldetes Veranstalter-Konto. Letzteres ist der
 // Alltagsweg - wer angemeldet ist, soll sein Passwort nicht dauernd wiederholen.
+// ⚠️ Seit 2026-09-04 zaehlt hier NEBEN `admin` auch `orga`: wer zur
+// Organisation gehoert, hat dieselben Rechte (Michels Ansage). Der Unterschied
+// zwischen den beiden Merkmalen ist nur noch, WIE man sie bekommt — `admin`
+// ueber das Veranstalter-Passwort (der Weg fuer den ersten Zugang und nach
+// „alle Konten loeschen"), `orga` per Klick von jemandem, der die Rechte schon
+// hat. Damit muss Michel sein Passwort nicht an die Crew weitergeben.
 async function veranstalterOk(body, env) {
   if (body.token) {
     const gelesen = await tokenLesen(env, body.token);
-    if (gelesen && gelesen.admin) {
+    if (gelesen && (gelesen.admin || gelesen.orga)) {
       // ⚠️ Gegenprobe am Bestand: das Recht kann seit Ausstellung entzogen sein.
       const roh = await env.KONTEN.get(nickSchluessel(gelesen.nick));
       if (roh) {
         try {
-          if (JSON.parse(roh).admin) return true;
+          const k = JSON.parse(roh);
+          if (k.admin || k.orga) return true;
         } catch (e) { /* kaputter Eintrag zaehlt nicht */ }
       }
     }
@@ -524,7 +581,13 @@ async function kontoListe(body, env, cors) {
       if (!roh) continue;
       try {
         const konto = JSON.parse(roh);
-        liste.push({ nickname: konto.nick, admin: !!konto.admin, streamer: !!konto.streamer, angelegtAm: konto.angelegtAm || 0 });
+        liste.push({
+          nickname: konto.nick,
+          admin: !!konto.admin,
+          streamer: !!konto.streamer,
+          orga: !!konto.orga || !!konto.admin,
+          angelegtAm: konto.angelegtAm || 0,
+        });
       } catch (e) { /* kaputter Eintrag wird übersprungen */ }
     }
     cursor = seite.list_complete ? null : seite.cursor;

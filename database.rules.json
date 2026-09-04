@@ -150,6 +150,7 @@
             "notiz":  { ".validate": "newData.isString() && newData.val().length <= 200" },
             "uid":    { ".validate": "newData.isString()" },
             "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "orga":   { ".validate": "newData.isBoolean()" },
 
             "positionen": {
               "$pos": {

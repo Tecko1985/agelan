@@ -304,7 +304,9 @@ function esRenderMeine(z) {
           <div class="es-best-kopf">
             <span class="es-status-punkt" aria-hidden="true"></span>
             <span class="es-best-status">${escapeHtml(b.statusLang)}</span>
-            <span class="es-best-summe">${essenService.centLabel(b.summeCent)}</span>
+            ${b.orga
+              ? `<span class="es-best-summe frei" title="Wert ${essenService.centLabel(b.summeCent)} – geht auf die Organisation">kostenlos</span>`
+              : `<span class="es-best-summe">${essenService.centLabel(b.summeCent)}</span>`}
           </div>
           <div class="es-best-positionen">${b.positionen.map((p) =>
             p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
@@ -380,12 +382,20 @@ function esRenderAdminBestellungen(z) {
         `<span class="es-zaehler-teil status-${s}"><b>${z.zaehler[s]}</b> ${escapeHtml(essenService.STATUS_TEXT[s].kurz)}</span>`
       ).join("")}
     </div>
+    <div class="fr-summe-zeile es-geldzeile">
+      <span>Noch zu kassieren</span>
+      <span><b>${essenService.centLabel(z.offeneCent)}</b></span>
+    </div>
+    <p class="hinweis-text es-geldnote">Warenwert ${essenService.centLabel(z.summeGesamtCent)} – davon
+      ${essenService.centLabel(z.zahltGesamtCent)} von Teilnehmern${z.anzahlOrga
+        ? " und " + essenService.centLabel(z.orgaGesamtCent) + " auf die Organisation (" + z.anzahlOrga + " Bestellung" + (z.anzahlOrga === 1 ? "" : "en") + ")"
+        : ""}.</p>
     ${z.bestellungen.map((b) => `
       <details class="es-admin-best status-${escapeHtml(b.status)}" data-es-offen="${escapeHtml(b.id)}"${esOffeneBestellungen.has(b.id) ? " open" : ""}>
         <summary>
           <span class="es-status-punkt" aria-hidden="true"></span>
           <span class="es-admin-name">${escapeHtml(b.name)}</span>
-          <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)} · ${escapeHtml(b.statusKurz)}</span>
+          <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)}${b.orga ? " 🛠" : ""} · ${escapeHtml(b.statusKurz)}</span>
         </summary>
         <div class="es-admin-inhalt">
           <div class="es-best-positionen">${b.positionen.map((p) =>
@@ -400,6 +410,9 @@ function esRenderAdminBestellungen(z) {
             ${b.statusIndex > 0
               ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}" title="Einen Schritt zurück">↺ zurück</button>`
               : ""}
+            <button type="button" class="mini-btn" data-es-orga="${escapeHtml(b.id)}"
+              title="${b.orga ? "Doch zahlen lassen" : "Als Orga-Essen führen – kostet dann nichts"}">
+              ${b.orga ? "🛠 → zahlt" : "→ 🛠 Orga"}</button>
             <button type="button" class="mini-btn" data-es-weg="${escapeHtml(b.id)}" title="Bestellung löschen">🗑</button>
           </div>
         </div>
@@ -431,6 +444,17 @@ function esRenderAdminBestellungen(z) {
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
+  box.querySelectorAll("[data-es-orga]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esOrga);
+      if (!b) return;
+      if (b.orga && !confirm(b.name + " wird dann wieder zahlungspflichtig: " +
+          essenService.centLabel(b.summeCent) + ". Weiter?")) return;
+      const res = await essenService.setzeOrga(b.id, !b.orga);
+      if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+    });
+  });
+
   box.querySelectorAll("[data-es-weg]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm("Diese Bestellung wirklich löschen?")) return;
@@ -454,7 +478,24 @@ function esRenderSammelmail(z) {
   const box = esEl("es-sammelmail");
   const auswahl = esMailBestellungen(z);
   const brief = essenService.bestelltext(auswahl, z.meta);
-  const liste = essenService.sammelliste(auswahl);
+
+  // Die Vorschau zeigt dieselbe Trennung wie der Brief: was die Teilnehmer
+  // bezahlen und was auf die Organisation geht. ⚠️ Beides aus `brief`, nicht
+  // noch einmal selbst gerechnet – zwei Rechenwege driften auseinander, und
+  // dann verspricht die Vorschau etwas anderes als der Text darunter.
+  const blockHtml = (titel, liste, summeCent, klasse) => !liste.length ? "" : `
+    <p class="feld-label es-block-titel ${klasse}">${titel}</p>
+    <div class="fr-einkaufsliste">
+      ${liste.map((p) => `
+        <div class="fr-einkauf-zeile">
+          <span>${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}</span>
+          <b>${p.anzahl}×</b>
+        </div>`).join("")}
+    </div>
+    <div class="fr-summe-zeile">
+      <span>${liste.reduce((s, p) => s + p.anzahl, 0)} Stück</span>
+      <span>${essenService.centLabel(summeCent)}</span>
+    </div>`;
 
   // mailto: hat in der Praxis eine Längengrenze (je nach Mailprogramm ab etwa
   // 2000 Zeichen). Darüber kommt die Mail leer oder abgeschnitten an – deshalb
@@ -475,16 +516,11 @@ function esRenderSammelmail(z) {
     ${!auswahl.length ? `
       <p class="fr-leer-hinweis">Auf diesem Stand liegt gerade keine Bestellung.</p>
     ` : `
-      <div class="fr-einkaufsliste">
-        ${liste.map((p) => `
-          <div class="fr-einkauf-zeile">
-            <span>${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}</span>
-            <b>${p.anzahl}×</b>
-          </div>`).join("")}
-      </div>
-      <div class="fr-summe-zeile">
+      ${blockHtml("Teilnehmer – wird bezahlt", brief.listeZahlend, brief.summeZahlendCent, "")}
+      ${blockHtml("Organisation – zahlen die Teilnehmer nicht mit", brief.listeOrga, brief.summeOrgaCent, "orga")}
+      <div class="fr-summe-zeile es-mail-gesamt">
         <span>${brief.anzahlBestellungen} Bestellung${brief.anzahlBestellungen === 1 ? "" : "en"}, ${brief.anzahlPositionen} Stück</span>
-        <span>${essenService.centLabel(brief.summeCent)}</span>
+        <span><b>${essenService.centLabel(brief.summeCent)}</b></span>
       </div>
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>

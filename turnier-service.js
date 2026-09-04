@@ -202,10 +202,26 @@ function gespeichertePins(id) {
 // signierten Token, der Client kann es nicht selbst setzen.
 // ⚠️ Wie jede Rechteprüfung dieser App eine BEDIEN-Sperre, kein Datenriegel:
 // die Firebase-Regeln lassen weiterhin jeden anonymen Client schreiben.
+// ⚠️ Seit 2026-09-04 zaehlt `orga` genauso wie `admin`: wer zur Organisation
+// gehoert, hat dieselben Rechte. Der Unterschied liegt nur im Weg dorthin —
+// `admin` ueber das Veranstalter-Passwort, `orga` per Klick im Einstellungs-
+// Reiter. Diese eine Funktion ist der Punkt, an dem das fuer die ganze App
+// entschieden wird; jeder Bereich fragt sie.
 function kontoIstVeranstalter() {
   try {
     const k = window.__AGELAN_KONTO__;
-    return !!(k && k.admin);
+    return !!(k && (k.admin || k.orga));
+  } catch (e) {
+    return false;
+  }
+}
+
+// Gehoert diese Person zur Organisation? Beim Essen heisst das: zahlt nichts.
+// Veranstalter gehoeren immer dazu — sie richten die Veranstaltung aus.
+function kontoIstOrga() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return !!(k && (k.orga || k.admin));
   } catch (e) {
     return false;
   }
@@ -217,7 +233,7 @@ function kontoIstVeranstalter() {
 function kontoDarfStreamen() {
   try {
     const k = window.__AGELAN_KONTO__;
-    return !!(k && (k.streamer || k.admin));
+    return !!(k && (k.streamer || k.admin || k.orga));
   } catch (e) {
     return false;
   }

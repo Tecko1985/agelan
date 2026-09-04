@@ -14,7 +14,7 @@ kommt erst beim Betreten eines Bereichs.
 | **Stream** | Der Sendeplan über die Veranstaltungstage — die Streamer tragen sich selbst ein |
 | **Frühstück** | Frühstückspakete für den nächsten Morgen, bestellt wird am Abend vorher |
 | **Essen** | Warmes Essen vom Lieferanten: Speisekarte, Bestellung mit Sonderwünschen, bezahlen, abholen |
-| **Einstellungen** | Nur für den Veranstalter: die angemeldeten Konten und die Änderungsliste |
+| **Einstellungen** | Nur für Veranstalter und Organisation: die angemeldeten Konten und die Änderungsliste |
 
 Unter **Alle Einträge** steht der Gesamtstand, das Anlegen von Turnier und
 Streamplan bleibt dem **Veranstalter** vorbehalten.
@@ -57,6 +57,19 @@ Für die Sammelbestellung zählt die App gleiche Gerichte zusammen, schreibt den
 fertigen **E-Mail-Text** und öffnet damit das Mailprogramm; der Text lässt sich
 vorher ändern oder kopieren. Namen der Besteller stehen bewusst nicht drin — der
 Lieferant braucht Mengen und Sonderwünsche.
+
+## Wer zur Organisation gehört
+
+Im Reiter **Einstellungen** bekommt jedes Konto ein Häkchen 🛠️. Wer es
+hat, gehört zur Organisation und damit gilt zweierlei: die Person hat **alle
+Rechte** — wie ein Veranstalter, nur ohne dass das Veranstalter-Passwort
+weitergegeben werden muss — und sie **zahlt beim Essen nichts**. Veranstalter
+gehören immer dazu.
+
+Beim Essen heißt das: statt eines Betrags steht dort *kostenlos*, und der
+Schritt *Hat bezahlt* heißt *Freigeben*. In der E-Mail an den Lieferanten
+stehen diese Bestellungen in einem **eigenen Block** mit eigener Summe, damit
+sichtbar ist, was die Teilnehmer bezahlen und was auf die Organisation geht.
 
 ## Zugang
 

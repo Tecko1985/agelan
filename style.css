@@ -1101,3 +1101,19 @@ main#app.sk-breit { max-width: 980px; }
 .es-regelwarnung { border-left: 4px solid #dc2626; }
 .es-regelwarnung h2 { color: #dc2626; }
 .es-regelwarnung code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+/* --- Organisation: wer dazugehoert, zahlt beim Essen nichts --- */
+.es-best-summe.frei { color: var(--success); font-weight: 600; }
+.es-block-titel { margin-top: 14px; }
+.es-block-titel.orga { color: var(--success); }
+.es-mail-gesamt { border-top: 2px solid var(--border); margin-top: 4px; }
+.es-geldzeile { border-top: none; }
+.es-geldnote { margin-top: 2px; font-size: 13px; }
+/* ⚠️ Seit dem zweiten Haken (🛠 neben 🎥) wird die Konto-Zeile auf schmalen
+   Geraeten zu breit. Der Name darf schrumpfen und notfalls abgeschnitten
+   werden, Haken und Papierkorb nicht — die sind die Bedienelemente. */
+.konto-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 430px) {
+  .konto-zeile { gap: 6px; }
+  .konto-datum { display: none; }
+}

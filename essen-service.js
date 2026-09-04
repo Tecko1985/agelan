@@ -66,12 +66,32 @@ const ES_STATUS_TEXT = {
   bestellt: { kurz: "bestellt", lang: "Beim Lieferanten bestellt" },
   abgeholt: { kurz: "abgeholt", lang: "Abgeholt – erledigt" },
 };
+// ⚠️ Eine Orga-Bestellung durchläuft dieselbe Kette, aber „bezahlt" hieße dort
+// etwas Falsches – es gibt nichts zu kassieren. Nur die Worte ändern sich,
+// nicht der Ablauf: eine zweite Kette müsste an jeder Stelle mitgedacht werden,
+// an der die erste vorkommt.
+const ES_ORGA_STATUS_TEXT = {
+  neu:     { kurz: "offen", lang: "Orga-Essen – noch nicht freigegeben" },
+  bezahlt: { kurz: "frei",  lang: "Orga-Essen – geht auf die Organisation" },
+};
+
 // Was der Veranstalter als Nächstes anklickt, wenn der Schritt getan ist.
 const ES_STATUS_KNOPF = {
   neu:      "Hat bezahlt",
   bezahlt:  "Beim Lieferanten bestellt",
   bestellt: "Abgeholt",
 };
+const ES_ORGA_STATUS_KNOPF = {
+  neu: "Freigeben",
+};
+
+function esStatusText(status, orga) {
+  return (orga && ES_ORGA_STATUS_TEXT[status]) || ES_STATUS_TEXT[status];
+}
+function esStatusKnopf(status, orga) {
+  if (orga && ES_ORGA_STATUS_KNOPF[status]) return ES_ORGA_STATUS_KNOPF[status];
+  return ES_STATUS_KNOPF[status] || "";
+}
 
 // --- lokaler Zustand -------------------------------------------------------
 let esEigeneUid = null;
@@ -224,6 +244,8 @@ function esBestellungenListe(bestellungenRoh) {
     const positionen = esPositionenListe(b && b.positionen);
     if (!positionen.length) return;   // eine Bestellung ohne Positionen ist keine
     const status = ES_STATUS_KETTE.indexOf(esText(b && b.status, 20)) >= 0 ? b.status : "neu";
+    const orga = !!(b && b.orga);
+    const summeCent = positionen.reduce((s, p) => s + p.summeCent, 0);
     liste.push({
       id,
       uid: esText(b && b.uid, 60),
@@ -231,12 +253,20 @@ function esBestellungenListe(bestellungenRoh) {
       notiz: esText(b && b.notiz, 200),
       status,
       statusIndex: ES_STATUS_KETTE.indexOf(status),
-      statusKurz: ES_STATUS_TEXT[status].kurz,
-      statusLang: ES_STATUS_TEXT[status].lang,
-      naechsterKnopf: ES_STATUS_KNOPF[status] || "",
+      statusKurz: esStatusText(status, orga).kurz,
+      statusLang: esStatusText(status, orga).lang,
+      naechsterKnopf: esStatusKnopf(status, orga),
+      // Gehört die Bestellung zur Organisation? Dann zahlt niemand dafür.
+      // ⚠️ Steht in der Bestellung, nicht im Konto: was beim Abschicken galt,
+      // gilt für diesen Beleg – und der Veranstalter kann es je Bestellung
+      // umstellen, ohne jemandem das Merkmal wegzunehmen.
+      orga,
       positionen,
       stueck: positionen.reduce((s, p) => s + p.anzahl, 0),
-      summeCent: positionen.reduce((s, p) => s + p.summeCent, 0),
+      summeCent,
+      // Was wirklich kassiert wird. ⚠️ Immer diesen Wert summieren, nie
+      // summeCent – sonst steht die Orga in der Kasse.
+      zahltCent: orga ? 0 : summeCent,
       erstelltAm: esZahl(b && b.erstelltAm, 0),
       aktualisiertAm: esZahl(b && b.aktualisiertAm, 0),
       istEigene: esText(b && b.uid, 60) === esEigeneUid,
@@ -312,9 +342,12 @@ function esGetZustand() {
   ES_STATUS_KETTE.forEach((s) => { zaehler[s] = 0; });
   bestellungen.forEach((b) => { zaehler[b.status] += 1; });
 
+  // ⚠️ „Offen" ist Geld, das noch hereinkommen muss – Orga-Bestellungen gehören
+  // da nicht hinein, sonst wartet man auf einen Betrag, den nie jemand bringt.
   const offeneCent = bestellungen
-    .filter((b) => b.status === "neu")
-    .reduce((s, b) => s + b.summeCent, 0);
+    .filter((b) => b.status === "neu" && !b.orga)
+    .reduce((s, b) => s + b.zahltCent, 0);
+  const orgaGesamtCent = bestellungen.filter((b) => b.orga).reduce((s, b) => s + b.summeCent, 0);
 
   return {
     vorhanden: true,
@@ -326,6 +359,9 @@ function esGetZustand() {
     meine,
     zaehler,
     summeGesamtCent: bestellungen.reduce((s, b) => s + b.summeCent, 0),
+    zahltGesamtCent: bestellungen.reduce((s, b) => s + b.zahltCent, 0),
+    orgaGesamtCent,
+    anzahlOrga: bestellungen.filter((b) => b.orga).length,
     offeneCent,
     istAdmin: esIstAdmin(),
     eigeneUid: esEigeneUid,
@@ -340,25 +376,58 @@ function esGetZustand() {
 //
 // ⚠️ Es stehen KEINE Namen der Teilnehmer drin. Der Lieferant braucht Mengen
 // und Sonderwünsche, sonst nichts – wer was bestellt hat, geht ihn nichts an
-// und hat in einer E-Mail an einen Dritten nichts verloren.
+// und hat in einer E-Mail an einen Dritten nichts verloren. Das gilt auch für
+// den Orga-Block: dort steht, DASS es Orga-Essen ist, nicht WESSEN.
 function esBestelltext(bestellungen, meta) {
-  const liste = esSammelliste(bestellungen);
-  const summeCent = bestellungen.reduce((s, b) => s + b.summeCent, 0);
+  // ⚠️ Zwei Bloecke, nicht eine Liste: der Lieferant soll sehen, was die
+  // Teilnehmer bezahlen und was auf die Organisation geht. Zusammengeworfen
+  // waere die Summe zwar richtig, die Aufteilung aber verloren – und genau die
+  // ist der Grund fuer die Trennung.
+  const zahlende = bestellungen.filter((b) => !b.orga);
+  const orgaListe = bestellungen.filter((b) => b.orga);
+  const listeZahlend = esSammelliste(zahlende);
+  const listeOrga = esSammelliste(orgaListe);
+
+  const summeZahlendCent = zahlende.reduce((s, b) => s + b.summeCent, 0);
+  const summeOrgaCent = orgaListe.reduce((s, b) => s + b.summeCent, 0);
+  const summeCent = summeZahlendCent + summeOrgaCent;
+
   const lieferant = esText(meta && meta.lieferantName, 80);
   const besteller = esText(meta && meta.bestellerName, 60);
   const telefon = esText(meta && meta.bestellerTelefon, 40);
   const hinweis = esText(meta && meta.hinweis, 400);
 
+  const zeile = (p) => p.anzahl + "x " + p.name + (p.sonderwunsch ? "  (Sonderwunsch: " + p.sonderwunsch + ")" : "");
+
   const zeilen = [];
   zeilen.push(lieferant ? "Hallo " + lieferant + "," : "Hallo,");
   zeilen.push("");
-  zeilen.push("wir möchten folgendes bestellen:");
-  zeilen.push("");
-  liste.forEach((p) => {
-    zeilen.push(p.anzahl + "x " + p.name + (p.sonderwunsch ? "  (Sonderwunsch: " + p.sonderwunsch + ")" : ""));
-  });
+
+  if (listeZahlend.length && listeOrga.length) {
+    zeilen.push("wir möchten folgendes bestellen:");
+    zeilen.push("");
+    listeZahlend.forEach((p) => zeilen.push(zeile(p)));
+    zeilen.push("");
+    zeilen.push("Dazu für die Organisation (das zahlen die Teilnehmer nicht mit):");
+    zeilen.push("");
+    listeOrga.forEach((p) => zeilen.push(zeile(p)));
+  } else if (listeOrga.length) {
+    // Nur Orga-Essen: eine Ueberschrift, nicht ein leerer Block und ein voller.
+    zeilen.push("wir möchten folgendes für die Organisation bestellen:");
+    zeilen.push("");
+    listeOrga.forEach((p) => zeilen.push(zeile(p)));
+  } else {
+    zeilen.push("wir möchten folgendes bestellen:");
+    zeilen.push("");
+    listeZahlend.forEach((p) => zeilen.push(zeile(p)));
+  }
+
   zeilen.push("");
   zeilen.push("Gesamt nach unserer Rechnung: " + esCentLabel(summeCent));
+  if (listeZahlend.length && listeOrga.length) {
+    zeilen.push("davon Teilnehmer " + esCentLabel(summeZahlendCent) +
+      " und Organisation " + esCentLabel(summeOrgaCent));
+  }
   if (hinweis) {
     zeilen.push("");
     zeilen.push(hinweis);
@@ -373,8 +442,12 @@ function esBestelltext(bestellungen, meta) {
     betreff,
     text: zeilen.join("\n"),
     anzahlBestellungen: bestellungen.length,
-    anzahlPositionen: liste.reduce((s, p) => s + p.anzahl, 0),
+    anzahlPositionen: listeZahlend.concat(listeOrga).reduce((s, p) => s + p.anzahl, 0),
     summeCent,
+    summeZahlendCent,
+    summeOrgaCent,
+    listeZahlend,
+    listeOrga,
     empfaenger: esText(meta && meta.lieferantEmail, 120),
   };
 }
@@ -716,6 +789,16 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     return { erfolg: false, fehler: "Wähle mindestens ein Gericht aus." };
   }
 
+  // Gehört die Bestellung zur Organisation? Das Merkmal folgt der PERSON, die
+  // sie abgibt.
+  // ⚠️ Bearbeitet der Veranstalter eine fremde Bestellung, zählt weiter der
+  // Stand von dort – sonst würde jede Korrektur an einer fremden Bestellung
+  // dessen eigenes Orga-Merkmal darauf übertragen und sie stillschweigend
+  // kostenlos machen.
+  const orgaJetzt = bisher && !bisher.istEigene
+    ? bisher.orga
+    : (typeof kontoIstOrga === "function" && kontoIstOrga());
+
   const id = bestellungId || esNeueId("best");
   // ⚠️ set() statt update(): weggenommene Positionen müssen wirklich
   // verschwinden. Der Status wird dabei mitgeschrieben, nicht zurückgesetzt –
@@ -723,6 +806,7 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
   await db.ref(ES_BASIS + "/bestellungen/" + id).set({
     uid: bisher ? bisher.uid : esEigeneUid,
     name: n,
+    orga: !!orgaJetzt,
     status: bisher ? bisher.status : "neu",
     notiz: esText(notiz, 200),
     positionen: sauber,
@@ -756,6 +840,24 @@ async function esSetzeStatus(bestellungId, status) {
   if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
   await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
     status,
+    aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
+  });
+  return { erfolg: true };
+}
+
+// Eine einzelne Bestellung auf Orga umstellen oder zurück.
+// ⚠️ Der Weg für Irrtümer: das Merkmal kommt beim Abschicken aus dem Konto des
+// Bestellers, und das steht in dessen Browser. Wer sich dort etwas verstellt,
+// hätte sonst ein kostenloses Essen, das niemand mehr korrigieren kann. Der
+// Veranstalter sieht in der Liste, was als Orga eingetragen ist, und dreht es
+// hier je Bestellung um – ohne jemandem das Konto-Merkmal zu nehmen.
+async function esSetzeOrga(bestellungId, wert) {
+  await esAuthBereit;
+  if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
+  if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
+  await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
+    orga: !!wert,
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
   });
   return { erfolg: true };
@@ -862,6 +964,7 @@ const essenService = {
   storniere: esStorniere,
   setzeStatus: esSetzeStatus,
   setzeStatusAlle: esSetzeStatusAlle,
+  setzeOrga: esSetzeOrga,
   loescheBestellung: esLoescheBestellung,
   setzeEinstellungen: esSetzeEinstellungen,
   setzeAnnahme: esSetzeAnnahme,
