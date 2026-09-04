@@ -145,6 +145,41 @@ function esNeueId(praefix) {
   return praefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
 }
 
+// --- Bestellzeitfenster ----------------------------------------------------
+// Ein Punkt für „jetzt". Das Zeitfenster ist die einzige Stelle des Essens, an
+// der die echte Uhr über Sichtbarkeit entscheidet – zum Durchspielen muss sie
+// sich verstellen lassen, ohne dafür die Systemzeit anzufassen.
+let esZeitVersatzMs = 0;
+function esJetzt() {
+  return Date.now() + esZeitVersatzMs;
+}
+
+// Minuten seit 0:00 des heutigen Tages.
+function esMinuteJetzt() {
+  const d = new Date(esJetzt());
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function esUhrLabel(min) {
+  const m = Math.max(0, Math.min(1439, Math.round(esZahl(min, 0))));
+  return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+}
+
+// null = kein Fenster gesetzt, dann gilt der ganze Tag.
+function esFensterWert(wert) {
+  const n = Math.round(esZahl(wert, -1));
+  return (n >= 0 && n <= 1439) ? n : null;
+}
+
+// ⚠️ `von > bis` heißt ÜBER MITTERNACHT (z. B. 18:00–02:00). Auf einer LAN ist
+// das der Normalfall, nicht die Ausnahme – ohne diesen Zweig wäre ein solches
+// Fenster rund um die Uhr geschlossen.
+function esImFenster(von, bis, minute) {
+  if (von === null || bis === null) return true;   // kein Fenster = immer offen
+  if (von === bis) return true;                    // 10:00–10:00 liest sich wie „ganztags"
+  return von < bis ? (minute >= von && minute < bis) : (minute >= von || minute < bis);
+}
+
 // --- Admin-Status ----------------------------------------------------------
 function esGespeicherterPin() {
   try {
@@ -297,13 +332,22 @@ function esSammelliste(bestellungen) {
           name: p.name,
           sonderwunsch: p.sonderwunsch,
           anzahl: 0,
+          anzahlOrga: 0,        // wie viele davon gehen auf die Organisation
           preisCent: p.preisCent,
-          summeCent: 0,
+          preisEinheitlich: true,
+          summeCent: 0,         // Warenwert aller Stücke
+          zahltCent: 0,         // was davon wirklich zu zahlen ist
         });
       }
       const z = nach.get(schluessel);
+      // ⚠️ Preise sind je Bestellung festgeschrieben. Hat sich die Karte
+      // zwischendurch geändert, stecken in derselben Zeile zwei verschiedene
+      // Stückpreise – dann darf kein „à X €" danebenstehen, das wäre gelogen.
+      if (p.preisCent !== z.preisCent) z.preisEinheitlich = false;
       z.anzahl += p.anzahl;
       z.summeCent += p.summeCent;
+      if (b.orga) z.anzahlOrga += p.anzahl;
+      else z.zahltCent += p.summeCent;
     });
   });
   const liste = Array.from(nach.values());
@@ -349,10 +393,26 @@ function esGetZustand() {
     .reduce((s, b) => s + b.zahltCent, 0);
   const orgaGesamtCent = bestellungen.filter((b) => b.orga).reduce((s, b) => s + b.summeCent, 0);
 
+  // Zwei Dinge müssen stimmen, damit bestellt werden kann: der Schalter des
+  // Veranstalters UND das Zeitfenster.
+  // ⚠️ Getrennt gehalten, weil die Oberfläche verschieden erklären muss, warum
+  // gerade nichts geht – „der Veranstalter hat zugemacht" ist etwas anderes als
+  // „ab 10:00 wieder".
+  const schalterAn = meta.annahmeOffen !== false;   // fehlt das Feld, ist offen der Normalfall
+  const von = esFensterWert(meta.annahmeVon);
+  const bis = esFensterWert(meta.annahmeBis);
+  const imFenster = esImFenster(von, bis, esMinuteJetzt());
+
   return {
     vorhanden: true,
     meta,
-    annahmeOffen: meta.annahmeOffen !== false,   // fehlt das Feld, ist offen der Normalfall
+    annahmeOffen: schalterAn && imFenster,
+    schalterAn,
+    imFenster,
+    fensterVon: von,
+    fensterBis: bis,
+    fensterLabel: (von === null || bis === null || von === bis)
+      ? "" : esUhrLabel(von) + "–" + esUhrLabel(bis) + " Uhr",
     karte,
     kategorien: esKarteNachKategorie(karte),
     bestellungen,
@@ -379,56 +439,55 @@ function esGetZustand() {
 // und hat in einer E-Mail an einen Dritten nichts verloren. Das gilt auch für
 // den Orga-Block: dort steht, DASS es Orga-Essen ist, nicht WESSEN.
 function esBestelltext(bestellungen, meta) {
-  // ⚠️ Zwei Bloecke, nicht eine Liste: der Lieferant soll sehen, was die
-  // Teilnehmer bezahlen und was auf die Organisation geht. Zusammengeworfen
-  // waere die Summe zwar richtig, die Aufteilung aber verloren – und genau die
-  // ist der Grund fuer die Trennung.
-  const zahlende = bestellungen.filter((b) => !b.orga);
-  const orgaListe = bestellungen.filter((b) => b.orga);
-  const listeZahlend = esSammelliste(zahlende);
-  const listeOrga = esSammelliste(orgaListe);
-
-  const summeZahlendCent = zahlende.reduce((s, b) => s + b.summeCent, 0);
-  const summeOrgaCent = orgaListe.reduce((s, b) => s + b.summeCent, 0);
-  const summeCent = summeZahlendCent + summeOrgaCent;
+  // ⚠️ EINE Liste, nicht zwei Blöcke. Die Küche macht fünf Salami, egal wer sie
+  // bezahlt – zwei Blöcke hätten daraus „4x Salami" und „1x Salami" gemacht und
+  // jemanden zum Zusammenzählen gezwungen. Der Orga-Anteil steht stattdessen
+  // als Vermerk an der Zeile, an der er hingehört.
+  const liste = esSammelliste(bestellungen);
+  const summeCent = liste.reduce((s, p) => s + p.summeCent, 0);
+  const zahltCent = liste.reduce((s, p) => s + p.zahltCent, 0);
+  const orgaCent = summeCent - zahltCent;
 
   const lieferant = esText(meta && meta.lieferantName, 80);
   const besteller = esText(meta && meta.bestellerName, 60);
   const telefon = esText(meta && meta.bestellerTelefon, 40);
   const hinweis = esText(meta && meta.hinweis, 400);
 
-  const zeile = (p) => p.anzahl + "x " + p.name + (p.sonderwunsch ? "  (Sonderwunsch: " + p.sonderwunsch + ")" : "");
-
   const zeilen = [];
   zeilen.push(lieferant ? "Hallo " + lieferant + "," : "Hallo,");
   zeilen.push("");
+  zeilen.push("wir möchten folgendes bestellen:");
+  zeilen.push("");
 
-  if (listeZahlend.length && listeOrga.length) {
-    zeilen.push("wir möchten folgendes bestellen:");
-    zeilen.push("");
-    listeZahlend.forEach((p) => zeilen.push(zeile(p)));
-    zeilen.push("");
-    zeilen.push("Dazu für die Organisation (das zahlen die Teilnehmer nicht mit):");
-    zeilen.push("");
-    listeOrga.forEach((p) => zeilen.push(zeile(p)));
-  } else if (listeOrga.length) {
-    // Nur Orga-Essen: eine Ueberschrift, nicht ein leerer Block und ein voller.
-    zeilen.push("wir möchten folgendes für die Organisation bestellen:");
-    zeilen.push("");
-    listeOrga.forEach((p) => zeilen.push(zeile(p)));
-  } else {
-    zeilen.push("wir möchten folgendes bestellen:");
-    zeilen.push("");
-    listeZahlend.forEach((p) => zeilen.push(zeile(p)));
-  }
+  liste.forEach((p) => {
+    // Kopfzeile: Menge, Gericht, Stückpreis, Zeilensumme.
+    // Der Stückpreis entfällt, wenn die Zeile verschiedene Preise mischt.
+    let kopf = p.anzahl + "x " + p.name;
+    if (p.preisCent || p.summeCent) {
+      kopf += p.preisEinheitlich
+        ? " à " + esCentLabel(p.preisCent) + " = " + esCentLabel(p.summeCent)
+        : " = " + esCentLabel(p.summeCent);
+    }
+    zeilen.push(kopf);
 
-  // ⚠️ KEINE Beträge im Brief. Was die Organisation isst, wird nicht bezahlt –
-  // eine Summe daneben behauptete eine Forderung, die es nicht gibt. Und eine
-  // Summe nur über den halben Zettel wäre für die Küche erst recht verwirrend,
-  // weil sie nicht zu den aufgezählten Sachen passt. Michel am 2026-09-04:
-  // „die Beträge dann immer wegnehmen."
-  // Das Geld steht weiter in der App – dort, wo der Veranstalter kassiert.
-  // Der Lieferant rechnet ohnehin nach seiner eigenen Karte ab.
+    if (p.sonderwunsch) zeilen.push("   Sonderwunsch: " + p.sonderwunsch);
+
+    // ⚠️ Der Orga-Vermerk gehört an die Zeile, nicht nur in die Endsumme:
+    // sonst müsste der Lieferant selbst herausfinden, welche der fünf Pizzen
+    // gemeint sind.
+    if (p.anzahlOrga > 0) {
+      zeilen.push(p.anzahlOrga >= p.anzahl
+        ? "   alles für die Organisation, dafür nichts zu zahlen"
+        : "   davon " + p.anzahlOrga + "x für die Organisation, zu zahlen " + esCentLabel(p.zahltCent));
+    }
+  });
+
+  zeilen.push("");
+  zeilen.push(orgaCent
+    ? "Zu zahlen: " + esCentLabel(zahltCent) +
+      "  (Warenwert " + esCentLabel(summeCent) + ", davon " + esCentLabel(orgaCent) + " für die Organisation)"
+    : "Zu zahlen: " + esCentLabel(zahltCent));
+
   if (hinweis) {
     zeilen.push("");
     zeilen.push(hinweis);
@@ -443,12 +502,12 @@ function esBestelltext(bestellungen, meta) {
     betreff,
     text: zeilen.join("\n"),
     anzahlBestellungen: bestellungen.length,
-    anzahlPositionen: listeZahlend.concat(listeOrga).reduce((s, p) => s + p.anzahl, 0),
+    anzahlPositionen: liste.reduce((s, p) => s + p.anzahl, 0),
+    anzahlOrga: liste.reduce((s, p) => s + p.anzahlOrga, 0),
     summeCent,
-    summeZahlendCent,
-    summeOrgaCent,
-    listeZahlend,
-    listeOrga,
+    zahltCent,
+    orgaCent,
+    liste,
     empfaenger: esText(meta && meta.lieferantEmail, 120),
   };
 }
@@ -565,6 +624,13 @@ esAuthBereit.then(() => {
     }
   );
 });
+
+// ⚠️ Das Zeitfenster geht zu, ohne dass sich in Firebase etwas aendert. Ohne
+// diesen Takt blieben Speisekarte und Bestellknopf offen, bis irgendwer anders
+// etwas schreibt.
+setInterval(() => {
+  if (esRoh !== null) esMelde();
+}, 30000);
 
 // ===========================================================================
 // Schreibende Aktionen
@@ -758,7 +824,14 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     return { erfolg: false, fehler: "Die Bestellung ist bezahlt und lässt sich nicht mehr ändern. Sag dem Veranstalter Bescheid." };
   }
   if (!bisher && !z.annahmeOffen && !z.istAdmin) {
-    return { erfolg: false, fehler: "Die Bestellannahme ist gerade geschlossen." };
+    // Warum zu ist, muss dranstehen – „geschlossen" ohne Grund laesst niemanden
+    // wissen, ob es sich noch lohnt, spaeter nochmal zu schauen.
+    return {
+      erfolg: false,
+      fehler: !z.schalterAn
+        ? "Die Bestellannahme ist gerade geschlossen."
+        : "Bestellt werden kann nur zwischen " + z.fensterLabel + ".",
+    };
   }
   if (!bisher && z.bestellungen.length >= ES_MAX_BESTELLUNGEN) {
     return { erfolg: false, fehler: "Es liegen schon " + ES_MAX_BESTELLUNGEN + " Bestellungen vor." };
@@ -891,14 +964,25 @@ async function esLoescheBestellung(bestellungId) {
   return { erfolg: true };
 }
 
-async function esSetzeEinstellungen({ lieferantName, lieferantEmail, bestellerName, bestellerTelefon, hinweis, annahmeOffen }) {
+async function esSetzeEinstellungen({ lieferantName, lieferantEmail, bestellerName, bestellerTelefon, hinweis, annahmeOffen, annahmeVon, annahmeBis }) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const mail = esText(lieferantEmail, 120);
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
     return { erfolg: false, fehler: "Die E-Mail-Adresse des Lieferanten sieht nicht richtig aus." };
   }
+  // ⚠️ Nur eine der beiden Zeiten gesetzt waere ein halbes Fenster – das sieht
+  // in der Maske eingerichtet aus und wirkt nicht. Also beide oder keine.
+  const von = esFensterWert(annahmeVon);
+  const bis = esFensterWert(annahmeBis);
+  if ((von === null) !== (bis === null)) {
+    return { erfolg: false, fehler: "Beim Zeitfenster brauche ich Anfang UND Ende – oder beides leer." };
+  }
   await db.ref(ES_BASIS + "/meta").update({
+    // -1 statt null: Firebase loescht ein null-Feld, und dann liesse sich ein
+    // gesetztes Fenster nie wieder wegnehmen, ohne den Knoten anzufassen.
+    annahmeVon: von === null ? -1 : von,
+    annahmeBis: bis === null ? -1 : bis,
     lieferantName: esText(lieferantName, 80),
     lieferantEmail: mail,
     bestellerName: esText(bestellerName, 60),
@@ -976,6 +1060,13 @@ const essenService = {
   bestelltext: esBestelltext,
   centLabel: esCentLabel,
   zeitLabel: esZeitLabel,
+  uhrLabel: esUhrLabel,
+  // Nur für den Test: die Uhr um n Stunden verstellen, damit sich ein
+  // Zeitfenster ohne Systemzeit-Eingriff überschreiten lässt.
+  _setzeZeitversatzStunden: (h) => {
+    esZeitVersatzMs = esZahl(h, 0) * 3600000;
+    esMelde();
+  },
   // ⚠️ Das angemeldete Konto schlägt jeden gemerkten Namen: unter ihm wird
   // kassiert und abgeholt.
   getGespeicherterName: () => {

@@ -1271,6 +1271,26 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.2",
+    groups: [
+      { title: "Bestellzeiten: ein Fenster, in dem bestellt werden kann", items: [
+          "Unter „Einstellungen“ im Essen-Reiter lassen sich zwei Uhrzeiten setzen – zum Beispiel 10:00 bis 21:00. Außerhalb davon nimmt die App keine Bestellungen mehr an, ganz von allein.",
+          "Ein Fenster über Mitternacht geht auch, etwa 18:00 bis 02:00. Beide Felder leer heißt: rund um die Uhr.",
+          "Oben steht immer, woran man ist: „offen, heute bis 21:00 Uhr“ oder „Bestellt werden kann nur zwischen 10:00–21:00 Uhr“. Der Schalter „Bestellannahme ist offen“ bleibt daneben der Griff für zwischendurch."
+      ]},
+      { title: "E-Mail an den Lieferanten: Preise und Orga-Anteil je Gericht", items: [
+          "Hinter jedem Gericht steht wieder der Stückpreis und die Zeilensumme: „5x Salami à 10,00 € = 50,00 €“.",
+          "Sind welche davon für die Organisation, steht es an genau dieser Zeile: „davon 1x für die Organisation, zu zahlen 40,00 €“. Der Lieferant muss nicht selbst suchen, welche der fünf Pizzen gemeint sind.",
+          "Unten die Zeile „Zu zahlen“ – der Betrag, der wirklich fällig wird, nicht der Warenwert.",
+          "Statt zwei getrennter Blöcke steht wieder eine einzige Liste. Die Küche macht fünf Salami, egal wer sie bezahlt."
+      ]},
+      { title: "Übersicht über der E-Mail", items: [
+          "Rechts an jeder Zeile steht jetzt, was zu zahlen ist – bei einem reinen Orga-Essen also 0,00 € statt des Warenwerts. Vorher stand dort ein Betrag, den niemand bringt.",
+          "Der Warenwert steht weiter darunter, mit dem Anteil der Organisation."
+      ]}
+    ]
+  },
+  {
     version: "3.1",
     groups: [
       { title: "Bestellungen einzeln abwickeln", items: [

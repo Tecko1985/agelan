@@ -129,7 +129,9 @@
           "bestellerName":    { ".validate": "newData.isString() && newData.val().length <= 60" },
           "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "hinweis":          { ".validate": "newData.isString() && newData.val().length <= 400" },
-          "annahmeOffen":     { ".validate": "newData.isBoolean()" }
+          "annahmeOffen":     { ".validate": "newData.isBoolean()" },
+          "annahmeVon":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
+          "annahmeBis":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" }
         },
 
         "karte": {

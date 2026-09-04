@@ -33,6 +33,13 @@ function esZeigeView(id) {
   document.querySelectorAll("#tab-essen .sk-view").forEach((v) => v.classList.toggle("aktiv", v.id === id));
 }
 
+// "HH:MM" -> Minuten seit 0:00. Leer heisst: kein Fenster (-1).
+function esMinutenAusZeit(wert) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(wert || "").trim());
+  if (!m) return -1;
+  return Math.min(1439, Number(m[1]) * 60 + Number(m[2]));
+}
+
 function esFesterName() {
   try {
     const k = window.__AGELAN_KONTO__;
@@ -81,9 +88,20 @@ function esRenderKopf(z) {
   esEl("es-titel").textContent = z.meta.titel;
   const zeilen = [];
   if (z.meta.lieferantName) zeilen.push("Bestellt wird bei " + z.meta.lieferantName + ".");
-  zeilen.push(z.annahmeOffen
-    ? "Die Bestellannahme ist offen."
-    : "Die Bestellannahme ist gerade geschlossen – es läuft schon eine Sammelbestellung.");
+
+  // ⚠️ Zwei verschiedene Gründe, warum gerade nichts geht – und beide brauchen
+  // eine eigene Antwort. „Der Veranstalter hat zugemacht" heißt: heute nichts
+  // mehr. „Außerhalb der Zeit" heißt: komm um 10 Uhr wieder. Ein gemeinsames
+  // „geschlossen" ließe niemanden wissen, ob sich Warten lohnt.
+  if (!z.schalterAn) {
+    zeilen.push("Die Bestellannahme ist gerade geschlossen – es läuft schon eine Sammelbestellung.");
+  } else if (!z.imFenster) {
+    zeilen.push("Bestellt werden kann nur zwischen " + z.fensterLabel + ". Gerade ist zu.");
+  } else if (z.fensterLabel) {
+    zeilen.push("Bestellannahme offen, heute bis " + essenService.uhrLabel(z.fensterBis) + " Uhr.");
+  } else {
+    zeilen.push("Die Bestellannahme ist offen.");
+  }
   esEl("es-kopfzeile").textContent = zeilen.join(" ");
 }
 
@@ -99,7 +117,13 @@ function esRenderKarte(z) {
   box.innerHTML = `
     <div class="karte-block">
       <h3 class="es-abschnitt">Speisekarte</h3>
-      ${!darfBestellen ? `<p class="hinweis-text">Gerade wird nichts angenommen. Du kannst die Karte ansehen.</p>` : ""}
+      ${!darfBestellen
+        // Der Grund gehört auch hierher: hier klickt man auf das „+", nicht oben
+        // in der Kopfzeile.
+        ? `<p class="hinweis-text">${z.schalterAn && !z.imFenster
+             ? "Bestellt werden kann nur zwischen " + escapeHtml(z.fensterLabel) + "."
+             : "Gerade wird nichts angenommen."} Du kannst die Karte ansehen.</p>`
+        : ""}
       ${z.kategorien.map((gruppe) => `
         ${gruppe.kategorie ? `<div class="es-kategorie">${escapeHtml(gruppe.kategorie)}</div>` : ""}
         ${gruppe.gerichte.map((g) => `
@@ -510,19 +534,28 @@ function esRenderSammelmail(z) {
   // bezahlen und was auf die Organisation geht. ⚠️ Beides aus `brief`, nicht
   // noch einmal selbst gerechnet – zwei Rechenwege driften auseinander, und
   // dann verspricht die Vorschau etwas anderes als der Text darunter.
-  const blockHtml = (titel, liste, summeCent, klasse) => !liste.length ? "" : `
-    <p class="feld-label es-block-titel ${klasse}">${titel}</p>
+  // Eine Liste, wie im Brief: die Küche macht fünf Salami, egal wer sie zahlt.
+  // ⚠️ Rechts steht, was ZU ZAHLEN ist, nicht der Warenwert. Für ein Orga-Essen
+  // sind das 0,00 € – dort 10,00 € hinzuschreiben behauptete Geld, das niemand
+  // bringt. Der Warenwert steht darunter als Nebensatz.
+  const listeHtml = !brief.liste.length ? "" : `
     <div class="fr-einkaufsliste">
-      ${liste.map((p) => `
-        <div class="fr-einkauf-zeile">
-          <span>${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}</span>
-          <b>${p.anzahl}×</b>
+      ${brief.liste.map((p) => `
+        <div class="fr-einkauf-zeile es-mail-zeile">
+          <span>
+            <b>${p.anzahl}×</b> ${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}
+            ${p.preisEinheitlich && p.preisCent ? `<span class="es-stueckpreis">à ${essenService.centLabel(p.preisCent)}</span>` : ""}
+            ${p.anzahlOrga ? `<span class="es-orga-vermerk">${p.anzahlOrga >= p.anzahl ? "🛠 Organisation" : "davon " + p.anzahlOrga + "× 🛠 Organisation"}</span>` : ""}
+          </span>
+          <b class="${p.zahltCent ? "" : "es-nix-zu-zahlen"}">${essenService.centLabel(p.zahltCent)}</b>
         </div>`).join("")}
     </div>
-    <div class="fr-summe-zeile">
-      <span>${liste.reduce((s, p) => s + p.anzahl, 0)} Stück</span>
-      <span>${essenService.centLabel(summeCent)}</span>
-    </div>`;
+    <div class="fr-summe-zeile es-mail-gesamt">
+      <span>${brief.anzahlBestellungen} Bestellung${brief.anzahlBestellungen === 1 ? "" : "en"}, ${brief.anzahlPositionen} Stück</span>
+      <span>zu zahlen <b>${essenService.centLabel(brief.zahltCent)}</b></span>
+    </div>
+    ${brief.orgaCent ? `<p class="hinweis-text es-geldnote">Warenwert ${essenService.centLabel(brief.summeCent)} –
+      davon ${essenService.centLabel(brief.orgaCent)} für die Organisation, die nicht bezahlt werden.</p>` : ""}`;
 
   // mailto: hat in der Praxis eine Längengrenze (je nach Mailprogramm ab etwa
   // 2000 Zeichen). Darüber kommt die Mail leer oder abgeschnitten an – deshalb
@@ -550,16 +583,11 @@ function esRenderSammelmail(z) {
     ${!auswahl.length ? `
       <p class="fr-leer-hinweis">Auf diesem Stand liegt gerade keine Bestellung.</p>
     ` : `
-      ${blockHtml("Teilnehmer – wird bezahlt", brief.listeZahlend, brief.summeZahlendCent, "")}
-      ${blockHtml("Organisation – zahlen die Teilnehmer nicht mit", brief.listeOrga, brief.summeOrgaCent, "orga")}
-      <div class="fr-summe-zeile es-mail-gesamt">
-        <span>${brief.anzahlBestellungen} Bestellung${brief.anzahlBestellungen === 1 ? "" : "en"}, ${brief.anzahlPositionen} Stück</span>
-        <span><b>${essenService.centLabel(brief.summeCent)}</b></span>
-      </div>
+      ${listeHtml}
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>
       <textarea id="es-mail-text" class="eingabe es-mail-text" rows="12" spellcheck="false">${escapeHtml(brief.text)}</textarea>
-      <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen und Beträge stehen bewusst nicht drin – der Lieferant braucht Mengen und Sonderwünsche und rechnet nach seiner eigenen Karte ab. Was wer zahlt, steht oben in dieser Übersicht.</p>
+      <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen der Besteller stehen bewusst nicht drin. Bei Gerichten, von denen welche auf die Organisation gehen, steht dabei, wie viele – und was dafür wirklich zu zahlen ist.</p>
 
       <div class="es-mail-knoepfe">
         <button type="button" class="btn btn-secondary" id="es-btn-kopieren">Text kopieren</button>
@@ -778,9 +806,23 @@ function esRenderEinstellungen(z) {
   setze("es-ein-besteller", z.meta.bestellerName);
   setze("es-ein-telefon", z.meta.bestellerTelefon);
   setze("es-ein-hinweis", z.meta.hinweis);
+  // ⚠️ `annahmeOffen` im Zustand ist der Schalter UND das Zeitfenster zusammen.
+  // Das Haekchen darf nur den SCHALTER zeigen, sonst springt es abends von
+  // allein auf „zu" und der Veranstalter sucht den Fehler bei sich.
+  setze("es-ein-von", z.fensterVon === null ? "" : essenService.uhrLabel(z.fensterVon));
+  setze("es-ein-bis", z.fensterBis === null ? "" : essenService.uhrLabel(z.fensterBis));
 
   const schalter = esEl("es-ein-annahme");
-  if (schalter && document.activeElement !== schalter) schalter.checked = z.annahmeOffen;
+  if (schalter && document.activeElement !== schalter) schalter.checked = z.schalterAn;
+
+  const stand = esEl("es-ein-fensterstand");
+  if (stand) {
+    stand.textContent = !z.fensterLabel
+      ? "Ohne Zeiten laeuft die Annahme rund um die Uhr."
+      : (z.imFenster
+          ? "Zeitfenster " + z.fensterLabel + " – gerade offen."
+          : "Zeitfenster " + z.fensterLabel + " – gerade zu.");
+  }
 }
 
 // --- Anlegen -------------------------------------------------------------------
@@ -823,6 +865,8 @@ function esWireEvents() {
       bestellerTelefon: esEl("es-ein-telefon").value,
       hinweis: esEl("es-ein-hinweis").value,
       annahmeOffen: esEl("es-ein-annahme").checked,
+      annahmeVon: esMinutenAusZeit(esEl("es-ein-von").value),
+      annahmeBis: esMinutenAusZeit(esEl("es-ein-bis").value),
     });
     esZeigeFehler("es-ein-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) esZeigeFehler("es-ein-fehler", "Gespeichert.");

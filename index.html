@@ -880,6 +880,23 @@
         </label>
         <p class="hinweis-text">Ausschalten, sobald die Sammelbestellung rausgeht – dann kommt nichts Neues mehr dazu.</p>
 
+        <!-- ⚠️ Das Zeitfenster ist etwas anderes als der Schalter darüber: der
+             Schalter ist der Griff für zwischendurch, das Fenster läuft von
+             allein. Beide müssen zutreffen, damit bestellt werden kann. -->
+        <label class="feld-label">Bestellzeiten</label>
+        <div class="feld-zeile">
+          <div>
+            <label class="feld-label" for="es-ein-von">Von</label>
+            <input type="time" id="es-ein-von" class="eingabe">
+          </div>
+          <div>
+            <label class="feld-label" for="es-ein-bis">Bis</label>
+            <input type="time" id="es-ein-bis" class="eingabe">
+          </div>
+        </div>
+        <p class="hinweis-text">Außerhalb dieser Zeiten nimmt die App keine Bestellungen an. Beide Felder leer lassen heißt: rund um die Uhr. Ein Fenster über Mitternacht geht auch – etwa 18:00 bis 02:00.</p>
+        <p class="hinweis-text" id="es-ein-fensterstand"></p>
+
         <label class="feld-label" for="es-ein-lieferant">Lieferant</label>
         <input type="text" id="es-ein-lieferant" class="eingabe" maxlength="80" autocomplete="off">
 
@@ -1089,13 +1106,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.4',
+    'app.js?v=3.5',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',
     'fruehstueck-app.js?v=1.5',
-    'essen-service.js?v=1.2',
-    'essen-app.js?v=1.3'
+    'essen-service.js?v=1.3',
+    'essen-app.js?v=1.4'
   ];
 
   var input = document.getElementById('pw-gate-input');
