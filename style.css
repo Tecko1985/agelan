@@ -341,7 +341,13 @@ nav.tabs button#nav-qr:hover { color: var(--primary); }
 .changelog-box > summary::before { content: "▸ "; color: var(--muted); }
 .changelog-box[open] > summary::before { content: "▾ "; }
 .changelog-box > div {
-  max-height: 420px; overflow-y: auto;
+  /* Zwei Zeilen mit Absicht: die erste ist der Rueckfall fuer einen Browser
+     ohne min(), der die zweite ueberliest. Quer gehalten ist ein Handy nur
+     ~375px HOCH - eine feste Grenze von 420px sprengt den Schirm, und die
+     Pruefung hochkant merkt davon nichts, weil dort die Breite bindet. */
+  max-height: 420px;
+  max-height: min(420px, 62vh);
+  overflow-y: auto;
   border-top: 1px solid var(--border); padding-top: 4px;
 }
 .changelog-box .changelog-entry + .changelog-entry {

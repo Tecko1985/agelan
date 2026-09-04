@@ -1271,6 +1271,20 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.9",
+    groups: [
+      { title: "Die Essensdaten sind nicht mehr oeffentlich lesbar", items: [
+          "In den Datenbank-Regeln stand der Essensbereich auf „offen fuer alle“ – genauso wie das Turnier-Board darueber. Beim Board ist das richtig, dort haengen Spielstaende. Unter dem Essen liegen aber die Telefonnummer fuer die Bestellung, die Mailadresse des Lieferanten, der Admin-PIN und wer was gegessen hat.",
+          "Zum Lesen ist jetzt eine Anmeldung noetig. Fuer alle auf der LAN aendert sich dadurch nichts – die Anmeldung passiert beim Oeffnen der Seite von selbst. Von aussen kommt niemand mehr an die Daten.",
+          "Das Turnier-Board und der Streamplan bleiben absichtlich offen: die haengen im Raum an der Wand.",
+          "<b>Wichtig:</b> die Regeln muessen in der Firebase-Konsole neu eingefuegt werden, sonst gilt weiter, was dort steht."
+      ]},
+      { title: "Changelog quer am Handy", items: [
+          "Der aufgeklappte Changelog-Kasten war auf 420 Pixel Hoehe begrenzt. Quer gehalten ist ein Handy nur rund 375 Pixel hoch – der Kasten ragte unten heraus. Jetzt richtet er sich nach dem Schirm."
+      ]}
+    ]
+  },
+  {
     version: "4.8",
     groups: [
       { title: "Lösch-Knöpfe zugeklappt", items: [

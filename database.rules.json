@@ -118,7 +118,7 @@
 
     "essen": {
       "$pid": {
-        ".read": true,
+        ".read": "auth != null",
         ".write": "auth != null",
 
         "meta": {
