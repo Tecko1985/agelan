@@ -143,6 +143,8 @@
             "tag":        { ".validate": "newData.isString() && newData.val().length <= 60" },
             "titel":      { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
             "erstelltAm": { ".validate": "newData.isNumber()" },
+            "bescheidAm":       { ".validate": "newData.isNumber()" },
+            "bescheidErreicht": { ".validate": "newData.isNumber() && newData.val() >= 0" },
             "$sonst":     { ".validate": false }
           }
         },

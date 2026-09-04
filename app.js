@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.1",
+    groups: [
+      { title: "Bescheid geben: Uhrzeit dabei, und keine Nachricht an Abgeholte", items: [
+          "An jeder Lieferung steht jetzt <b>„📣 Bescheid gegeben: 04.09., 12:47 · 2 erreicht“</b>. Die Zeit steht in der Datenbank und ist auch nach dem Neuladen noch da – vorher war nach einem Neuladen nicht mehr zu sehen, ob überhaupt schon jemand benachrichtigt wurde.",
+          "Wer sein Essen schon geholt hat, bekommt <b>keine zweite Nachricht</b> mehr. Vorher ging beim erneuten Klick alles noch einmal an alle.",
+          "Vor dem Verschicken steht in der Rückfrage, wer ausgelassen wird und warum – und danach noch einmal im Ergebnis.",
+          "Der Knopf heißt beim zweiten Mal „Nochmal Bescheid“."
+      ]}
+    ]
+  },
+  {
     version: "4.0",
     groups: [
       { title: "Essen: Lieferungen starten zugeklappt", items: [

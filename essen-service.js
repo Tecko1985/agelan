@@ -432,6 +432,12 @@ function esRundenListe(rundenRoh, bestellungen) {
       // hängt die Nummerierung, siehe esNaechsteRundeNr().
       tag: esText(r && r.tag, 60),
       erstelltAm: esZahl(r && r.erstelltAm, 0),
+      // Wann zuletzt per Discord Bescheid gegeben wurde und wie viele es
+      // bekamen. ⚠️ Steht in Firebase, nicht nur im Speicher: sonst ist nach
+      // einem Neuladen nicht mehr zu sehen, ob überhaupt schon jemand
+      // benachrichtigt wurde – und man schickt es zum zweiten Mal.
+      bescheidAm: esZahl(r && r.bescheidAm, 0),
+      bescheidErreicht: Math.max(0, Math.round(esZahl(r && r.bescheidErreicht, 0))),
       bestellungen: mit,
       anzahl: mit.length,
       stueck: mit.reduce((s, b) => s + b.stueck, 0),
@@ -1360,6 +1366,21 @@ async function esSetzeRundeStatus(rundeId, status) {
   };
 }
 
+// Festhalten, dass fuer eine Lieferung Bescheid gegeben wurde.
+// ⚠️ Wird NACH dem Versand gerufen, nicht davor: sonst stuende dort eine
+// Uhrzeit, obwohl keine einzige Nachricht rausging.
+async function esSetzeBescheid(rundeId, erreicht) {
+  await esAuthBereit;
+  if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const runde = esGetZustand().runden.find((r) => r.id === rundeId);
+  if (!runde) return { erfolg: false, fehler: "Diese Sammelbestellung gibt es nicht mehr." };
+  await db.ref(ES_BASIS + "/runden/" + rundeId).update({
+    bescheidAm: firebase.database.ServerValue.TIMESTAMP,
+    bescheidErreicht: Math.max(0, Math.round(esZahl(erreicht, 0))),
+  });
+  return { erfolg: true };
+}
+
 async function esLoescheBestellung(bestellungId) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
@@ -1464,6 +1485,7 @@ const essenService = {
   setzeStatus: esSetzeStatus,
   schickeRunde: esSchickeRunde,
   setzeRundeStatus: esSetzeRundeStatus,
+  setzeBescheid: esSetzeBescheid,
   nimmAusRunde: esNimmAusRunde,
   setzeOrga: esSetzeOrga,
   loescheBestellung: esLoescheBestellung,

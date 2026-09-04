@@ -995,6 +995,11 @@ main#app.sk-breit { max-width: 980px; }
 
 .es-bescheid { margin: 8px 0 4px; line-height: 1.5; }
 .es-bescheid-lauf { margin: 8px 0 4px; opacity: 0.8; }
+/* Wann zuletzt Bescheid gegeben wurde. Steht immer da, auch nach einem
+   Neuladen – ohne sie waere nicht zu sehen, ob ueberhaupt schon jemand
+   benachrichtigt wurde, und man schickt es ein zweites Mal. */
+.es-bescheid-wann { margin: 8px 0 4px; font-size: 14px; }
+.es-bescheid-wann b { color: var(--text); font-weight: 600; }
 .es-bescheid-luecke {
   padding: 8px 10px;
   border-left: 3px solid #f0b429;

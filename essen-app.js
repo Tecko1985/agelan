@@ -476,7 +476,9 @@ function esRundeHtml(r) {
           <button type="button" class="mini-btn" data-es-runde-mail="${escapeHtml(r.id)}"
             title="Den Text dieser Sammelbestellung noch einmal ansehen">✉ Mailtext</button>
           ${r.fertig ? "" : `<button type="button" class="mini-btn" data-es-runde-bescheid="${escapeHtml(r.id)}"
-            title="Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt">📣 Bescheid geben</button>`}
+            title="${r.bescheidAm
+              ? "Noch einmal anstupsen – wer schon abgeholt hat, bekommt nichts"
+              : "Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt"}">📣 ${r.bescheidAm ? "Nochmal Bescheid" : "Bescheid geben"}</button>`}
           ${r.fertig ? "" : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
             title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
         </div>
@@ -492,21 +494,33 @@ function esRundeHtml(r) {
 let esBescheidStand = {};
 
 function esBescheidHtml(r) {
+  // \u26a0\ufe0f Die Uhrzeit kommt aus Firebase und steht deshalb auch nach einem
+  // Neuladen noch da. Michel am 04.09.2026: \u201ebei bescheid geben auch den
+  // zeitpunkt rein wann bescheid gegeben wurde." Ohne sie ist nicht zu
+  // erkennen, ob ueberhaupt schon jemand benachrichtigt wurde.
+  const wann = r.bescheidAm
+    ? `<p class="hinweis-text es-bescheid-wann">\ud83d\udce3 Bescheid gegeben: <b>${escapeHtml(essenService.zeitLabel(r.bescheidAm))}</b>${
+        r.bescheidErreicht ? " \u00b7 " + r.bescheidErreicht + " erreicht" : ""}</p>`
+    : "";
+
   const e = esBescheidStand[r.id];
-  if (!e) return "";
-  if (e.laeuft) return `<p class="hinweis-text es-bescheid-lauf">Schicke Nachrichten \u2026</p>`;
-  if (e.fehler) return `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}</p>`;
+  if (!e) return wann;
+  if (e.laeuft) return wann + `<p class="hinweis-text es-bescheid-lauf">Schicke Nachrichten \u2026</p>`;
+  if (e.fehler) return wann + `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}</p>`;
 
   const gut = e.geschickt
     ? `<b>\u2705 ${e.geschickt} benachrichtigt.</b>`
     : `<b>Niemand erreicht.</b>`;
+  const ohne = e.uebersprungen && e.uebersprungen.length
+    ? `<br>Ohne ${escapeHtml(e.uebersprungen.join(", "))} \u2013 schon abgeholt.`
+    : "";
   // \u26a0\ufe0f Die Nachfassliste ist der Punkt der ganzen \u00dcbung. Ohne sie h\u00e4lt Michel
   // alle f\u00fcr informiert - und wer keine Nachricht bekam, holt sein Essen nie ab.
   const schlecht = e.offen && e.offen.length
     ? `<br><b>\u26a0\ufe0f ${e.offen.length} nicht erreicht \u2013 diesen Leuten selbst Bescheid sagen:</b><br>` +
       e.offen.map((o) => `\u2022 ${escapeHtml(o.nickname)} \u2013 ${escapeHtml(o.grund)}`).join("<br>")
     : "";
-  return `<p class="hinweis-text es-bescheid${e.offen && e.offen.length ? " es-bescheid-luecke" : ""}">${gut}${schlecht}</p>`;
+  return wann + `<p class="hinweis-text es-bescheid${e.offen && e.offen.length ? " es-bescheid-luecke" : ""}">${gut}${ohne}${schlecht}</p>`;
 }
 
 // "Dein Essen ist da" an alle Besteller dieser Lieferung.
@@ -522,13 +536,24 @@ async function esBescheidGeben(runde, knopf) {
   // 04.09.2026: „nicht nur donnerstag 2 sondern auch das bestellte essen".
   // Hat jemand zwei Bestellungen in derselben Lieferung, werden deren Posten
   // hier zusammengelegt: eine Person, eine Nachricht, alle ihre Zeilen darin.
+  //
+  // \u26a0\ufe0f Wer sein Essen schon geholt hat, bekommt NICHTS mehr. Michel am
+  // 04.09.2026: \u201eich denke es ist so gebaut das wenn abgeholt und ich erneut
+  // bescheid gebe ich keine weitere nachricht bekomme, oder?" \u2013 war es nicht,
+  // es ging an alle. Ein zweites \u201edein Essen ist da" an jemanden, der schon
+  // gegessen hat, macht die Nachricht wertlos.
   const namen = [];
   const posten = new Map();
   const gesehen = new Set();
+  const schonDa = [];
   runde.bestellungen.forEach((b) => {
     const roh = String(b.name || "").trim();
     const k = roh.toLowerCase();
     if (!k) return;
+    if (b.status === "abgeholt") {
+      if (schonDa.indexOf(roh) < 0) schonDa.push(roh);
+      return;
+    }
     if (!gesehen.has(k)) {
       gesehen.add(k);
       namen.push(roh);
@@ -538,13 +563,22 @@ async function esBescheidGeben(runde, knopf) {
       posten.get(k).push({ anzahl: p.anzahl, gericht: p.name, sonderwunsch: p.sonderwunsch });
     });
   });
+  // Hat jemand zwei Bestellungen und nur eine davon abgeholt, gehoert er nicht
+  // in die "schon da"-Liste \u2013 er wartet ja noch auf die andere.
+  const wirklichSchonDa = schonDa.filter((n) => gesehen.has(n.toLowerCase()) === false);
 
   if (!namen.length) {
-    esBescheidStand[runde.id] = { fehler: "In dieser Lieferung steht kein Name." };
+    esBescheidStand[runde.id] = {
+      fehler: wirklichSchonDa.length
+        ? "Alle haben ihr Essen schon geholt \u2013 da ist nichts mehr zu melden."
+        : "In dieser Lieferung steht kein Name.",
+    };
     esRender(esZustand);
     return;
   }
-  if (!confirm(namen.length + (namen.length === 1 ? " Person" : " Leuten") + " per Discord sagen, dass das Essen da ist?\n\nWer keine Discord-ID hinterlegt hat, bekommt nichts \u2013 die stehen danach in einer Liste zum Nachfassen.")) return;
+  if (!confirm(namen.length + (namen.length === 1 ? " Person" : " Leuten") + " per Discord sagen, dass das Essen da ist?" +
+      (wirklichSchonDa.length ? "\n\nOhne " + wirklichSchonDa.join(", ") + " \u2013 schon abgeholt." : "") +
+      "\n\nWer keine Discord-ID hinterlegt hat, bekommt nichts \u2013 die stehen danach in einer Liste zum Nachfassen.")) return;
 
   knopf.disabled = true;
   esBescheidStand[runde.id] = { laeuft: true };
@@ -560,7 +594,12 @@ async function esBescheidGeben(runde, knopf) {
     esBescheidStand[runde.id] = {
       geschickt: daten.geschickt || 0,
       offen: daten.offen || [],
+      uebersprungen: wirklichSchonDa,
     };
+    // Uhrzeit festhalten, damit sie ein Neuladen überlebt. ⚠️ Erst NACH dem
+    // Versand – vorher stünde dort eine Zeit, obwohl nichts rausging.
+    const merk = await essenService.setzeBescheid(runde.id, daten.geschickt || 0);
+    if (!merk.erfolg) esZeigeFehler("es-admin-fehler", merk.fehler);
   } catch (e) {
     esBescheidStand[runde.id] = { fehler: e.message };
   }
