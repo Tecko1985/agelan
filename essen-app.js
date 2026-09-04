@@ -865,7 +865,7 @@ function esRenderSammelmail(z) {
     ${runde
       ? `<div class="es-mail-wahl">
            <span>Sammelbestellung <b>${escapeHtml(runde.titel)}</b> – am ${escapeHtml(essenService.zeitLabel(runde.erstelltAm))} rausgegangen</span>
-           <button type="button" class="mini-btn" id="es-btn-alle-zeigen">← zurück zum Stapel</button>
+           <button type="button" class="mini-btn" id="es-btn-alle-zeigen">← zurück zum Stapel${z.stapel.length ? " (" + z.stapel.length + ")" : ""}</button>
          </div>`
       : einzeln
       // Bewusst dieselbe Klasse wie die Radio-Zeile darunter: gleiche Zeile,
@@ -880,7 +880,12 @@ function esRenderSammelmail(z) {
          </div>`}
 
     ${!auswahl.length ? `
-      <p class="fr-leer-hinweis">Auf diesem Stand liegt gerade keine Bestellung.</p>
+      <p class="fr-leer-hinweis">${esMailAuswahl === "bezahlt" && stapelNeu
+        // ⚠️ „Keine Bestellung" ist hier nur die halbe Wahrheit: es liegen
+        // welche da, sie sind bloß nicht bezahlt. Ohne diesen Satz sieht es
+        // aus, als ginge gerade gar nichts.
+        ? "Keine bezahlte Bestellung im Stapel. Es " + (stapelNeu === 1 ? "wartet aber eine unbezahlte" : "warten aber " + stapelNeu + " unbezahlte") + " – nimm „auch unbezahlte“, wenn sie mit sollen."
+        : "Auf diesem Stand liegt gerade keine Bestellung."}</p>
     ` : `
       ${listeHtml}
 
@@ -898,7 +903,10 @@ function esRenderSammelmail(z) {
       ${zuLang ? `<p class="hinweis-text">⚠️ Der Text ist lang. Manche Mailprogramme schneiden ihn ab – wenn die Mail leer aufgeht, nimm „Text kopieren“ und füg ihn von Hand ein.</p>` : ""}
 
       ${runde
-        ? `<p class="hinweis-text">Diese Sammelbestellung ist schon raus. Der Text steht hier zum Nachlesen und zum Nachschicken – es entsteht daraus keine zweite Bestellung.</p>`
+        ? `<p class="hinweis-text">Diese Sammelbestellung ist schon raus. Der Text steht hier zum Nachlesen und zum Nachschicken – es entsteht daraus keine zweite Bestellung.</p>
+           ${!z.stapel.length ? "" : `
+             <button class="btn btn-secondary btn-grow" id="es-btn-naechste">Nächste Sammelbestellung: ${z.stapel.length} ${z.stapel.length === 1 ? "Bestellung wartet" : "Bestellungen warten"} im Stapel</button>
+             <p class="hinweis-text">Die nächste kann sofort raus – die vorige muss dafür nicht geliefert sein.</p>`}`
         : `<button class="btn btn-secondary btn-grow" id="es-btn-alle-bestellt">Ist raus – als „${escapeHtml(
              (z.meta && z.meta.titel ? z.meta.titel : "Bestellung") + " " + z.naechsteRundeNr
            )}“ festhalten</button>
@@ -920,6 +928,19 @@ function esRenderSammelmail(z) {
   if (zurueckBtn) zurueckBtn.addEventListener("click", () => {
     esMailAuswahl = "bezahlt";
     esRenderSammelmail(esZustand);
+  });
+
+  // Aus der Ansicht einer schon verschickten Runde direkt in die nächste.
+  // ⚠️ Der Weg dorthin war vorher nur der kleine Link ganz oben im Kasten –
+  // Michel am 2026-09-04: „Es muss möglich sein, eine weitere Sammelbestellung
+  // rauszujagen, obwohl die andere noch gar nicht da ist." Ging schon, war aber
+  // von hier aus nicht zu sehen.
+  const naechsteBtn = esEl("es-btn-naechste");
+  if (naechsteBtn) naechsteBtn.addEventListener("click", () => {
+    // Steht im Stapel nur Unbezahltes, sonst landet man auf einem leeren Kasten.
+    esMailAuswahl = esZustand.stapel.some((b) => b.status === "bezahlt") ? "bezahlt" : "offen";
+    esRenderSammelmail(esZustand);
+    esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
   });
 
   const alleBtn = esEl("es-btn-alle-bestellt");

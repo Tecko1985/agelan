@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.8",
+    groups: [
+      { title: "Essen: die nächste Sammelbestellung geht sofort", items: [
+          "Beim Nachlesen einer schon verschickten Sammelbestellung steht jetzt darunter, wie viele Bestellungen im Stapel warten – mit einem Knopf direkt in die nächste. Vorher war der Weg dorthin nur der kleine Link ganz oben im Kasten.",
+          "Dabei steht auch, dass die vorige dafür nicht geliefert sein muss. Es konnte schon immer eine zweite raus, man sah es nur nicht.",
+          "Liegt im Stapel nur Unbezahltes, hieß es „keine Bestellung“. Jetzt steht dort, wie viele unbezahlte warten und dass „auch unbezahlte“ sie mitnimmt."
+      ]}
+    ]
+  },
+  {
     version: "3.7",
     groups: [
       { title: "QR-Code zum Scannen", items: [
