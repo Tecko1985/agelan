@@ -10,12 +10,12 @@ let esBearbeitetesGerichtId = null;  // null = das Formular legt an, sonst ände
 let esImportVorschau = null;         // Ergebnis von parseImport(), wartet auf „Übernehmen"
 let esMailAuswahl = "bezahlt";       // welche Bestellungen in die Sammelmail gehen
 const esOffeneBestellungen = new Set();  // aufgeklappte Bestellungen im Admin-Bereich
-// Aufgeklappte Sammelbestellungen. ⚠️ Zwei Mengen, weil eine Runde beim ersten
-// Auftauchen offen sein soll, solange sie nicht fertig ist – zugeklappt bleibt
-// sie aber, wenn der Veranstalter sie selbst zugeklappt hat. Ohne das zweite
-// Set („schon mal gesehen") würde sie bei jedem Neuzeichnen wieder aufspringen.
+// Aufgeklappte Sammelbestellungen. ⚠️ Beim Laden LEER: alles ist zugeklappt,
+// und nur was der Veranstalter selbst aufklappt, landet hier. Bis zum
+// 04.09.2026 sprang jede nicht fertige Runde von allein auf; bei einem Abend
+// mit acht Lieferungen ist das eine Bildschirmlänge, durch die man erst
+// scrollen muss.
 const esOffeneRunden = new Set();
-const esGeseheneRunden = new Set();
 
 // Der Warenkorb. Lebt NUR hier im Speicher – erst „Bestellung abschicken"
 // schreibt ihn nach Firebase.
@@ -416,7 +416,7 @@ function esBestellungHtml(b) {
             p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
           ).join("<br>")}</div>
           ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
-          <div class="hinweis-text es-zeitstempel">Bestellt: ${escapeHtml(essenService.zeitLabel(b.erstelltAm))}</div>
+          <div class="hinweis-text es-zeitstempel">Bestellt: <b>${escapeHtml(essenService.zeitLabel(b.erstelltAm))}</b></div>
           <div class="es-best-aktionen">
             ${b.naechsterKnopf
               ? `<button type="button" class="mini-btn primary" data-es-weiter="${escapeHtml(b.id)}">${escapeHtml(b.naechsterKnopf)}</button>`
@@ -443,13 +443,11 @@ function esBestellungHtml(b) {
 // „Donnerstag 2" … Darin die Bestellungen, die in genau dieser Mail standen,
 // darüber die Rechnung für genau diese Lieferung.
 function esRundeHtml(r) {
-  // Beim ersten Auftauchen entscheidet der Stand: was noch nicht vollständig
-  // abgeholt ist, geht auf. Danach zählt nur noch, was der Veranstalter selbst
-  // auf- oder zugeklappt hat.
-  if (!esGeseheneRunden.has(r.id)) {
-    esGeseheneRunden.add(r.id);
-    if (!r.fertig) esOffeneRunden.add(r.id);
-  }
+  // ⚠️ Beim Laden ist ALLES zugeklappt (Michel am 04.09.2026: „beim erneuten
+  // aufrufen können die bestellungen gerne geschlossen sein"). `esOffeneRunden`
+  // ist beim Start leer und füllt sich nur durch echtes Aufklappen. Deshalb
+  // müssen die Zahlen, auf die es beim Überfliegen ankommt – Uhrzeit, wie viele
+  // schon abgeholt, was zu zahlen ist – in die zugeklappte Zeile.
   const note = [];
   if (r.orgaCent) {
     note.push("Warenwert " + essenService.centLabel(r.summeCent) + " – davon " +
@@ -461,11 +459,12 @@ function esRundeHtml(r) {
     <details class="es-runde status-${r.fertig ? "abgeholt" : "bestellt"}${r.fertig ? " fertig" : ""}" data-es-runde="${escapeHtml(r.id)}"${esOffeneRunden.has(r.id) ? " open" : ""}>
       <summary>
         <span class="es-runde-icon" aria-hidden="true">${r.fertig ? "✅" : "📦"}</span>
-        <span class="es-runde-name">${escapeHtml(r.titel)}</span>
+        <span class="es-runde-name">${escapeHtml(r.titel)}
+          <span class="es-runde-zeit">${escapeHtml(essenService.zeitLabel(r.erstelltAm))}</span></span>
         <span class="es-runde-kurz">${r.abgeholt}/${r.anzahl} abgeholt · ${essenService.centLabel(r.zahltCent)}</span>
       </summary>
       <div class="es-runde-inhalt">
-        <p class="hinweis-text es-zeitstempel">Rausgeschickt: ${escapeHtml(essenService.zeitLabel(r.erstelltAm))} ·
+        <p class="hinweis-text es-zeitstempel">Rausgeschickt: <b>${escapeHtml(essenService.zeitLabel(r.erstelltAm))}</b> ·
           ${r.anzahl} Bestellung${r.anzahl === 1 ? "" : "en"}, ${r.stueck}× Essen</p>
         <div class="fr-summe-zeile es-geldzeile">
           <span>Zu zahlen für diese Lieferung</span>

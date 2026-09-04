@@ -1184,7 +1184,11 @@ main#app.sk-breit { max-width: 980px; }
 .es-admin-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .es-admin-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .es-admin-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
-.es-zeitstempel { margin-top: 6px; font-size: 12px; min-height: 0; }
+/* Datum und Uhrzeit sind beim Abrechnen das, wonach man sucht – 12 px waren
+   Michel zu klein (04.09.2026). Jetzt so groß wie der übrige Hinweistext, die
+   Zeitangabe selbst hervorgehoben. */
+.es-zeitstempel { margin-top: 6px; font-size: 14px; min-height: 0; }
+.es-zeitstempel b { color: var(--text); font-weight: 600; }
 
 /* --- Sammelbestellungen („Donnerstag 1", „Donnerstag 2" …) --- */
 .es-gruppe-titel { margin: 18px 0 8px; }
@@ -1203,6 +1207,11 @@ main#app.sk-breit { max-width: 980px; }
 .es-runde > summary::-webkit-details-marker { display: none; }
 .es-runde-icon { flex: 0 0 auto; }
 .es-runde-name { flex: 1 1 auto; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ⚠️ Die Uhrzeit gehört in die ZUGEKLAPPTE Zeile: seit die Runden geschlossen
+   starten, ist sie sonst erst nach einem Klick zu sehen – und genau danach
+   sucht man, wenn mehrere Lieferungen am selben Abend rausgegangen sind.
+   Eigene Zeile unter dem Namen, damit sie am Handy nichts wegdrückt. */
+.es-runde-zeit { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
 .es-runde-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .es-runde-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
 .es-runde-knoepfe { margin-bottom: 10px; }

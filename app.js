@@ -1271,6 +1271,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.0",
+    groups: [
+      { title: "Essen: Lieferungen starten zugeklappt", items: [
+          "Nach dem Neuladen sind alle Sammelbestellungen zu. Vorher sprang jede noch nicht abgeholte von allein auf – bei mehreren Lieferungen am Abend war das eine Bildschirmlänge zum Durchscrollen.",
+          "Damit man trotzdem sieht, worauf es ankommt, steht Datum und Uhrzeit jetzt schon in der zugeklappten Zeile – neben „0/2 abgeholt“ und dem Betrag.",
+          "Was du aufklappst, bleibt offen, auch wenn nebenbei jemand bestellt."
+      ]},
+      { title: "Datum und Uhrzeit größer", items: [
+          "„Rausgeschickt: 04.09., 12:27“ und „Bestellt: …“ waren sehr klein. Sie sind jetzt so groß wie der übrige Text, die Zeitangabe selbst hervorgehoben."
+      ]}
+    ]
+  },
+  {
     version: "3.9",
     groups: [
       { title: "Discord-Nachricht sagt jetzt auch, was man bestellt hat", items: [
