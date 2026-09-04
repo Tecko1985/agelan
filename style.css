@@ -950,7 +950,9 @@ main#app.sk-breit { max-width: 980px; }
    der Punkt der ganzen Übung - sie MUSS auffallen. Sonst hält der Veranstalter
    alle für informiert, und wer keine Nachricht bekam, holt sein Essen nie ab. */
 /* --- QR zum Scannen ------------------------------------------------------- */
-.qr-box { max-width: 420px; }
+/* ⚠️ Wie beim Konto-Dialog: am Handy QUER (375 px hoch) passt der Kasten sonst
+   nicht aufs Bild - er muss IN SICH scrollen, nicht die Seite dahinter. */
+.qr-box { max-width: 420px; max-height: 92vh; overflow-y: auto; }
 /* ⚠️ FEST hell, auch im Dunkelmodus - der QR wird sonst dunkel auf dunkel und
    ist für keine Handy-Kamera mehr lesbar. Der weiße Rand ringsum ist kein
    Zierrat, sondern die Ruhezone, die ein Scanner zum Finden braucht. */
@@ -967,7 +969,21 @@ main#app.sk-breit { max-width: 980px; }
   font-size: 13px;
   text-align: center;
 }
+/* Das SVG bringt nur eine viewBox mit, keine eigene Größe - Breite und
+   Höhe kommen von hier. Am 04.09.2026 gemessen: 320 × 320 am Rechner, am
+   schmalen Handy entsprechend kleiner. */
 .qr-flaeche svg { display: block; width: 100%; height: auto; max-width: 320px; }
+/* ⚠️ Am Handy quer ist die HÖHE der Engpass, nicht die Breite: von 375 px
+   Bildhöhe fräße ein 320-px-QR fast alles auf, und Kopfzeile wie Schließen-Knopf
+   rägen aus dem Bild. Gemessen am 04.09.2026: vorher 81 px oben UND unten
+   draußen. Bewusst per Media-Query statt `min()` - das gibt es auf älteren
+   iPhones nicht, und auf einer LAN steht so eins garantiert dabei. */
+@media (max-height: 560px) {
+  .qr-flaeche { min-height: 0; padding: 8px; margin: 4px 0 6px; }
+  .qr-flaeche svg { max-width: 190px; }
+  .qr-box .pw-text { margin-bottom: 4px; font-size: 13px; }
+}
+
 .qr-adresse {
   margin: 0;
   font-size: 12px;

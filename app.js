@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.7",
+    groups: [
+      { title: "QR-Code zum Scannen", items: [
+          "Rechts in der Reiterleiste gibt es einen Knopf mit einem QR-Symbol. Er zeigt einen großen QR-Code, der auf genau diese Seite führt – zum Hinhalten, damit andere ihn mit der Handy-Kamera scannen können.",
+          "Darunter steht die Adresse im Klartext. Geht der Code mal nicht (schlechtes Licht, alte Kamera), tippt man sie eben ab.",
+          "Der Knopf ist für alle da, nicht nur für Veranstalter – so kann jede:r einem Kumpel die Seite zeigen."
+      ]}
+    ]
+  },
+  {
     version: "3.6",
     groups: [
       { title: "Essen: Statistik zum Aufklappen", items: [
