@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=3.4">
+<link rel="stylesheet" href="style.css?v=3.6">
 </head>
 <body>
 
@@ -192,6 +192,22 @@
   </div>
 </div>
 
+<!-- ============ QR zum Scannen ============ -->
+<!-- ⚠️ Der QR-Bereich ist FEST hell, auch im Dunkelmodus. Ein dunkler QR auf
+     dunklem Grund ist für jede Handy-Kamera unlesbar - das fällt beim Bauen nicht
+     auf, weil man selten im Dunkelmodus testet, und auf der LAN dann sofort. -->
+<div id="qr-gate" class="pw-overlay" hidden>
+  <div class="pw-box qr-box">
+    <h2 class="pw-titel">Seite zum Scannen</h2>
+    <p class="pw-text">Handy-Kamera drauf halten – dann geht die AgeLan auf.</p>
+    <div class="qr-flaeche" id="qr-flaeche"></div>
+    <!-- Die Adresse steht darunter im Klartext: geht der QR nicht (schlechtes
+         Licht, alte Kamera, Bibliothek nicht geladen), tippt man sie eben ab. -->
+    <p class="qr-adresse" id="qr-adresse"></p>
+    <button id="qr-zurueck" type="button" class="pw-zurueck">Schließen</button>
+  </div>
+</div>
+
 <header class="kopfzeile">
   <div class="kopfzeile-left">
     <!-- Führt zurück aufs Dashboard mit den Kacheln. Als <button>, nicht als
@@ -226,6 +242,13 @@
   <!-- Nur fuer Veranstalter. Versteckt per hidden, eingeblendet in app.js,
        sobald das Konto das Merkmal traegt. -->
   <button data-tab="einstellungen" id="nav-einstellungen" hidden>Einstellungen</button>
+  <!-- Zum Herumzeigen auf der LAN: der QR führt auf genau diese Seite.
+       ⚠️ Bewusst für ALLE sichtbar, nicht nur für Veranstalter - jede:r soll
+       einem Kumpel die Seite zeigen können, und geheim ist die Adresse nicht.
+       Kein data-tab: der Knopf wechselt keinen Reiter, er öffnet einen Dialog. -->
+  <button type="button" id="nav-qr" title="QR-Code zum Scannen zeigen" aria-label="QR-Code zeigen">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm8-2h3v3h-3v-3zm5 0h3v3h-3v-3zm-5 5h3v3h-3v-3zm5 0h3v3h-3v-3z"/></svg>
+  </button>
 </nav>
 
 <main id="app">
@@ -843,6 +866,10 @@
         <p class="hinweis-text fehler" id="es-admin-fehler"></p>
       </div>
 
+      <!-- Statistik. Zugeklappt, weil sie zum Arbeiten nicht gebraucht wird -
+           aufgeklappt bleibt sie ueber ein Neuzeichnen hinweg offen. -->
+      <div class="karte-block" id="es-statistik"></div>
+
       <div class="karte-block" id="es-sammelmail"></div>
 
       <div class="karte-block">
@@ -1106,13 +1133,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.8',
+    'app.js?v=3.9',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',
     'fruehstueck-app.js?v=1.5',
-    'essen-service.js?v=1.5',
-    'essen-app.js?v=1.7'
+    'essen-service.js?v=1.6',
+    'essen-app.js?v=1.8'
   ];
 
   var input = document.getElementById('pw-gate-input');
@@ -1417,6 +1444,72 @@
   var kopfKonto = document.getElementById('kopf-konto');
   if (kopfKonto) kopfKonto.addEventListener('click', oeffneKonto);
 
+  // --- QR zum Herumzeigen ---------------------------------------------------
+  var qrGate    = document.getElementById('qr-gate');
+  var qrFlaeche = document.getElementById('qr-flaeche');
+  var qrAdrEl   = document.getElementById('qr-adresse');
+  var qrLaeuft  = false;
+
+  // \u26a0\ufe0f Beim Entwickeln steht hier localhost. Ein QR darauf f\u00fchrt am Handy ins
+  // Leere - und das merkt man erst, wenn jemand davorsteht und scannt.
+  function qrAdresse() {
+    var o = String(location.origin || '');
+    if (!o || o.indexOf('localhost') >= 0 || o.indexOf('127.0.0.1') >= 0 || o.indexOf('file:') === 0) {
+      return 'https://tecko1985.github.io/agelan/';
+    }
+    return o + location.pathname;
+  }
+
+  // Die Bibliothek kommt erst beim ersten Klick, nicht beim Seitenstart: sie
+  // wird selten gebraucht und soll den Aufbau nicht aufhalten.
+  function qrLade() {
+    if (window.qrcode) return Promise.resolve(true);
+    return new Promise(function (fertig) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+      s.onload = function () { fertig(!!window.qrcode); };
+      s.onerror = function () { fertig(false); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function oeffneQr() {
+    var adresse = qrAdresse();
+    qrAdrEl.textContent = adresse;
+    qrGate.hidden = false;
+    if (qrFlaeche.getAttribute('data-fuer') === adresse) return;   // schon gezeichnet
+    qrFlaeche.textContent = 'Einen Moment \u2026';
+    if (qrLaeuft) return;
+    qrLaeuft = true;
+    qrLade().then(function (da) {
+      qrLaeuft = false;
+      if (!da) {
+        // Kein Drama: die Adresse steht darunter und ist abtippbar.
+        qrFlaeche.textContent = 'Das Bild l\u00e4sst sich gerade nicht laden. Die Adresse steht darunter.';
+        return;
+      }
+      try {
+        // Typ 0 = kleinste passende Gr\u00f6\u00dfe, "M" = mittlere Fehlerkorrektur.
+        var qr = window.qrcode(0, 'M');
+        qr.addData(adresse);
+        qr.make();
+        // Als SVG statt als Bild: skaliert ohne Treppen, egal wie gro\u00df der
+        // Dialog gerade ist.
+        qrFlaeche.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 });
+        qrFlaeche.setAttribute('data-fuer', adresse);
+      } catch (e) {
+        qrFlaeche.textContent = 'Der Code lie\u00df sich nicht erzeugen. Die Adresse steht darunter.';
+      }
+    });
+  }
+
+  function schliesseQr() { qrGate.hidden = true; }
+
+  var qrKnopf = document.getElementById('nav-qr');
+  if (qrKnopf) qrKnopf.addEventListener('click', oeffneQr);
+  document.getElementById('qr-zurueck').addEventListener('click', schliesseQr);
+  qrGate.addEventListener('click', function (e) { if (e.target === qrGate) schliesseQr(); });
+
   // --- Verdrahtung ----------------------------------------------------------
   Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
     k.addEventListener('click', function () { oeffneBereich(k.getAttribute('data-hub-ziel')); });
@@ -1438,6 +1531,7 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    if (!qrGate.hidden) { schliesseQr(); return; }
     if (!kontoGate.hidden) { schliesseKonto(); return; }
     if (!gate.hidden) { schliesseGate(); return; }
     // Das Dashboard lässt sich nur schließen, wenn dahinter auch etwas liegt.

@@ -287,6 +287,12 @@ nav.tabs button.active { color: var(--primary); border-bottom-color: var(--prima
    nicht als style-Attribut am Knopf, damit die Handy-Regel weiter unten sie ohne
    !important zurücknehmen kann. */
 nav.tabs button#nav-einstellungen { margin-left: auto; }
+/* Der QR-Knopf sitzt ganz rechts. ⚠️ Ist "Einstellungen" versteckt (alle außer
+   dem Veranstalter), muss ER den Abstand übernehmen - sonst klebt er an
+   "Essen", als wäre er ein weiterer Reiter. */
+nav.tabs button#nav-qr { display: flex; align-items: center; margin-left: 4px; }
+nav.tabs button#nav-einstellungen[hidden] + button#nav-qr { margin-left: auto; }
+nav.tabs button#nav-qr:hover { color: var(--primary); }
 /* ⚠️ Mit dem vierten Reiter „Einstellungen" wird die Leiste auf 375 px 385 px
    breit – und weil nav.tabs kein overflow setzt, scrollt die GANZE SEITE
    seitlich. Trifft nur Veranstalter, die als Einzige den vierten Reiter sehen.
@@ -301,6 +307,10 @@ nav.tabs button#nav-einstellungen { margin-left: auto; }
   nav.tabs { padding-left: 6px; padding-right: 6px; flex-wrap: wrap; row-gap: 0; }
   nav.tabs button { padding-left: 9px; padding-right: 9px; font-size: 13px; }
   nav.tabs button#nav-einstellungen { margin-left: 0; }
+  /* Am Handy bricht die Leiste ohnehin um; ein zweiter Rechtsschub würde den
+     QR-Knopf allein in eine dritte Zeile treiben. */
+  nav.tabs button#nav-qr,
+  nav.tabs button#nav-einstellungen[hidden] + button#nav-qr { margin-left: 0; }
 }
 .tab-section { display: none; }
 .tab-section.active { display: block; }
@@ -939,6 +949,34 @@ main#app.sk-breit { max-width: 980px; }
 /* Ergebnis eines Bescheid-Laufs an einer Lieferung. ⚠️ Die Nachfassliste ist
    der Punkt der ganzen Übung - sie MUSS auffallen. Sonst hält der Veranstalter
    alle für informiert, und wer keine Nachricht bekam, holt sein Essen nie ab. */
+/* --- QR zum Scannen ------------------------------------------------------- */
+.qr-box { max-width: 420px; }
+/* ⚠️ FEST hell, auch im Dunkelmodus - der QR wird sonst dunkel auf dunkel und
+   ist für keine Handy-Kamera mehr lesbar. Der weiße Rand ringsum ist kein
+   Zierrat, sondern die Ruhezone, die ein Scanner zum Finden braucht. */
+.qr-flaeche {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  margin: 6px 0 10px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  text-align: center;
+}
+.qr-flaeche svg { display: block; width: 100%; height: auto; max-width: 320px; }
+.qr-adresse {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+  word-break: break-all;
+}
+
 .es-bescheid { margin: 8px 0 4px; line-height: 1.5; }
 .es-bescheid-lauf { margin: 8px 0 4px; opacity: 0.8; }
 .es-bescheid-luecke {
@@ -1170,6 +1208,39 @@ main#app.sk-breit { max-width: 980px; }
 }
 @media (prefers-color-scheme: dark) {
   .es-altbestand-note { color: #f0c46b; }
+}
+
+/* --- Statistik: wer am meisten bestellt hat --- */
+.es-statistik > summary {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; list-style: none;
+}
+.es-statistik > summary::-webkit-details-marker { display: none; }
+.es-statistik-icon { flex: 0 0 auto; }
+.es-statistik-titel { flex: 1 1 auto; font-size: 13px; font-weight: 600; color: var(--muted); }
+.es-statistik-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.es-statistik-inhalt { margin-top: 4px; }
+.es-statistik-inhalt .feld-label { margin-top: 14px; }
+
+.es-stat-zeile { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; }
+.es-stat-platz { flex: 0 0 26px; text-align: center; font-size: 14px; color: var(--muted); }
+/* ⚠️ `min-width: 0` ist Pflicht, sonst sprengt ein langer Name die Zeile,
+   statt dass der Balken darunter schrumpft. */
+.es-stat-mitte { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.es-stat-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-stat-orga { color: var(--success); }
+.es-stat-detail { font-size: 12px; color: var(--muted); }
+.es-stat-balken { display: block; height: 5px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.es-stat-balken > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+/* Die Zahl darf nie mitten im Betrag umbrechen. */
+.es-stat-wert { flex: 0 0 auto; font-size: 13px; font-weight: 700; white-space: nowrap; }
+/* ⚠️ `--primary` (#1a56a0) ist im Dunkelmodus NICHT umdefiniert und steht auf
+   der Balkenspur (#334155) bei 1.42 – der Balken war schlicht nicht zu sehen.
+   Gemessen am 2026-09-04. Dieselbe Aufhellung wie bei `.status-bezahlt`.
+   ⚠️ Muss NACH der Grundregel stehen: gleiche Spezifitaet, da gewinnt die
+   spaetere Regel. Zuerst stand der Block davor und wirkte nicht. */
+@media (prefers-color-scheme: dark) {
+  .es-stat-balken > i { background: #7fb3f5; }
 }
 
 /* --- Sammelmail --- */

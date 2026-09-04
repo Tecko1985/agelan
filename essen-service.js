@@ -531,6 +531,94 @@ function esNaechsteRundeNr() {
   return hoechste + 1;
 }
 
+// ===========================================================================
+// Statistik: wer am meisten bestellt hat, was am meisten bestellt wurde
+// ===========================================================================
+//
+// ⚠️ Gruppiert nach NAMEN, nicht nach `uid`. Der Name kommt aus dem
+// angemeldeten Konto und ist auf der Veranstaltung eindeutig; die `uid` waere
+// hier die schlechtere Wahl, weil dieselbe Person auf Handy und Notebook zwei
+// davon hat und dann zweimal in der Liste stuende. Derselbe Schluessel wie beim
+// Discord-Sammelversand.
+//
+// ⚠️ Die Betraege sind WARENWERT, nicht das kassierte Geld. Die Frage ist „wer
+// hat am meisten bestellt", nicht „wer hat am meisten bezahlt" – Orga-Essen
+// zaehlt mit und steht als Marke daneben. Wer das verwechselt, liest die Liste
+// als Kassenstand.
+// ⚠️ Gleicher Wert heisst gleicher Platz, und der naechste Platz ueberspringt
+// die geteilten. Ohne das haette bei zwei Leuten mit je vier Bestellungen einer
+// „Platz 2" und koennte sich zu Recht beschweren. Die Liste muss schon sortiert
+// sein.
+function esPlaetzeSetzen(liste) {
+  let platz = 0;
+  let vorher = null;
+  liste.forEach((eintrag, i) => {
+    if (eintrag.anzahl !== vorher) { platz = i + 1; vorher = eintrag.anzahl; }
+    eintrag.platz = platz;
+  });
+}
+
+function esStatistik(bestellungen, runden) {
+  const liste = bestellungen || [];
+
+  const nachPerson = new Map();
+  liste.forEach((b) => {
+    const schluessel = b.name.trim().toLowerCase();
+    if (!schluessel) return;
+    if (!nachPerson.has(schluessel)) {
+      nachPerson.set(schluessel, {
+        name: b.name.trim(),
+        anzahl: 0, stueck: 0, summeCent: 0, zahltCent: 0, orgaAnzahl: 0,
+      });
+    }
+    const p = nachPerson.get(schluessel);
+    p.anzahl += 1;
+    p.stueck += b.stueck;
+    p.summeCent += b.summeCent;
+    p.zahltCent += b.zahltCent;
+    if (b.orga) p.orgaAnzahl += 1;
+  });
+
+  const leute = Array.from(nachPerson.values());
+  leute.sort((a, b) =>
+    (b.anzahl - a.anzahl) || (b.stueck - a.stueck) ||
+    (b.summeCent - a.summeCent) || a.name.localeCompare(b.name)
+  );
+  esPlaetzeSetzen(leute);
+
+  const nachGericht = new Map();
+  liste.forEach((b) => b.positionen.forEach((pos) => {
+    // ⚠️ Ohne den Sonderwunsch im Schluessel: „Pommes" und „Pommes mit
+    // Spezialsosse" sind hier EIN Gericht. Anders als in der Sammelliste fuer
+    // die Kueche – dort sind es zwei Dinge, hier zaehlt, was gegessen wurde.
+    const schluessel = pos.gerichtId || pos.name.toLowerCase();
+    if (!nachGericht.has(schluessel)) {
+      nachGericht.set(schluessel, { name: pos.name, anzahl: 0, summeCent: 0 });
+    }
+    const g = nachGericht.get(schluessel);
+    g.anzahl += pos.anzahl;
+    g.summeCent += pos.summeCent;
+  }));
+  const gerichte = Array.from(nachGericht.values());
+  gerichte.sort((a, b) => (b.anzahl - a.anzahl) || a.name.localeCompare(b.name));
+  // ⚠️ Auch hier gleicher Wert = gleicher Platz. Beim Bauen stand „5x Pommes"
+  // auf Gold und „5x Salami" auf Silber, obwohl beide gleich oft bestellt
+  // wurden – der Unterschied war allein die alphabetische Reihenfolge.
+  esPlaetzeSetzen(gerichte);
+
+  return {
+    leute,
+    gerichte,
+    anzahlBestellungen: liste.length,
+    anzahlLeute: leute.length,
+    anzahlStueck: liste.reduce((s, b) => s + b.stueck, 0),
+    summeCent: liste.reduce((s, b) => s + b.summeCent, 0),
+    zahltCent: liste.reduce((s, b) => s + b.zahltCent, 0),
+    anzahlRunden: (runden || []).length,
+    spitzenwert: leute.length ? leute[0].anzahl : 0,
+  };
+}
+
 function esGetZustand() {
   const meta = (esRoh && esRoh.meta) || null;
   if (!meta || !meta.titel) {
@@ -1385,6 +1473,7 @@ const essenService = {
   loeschePlan: esLoeschePlan,
   authentifiziereAlsAdmin: esAuthentifiziereAlsAdmin,
   sammelliste: esSammelliste,
+  statistik: esStatistik,
   bestelltext: esBestelltext,
   centLabel: esCentLabel,
   zeitLabel: esZeitLabel,

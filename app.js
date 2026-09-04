@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.6",
+    groups: [
+      { title: "Essen: Statistik zum Aufklappen", items: [
+          "Über der Sammelbestellung gibt es einen zugeklappten Kasten <b>📊 Statistik</b>. Er zeigt, wer die meisten Bestellungen aufgegeben hat – mit Platz, Balken, Anzahl der Bestellungen, Stückzahl und Warenwert.",
+          "Darunter dieselbe Liste für die Gerichte: was am häufigsten bestellt wurde.",
+          "Gleiche Zahl heißt gleicher Platz. Wer zur Organisation gehört, bekommt ein 🛠 an den Namen.",
+          "Die Beträge sind der Warenwert, nicht das kassierte Geld – Orga-Essen zählt mit. Steht auch so darunter."
+      ]}
+    ]
+  },
+  {
     version: "3.5",
     groups: [
       { title: "Essen: Bestellungen ohne Sammelbestellung stehen jetzt richtig", items: [

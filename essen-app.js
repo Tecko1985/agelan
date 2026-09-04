@@ -386,7 +386,7 @@ function esRenderAdmin(z) {
     // Bestellungen und den Mailtext im DOM stehen – ein Blick in die
     // Entwicklerwerkzeuge liest sie mit. Wer die Karte nicht verwalten darf,
     // bekommt diese Kästen deshalb geleert, nicht nur unsichtbar.
-    ["es-admin-bestellungen", "es-sammelmail", "es-karte-verwalten"].forEach((id) => {
+    ["es-admin-bestellungen", "es-statistik", "es-sammelmail", "es-karte-verwalten"].forEach((id) => {
       const el = esEl(id);
       if (el) el.innerHTML = "";
     });
@@ -394,6 +394,7 @@ function esRenderAdmin(z) {
   }
 
   esRenderAdminBestellungen(z);
+  esRenderStatistik(z);
   esRenderSammelmail(z);
   esRenderKarteVerwalten(z);
   esRenderEinstellungen(z);
@@ -701,6 +702,74 @@ function esRenderAdminBestellungen(z) {
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
+}
+
+// --- Statistik ----------------------------------------------------------------
+
+// Zugeklappt, weil sie zum Arbeiten nicht gebraucht wird. ⚠️ Der Zustand liegt
+// hier und nicht am Element: der Kasten wird bei jeder Änderung neu gezeichnet
+// und spränge sonst bei jeder fremden Bestellung wieder zu.
+let esStatistikOffen = false;
+
+function esRenderStatistik(z) {
+  const box = esEl("es-statistik");
+  if (!box) return;
+  if (!z.bestellungen.length) {
+    box.innerHTML = `<p class="feld-label">Statistik</p>
+      <p class="fr-leer-hinweis">Sobald bestellt wird, steht hier, wer vorn liegt.</p>`;
+    return;
+  }
+
+  const st = essenService.statistik(z.bestellungen, z.runden);
+  // Der Balken macht den Abstand sichtbar. ⚠️ Prozent vom Spitzenwert, nicht von
+  // der Gesamtzahl – sonst sind bei zehn Leuten alle Balken gleich kurz.
+  const balken = (wert) => Math.max(4, Math.round((wert / (st.spitzenwert || 1)) * 100));
+  const medaille = ["🥇", "🥈", "🥉"];
+
+  box.innerHTML = `
+    <details class="es-statistik"${esStatistikOffen ? " open" : ""}>
+      <summary>
+        <span class="es-statistik-icon" aria-hidden="true">📊</span>
+        <span class="es-statistik-titel">Statistik</span>
+        <span class="es-statistik-kurz">${st.anzahlBestellungen} Bestellung${st.anzahlBestellungen === 1 ? "" : "en"} von ${st.anzahlLeute} ${st.anzahlLeute === 1 ? "Person" : "Leuten"}</span>
+      </summary>
+      <div class="es-statistik-inhalt">
+        <p class="feld-label">Wer am meisten bestellt hat</p>
+        ${st.leute.map((p) => `
+          <div class="es-stat-zeile">
+            <span class="es-stat-platz">${p.platz <= 3 ? medaille[p.platz - 1] : p.platz + "."}</span>
+            <span class="es-stat-mitte">
+              <span class="es-stat-name">${escapeHtml(p.name)}${p.orgaAnzahl ? ` <span class="es-stat-orga" title="${p.orgaAnzahl} davon auf die Organisation">🛠</span>` : ""}</span>
+              <span class="es-stat-balken"><i style="width:${balken(p.anzahl)}%"></i></span>
+              <span class="es-stat-detail">${p.anzahl} Bestellung${p.anzahl === 1 ? "" : "en"} · ${p.stueck}× Essen</span>
+            </span>
+            <span class="es-stat-wert">${essenService.centLabel(p.summeCent)}</span>
+          </div>`).join("")}
+
+        <p class="feld-label">Was am meisten bestellt wurde</p>
+        ${st.gerichte.map((g) => `
+          <div class="es-stat-zeile">
+            <span class="es-stat-platz">${g.platz <= 3 ? medaille[g.platz - 1] : g.platz + "."}</span>
+            <span class="es-stat-mitte">
+              <span class="es-stat-name">${escapeHtml(g.name)}</span>
+              <span class="es-stat-balken"><i style="width:${Math.max(4, Math.round((g.anzahl / (st.gerichte[0].anzahl || 1)) * 100))}%"></i></span>
+              <span class="es-stat-detail">${g.anzahl}× bestellt</span>
+            </span>
+            <span class="es-stat-wert">${essenService.centLabel(g.summeCent)}</span>
+          </div>`).join("")}
+
+        <div class="fr-summe-zeile es-geldzeile">
+          <span>${st.anzahlStueck}× Essen${st.anzahlRunden
+            ? " in " + st.anzahlRunden + " Lieferung" + (st.anzahlRunden === 1 ? "" : "en")
+            : ", noch nichts rausgeschickt"}</span>
+          <span><b>${essenService.centLabel(st.summeCent)}</b></span>
+        </div>
+        <p class="hinweis-text es-geldnote">Die Beträge sind der <b>Warenwert</b>, nicht das kassierte Geld – Orga-Essen (🛠) zählt mit.</p>
+      </div>
+    </details>`;
+
+  const d = box.querySelector("details");
+  if (d) d.addEventListener("toggle", () => { esStatistikOffen = d.open; });
 }
 
 // --- Sammelbestellung + E-Mail -----------------------------------------------
