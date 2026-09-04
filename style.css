@@ -1119,6 +1119,30 @@ main#app.sk-breit { max-width: 980px; }
 .es-admin-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
 .es-zeitstempel { margin-top: 6px; font-size: 12px; min-height: 0; }
 
+/* --- Sammelbestellungen („Donnerstag 1", „Donnerstag 2" …) --- */
+.es-gruppe-titel { margin: 18px 0 8px; }
+/* ⚠️ Farbe über `--es-farbe` aus den Status-Klassen, nicht fest verdrahtet –
+   sonst zieht die Runde die Umstellung auf Dunkelmodus nicht mit. */
+.es-runde {
+  border: 1px solid var(--border); border-left: 4px solid var(--es-farbe, var(--muted));
+  border-radius: var(--radius-sm); margin-bottom: 10px; background: var(--card-bg);
+}
+/* Ist alles abgeholt, ist die Runde erledigt und tritt zurück. */
+.es-runde.fertig { opacity: 0.85; }
+.es-runde > summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 12px; cursor: pointer; list-style: none;
+}
+.es-runde > summary::-webkit-details-marker { display: none; }
+.es-runde-icon { flex: 0 0 auto; }
+.es-runde-name { flex: 1 1 auto; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-runde-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.es-runde-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
+.es-runde-knoepfe { margin-bottom: 10px; }
+/* Die Bestellungen INNERHALB einer Runde sind ihr untergeordnet – sonst sieht
+   die verschachtelte Liste aus wie zwei Listen nebeneinander. */
+.es-runde-inhalt .es-admin-best { margin-left: 10px; }
+
 /* --- Sammelmail --- */
 .es-mail-wahl { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 14px; }
 .es-mail-wahl label { display: flex; align-items: center; gap: 6px; cursor: pointer; }

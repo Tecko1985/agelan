@@ -1271,6 +1271,23 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.3",
+    groups: [
+      { title: "Essen: jede Sammelbestellung für sich", items: [
+          "Geht eine Bestellung an den Lieferanten raus, wird daraus eine eigene Sammelbestellung mit Namen und Nummer – „Donnerstag 1“, „Donnerstag 2“, und am nächsten Tag „Freitag 1“. An einem Tag können beliebig viele rausgehen, zu verschiedenen Uhrzeiten.",
+          "Die Veranstalter-Liste ist danach zweigeteilt: oben der Stapel, der noch nicht raus ist, darunter jede verschickte Sammelbestellung mit den Bestellungen, die wirklich in dieser Mail standen.",
+          "Jede Sammelbestellung rechnet für sich ab: was für diese Lieferung zu zahlen ist, was davon auf die Organisation geht und was noch zu kassieren ist.",
+          "Ein Knopf schaltet eine ganze Lieferung auf „abgeholt“, wenn das Essen da ist und alle es geholt haben. Einzeln geht es weiter wie bisher.",
+          "Der Mailtext einer schon verschickten Sammelbestellung lässt sich jederzeit wieder aufrufen – zum Nachlesen oder zum Nachschicken.",
+          "Eine Bestellung, die schon in einer Mail steht, kann nicht in eine zweite rutschen. Wer sie hinter „bestellt“ zurücksetzt, holt sie aus der Sammelbestellung heraus und kann sie neu mitschicken.",
+          "Nummern werden nie zweimal vergeben, auch wenn eine Sammelbestellung wieder leer wird."
+      ]},
+      { title: "Bleibt, wo man war", items: [
+          "Nach dem Neuladen öffnet die App wieder den Bereich, in dem man zuletzt war, und springt nicht mehr aufs Turnier zurück."
+      ]}
+    ]
+  },
+  {
     version: "3.2",
     groups: [
       { title: "Bestellzeiten: ein Fenster, in dem bestellt werden kann", items: [
@@ -1631,9 +1648,18 @@ const APP_CHANGELOG = [
   }
 ];
 
+// ⚠️ Der zuletzt geöffnete Bereich wird gemerkt. Ohne das landet jedes
+// Neuladen wieder im Turnier – wer gerade Essen abrechnet, muss sich nach
+// jedem F5 neu durchklicken. Das Gate liest den Wert beim Start aus, siehe
+// index.html.
+const AGELAN_TAB_KEY = "agelan_tab";
+
 function activateTab(name) {
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
+  try {
+    localStorage.setItem(AGELAN_TAB_KEY, name);
+  } catch (e) { /* privater Modus: dann startet es eben wieder im Turnier */ }
 }
 
 function renderVersionInfo() {

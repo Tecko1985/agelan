@@ -10,6 +10,12 @@ let esBearbeitetesGerichtId = null;  // null = das Formular legt an, sonst ände
 let esImportVorschau = null;         // Ergebnis von parseImport(), wartet auf „Übernehmen"
 let esMailAuswahl = "bezahlt";       // welche Bestellungen in die Sammelmail gehen
 const esOffeneBestellungen = new Set();  // aufgeklappte Bestellungen im Admin-Bereich
+// Aufgeklappte Sammelbestellungen. ⚠️ Zwei Mengen, weil eine Runde beim ersten
+// Auftauchen offen sein soll, solange sie nicht fertig ist – zugeklappt bleibt
+// sie aber, wenn der Veranstalter sie selbst zugeklappt hat. Ohne das zweite
+// Set („schon mal gesehen") würde sie bei jedem Neuzeichnen wieder aufspringen.
+const esOffeneRunden = new Set();
+const esGeseheneRunden = new Set();
 
 // Der Warenkorb. Lebt NUR hier im Speicher – erst „Bestellung abschicken"
 // schreibt ihn nach Firebase.
@@ -393,6 +399,89 @@ function esRenderAdmin(z) {
   esRenderEinstellungen(z);
 }
 
+// Eine einzelne Bestellung als aufklappbarer Kasten. Wird an zwei Stellen
+// gebraucht – im Stapel und innerhalb einer Runde – und steht deshalb einmal
+// hier statt zweimal im selben Aufbau.
+function esBestellungHtml(b) {
+  return `
+      <details class="es-admin-best status-${escapeHtml(b.status)}" data-es-offen="${escapeHtml(b.id)}"${esOffeneBestellungen.has(b.id) ? " open" : ""}>
+        <summary>
+          <span class="es-status-punkt" aria-hidden="true"></span>
+          <span class="es-admin-name">${escapeHtml(b.name)}</span>
+          <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)}${b.orga ? " 🛠" : ""} · ${escapeHtml(b.statusKurz)}</span>
+        </summary>
+        <div class="es-admin-inhalt">
+          <div class="es-best-positionen">${b.positionen.map((p) =>
+            p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
+          ).join("<br>")}</div>
+          ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
+          <div class="hinweis-text es-zeitstempel">Bestellt: ${escapeHtml(essenService.zeitLabel(b.erstelltAm))}</div>
+          <div class="es-best-aktionen">
+            ${b.naechsterKnopf
+              ? `<button type="button" class="mini-btn primary" data-es-weiter="${escapeHtml(b.id)}">${escapeHtml(b.naechsterKnopf)}</button>`
+              : ""}
+            ${b.zurueckStatus
+              ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}" title="Einen Schritt zurück">↺ zurück</button>`
+              : ""}
+            ${b.inRunde
+              ? `<button type="button" class="mini-btn" data-es-raus="${escapeHtml(b.id)}"
+                  title="Aus dieser Sammelbestellung nehmen – landet wieder im Stapel">↩ herausnehmen</button>`
+              : ""}
+            ${b.inRunde ? "" : `<button type="button" class="mini-btn" data-es-mail="${escapeHtml(b.id)}"
+              title="Nur diese eine Bestellung an den Lieferanten schicken">✉ nur diese</button>`}
+            <button type="button" class="mini-btn" data-es-orga="${escapeHtml(b.id)}"
+              title="${b.orga ? "Doch zahlen lassen" : "Als Orga-Essen führen – kostet dann nichts"}">
+              ${b.orga ? "🛠 → zahlt" : "→ 🛠 Orga"}</button>
+            <button type="button" class="mini-btn" data-es-weg="${escapeHtml(b.id)}" title="Bestellung löschen">🗑</button>
+          </div>
+        </div>
+      </details>`;
+}
+
+// Eine Sammelbestellung, die schon beim Lieferanten ist: „Donnerstag 1",
+// „Donnerstag 2" … Darin die Bestellungen, die in genau dieser Mail standen,
+// darüber die Rechnung für genau diese Lieferung.
+function esRundeHtml(r) {
+  // Beim ersten Auftauchen entscheidet der Stand: was noch nicht vollständig
+  // abgeholt ist, geht auf. Danach zählt nur noch, was der Veranstalter selbst
+  // auf- oder zugeklappt hat.
+  if (!esGeseheneRunden.has(r.id)) {
+    esGeseheneRunden.add(r.id);
+    if (!r.fertig) esOffeneRunden.add(r.id);
+  }
+  const note = [];
+  if (r.orgaCent) {
+    note.push("Warenwert " + essenService.centLabel(r.summeCent) + " – davon " +
+      essenService.centLabel(r.orgaCent) + " auf die Organisation.");
+  }
+  if (r.offenCent) note.push("Davon noch " + essenService.centLabel(r.offenCent) + " zu kassieren.");
+
+  return `
+    <details class="es-runde status-${r.fertig ? "abgeholt" : "bestellt"}${r.fertig ? " fertig" : ""}" data-es-runde="${escapeHtml(r.id)}"${esOffeneRunden.has(r.id) ? " open" : ""}>
+      <summary>
+        <span class="es-runde-icon" aria-hidden="true">${r.fertig ? "✅" : "📦"}</span>
+        <span class="es-runde-name">${escapeHtml(r.titel)}</span>
+        <span class="es-runde-kurz">${r.abgeholt}/${r.anzahl} abgeholt · ${essenService.centLabel(r.zahltCent)}</span>
+      </summary>
+      <div class="es-runde-inhalt">
+        <p class="hinweis-text es-zeitstempel">Rausgeschickt: ${escapeHtml(essenService.zeitLabel(r.erstelltAm))} ·
+          ${r.anzahl} Bestellung${r.anzahl === 1 ? "" : "en"}, ${r.stueck}× Essen</p>
+        <div class="fr-summe-zeile es-geldzeile">
+          <span>Zu zahlen für diese Lieferung</span>
+          <span><b>${essenService.centLabel(r.zahltCent)}</b></span>
+        </div>
+        ${note.length ? `<p class="hinweis-text es-geldnote">${note.join(" ")}</p>` : ""}
+        <div class="es-best-aktionen es-runde-knoepfe">
+          <button type="button" class="mini-btn" data-es-runde-mail="${escapeHtml(r.id)}"
+            title="Den Text dieser Sammelbestellung noch einmal ansehen">✉ Mailtext</button>
+          ${r.fertig ? "" : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
+            title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
+        </div>
+        ${r.bestellungen.map(esBestellungHtml).join("")}
+      </div>
+    </details>`;
+}
+
 function esRenderAdminBestellungen(z) {
   const box = esEl("es-admin-bestellungen");
   if (!z.bestellungen.length) {
@@ -414,35 +503,43 @@ function esRenderAdminBestellungen(z) {
       ${essenService.centLabel(z.zahltGesamtCent)} von Teilnehmern${z.anzahlOrga
         ? " und " + essenService.centLabel(z.orgaGesamtCent) + " auf die Organisation (" + z.anzahlOrga + " Bestellung" + (z.anzahlOrga === 1 ? "" : "en") + ")"
         : ""}.</p>
-    ${z.bestellungen.map((b) => `
-      <details class="es-admin-best status-${escapeHtml(b.status)}" data-es-offen="${escapeHtml(b.id)}"${esOffeneBestellungen.has(b.id) ? " open" : ""}>
-        <summary>
-          <span class="es-status-punkt" aria-hidden="true"></span>
-          <span class="es-admin-name">${escapeHtml(b.name)}</span>
-          <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)}${b.orga ? " 🛠" : ""} · ${escapeHtml(b.statusKurz)}</span>
-        </summary>
-        <div class="es-admin-inhalt">
-          <div class="es-best-positionen">${b.positionen.map((p) =>
-            p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
-          ).join("<br>")}</div>
-          ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
-          <div class="hinweis-text es-zeitstempel">Bestellt: ${escapeHtml(essenService.zeitLabel(b.erstelltAm))}</div>
-          <div class="es-best-aktionen">
-            ${b.naechsterKnopf
-              ? `<button type="button" class="mini-btn primary" data-es-weiter="${escapeHtml(b.id)}">${escapeHtml(b.naechsterKnopf)}</button>`
-              : ""}
-            ${b.statusIndex > 0
-              ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}" title="Einen Schritt zurück">↺ zurück</button>`
-              : ""}
-            <button type="button" class="mini-btn" data-es-mail="${escapeHtml(b.id)}"
-              title="Nur diese eine Bestellung an den Lieferanten schicken">✉ nur diese</button>
-            <button type="button" class="mini-btn" data-es-orga="${escapeHtml(b.id)}"
-              title="${b.orga ? "Doch zahlen lassen" : "Als Orga-Essen führen – kostet dann nichts"}">
-              ${b.orga ? "🛠 → zahlt" : "→ 🛠 Orga"}</button>
-            <button type="button" class="mini-btn" data-es-weg="${escapeHtml(b.id)}" title="Bestellung löschen">🗑</button>
-          </div>
-        </div>
-      </details>`).join("")}`;
+
+    <p class="feld-label es-gruppe-titel">Stapel – noch nicht rausgeschickt (${z.ohneRunde.length})</p>
+    ${z.ohneRunde.length
+      ? z.ohneRunde.map(esBestellungHtml).join("")
+      : `<p class="fr-leer-hinweis">Alles ist beim Lieferanten. Was neu bestellt wird, sammelt sich hier.</p>`}
+
+    ${z.runden.length ? `<p class="feld-label es-gruppe-titel">Beim Lieferanten (${z.runden.length})</p>` : ""}
+    ${z.runden.map(esRundeHtml).join("")}`;
+
+  box.querySelectorAll("[data-es-runde]").forEach((d) => {
+    d.addEventListener("toggle", () => {
+      if (d.open) esOffeneRunden.add(d.dataset.esRunde);
+      else esOffeneRunden.delete(d.dataset.esRunde);
+    });
+  });
+  box.querySelectorAll("[data-es-runde-mail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      esMailAuswahl = "runde:" + btn.dataset.esRundeMail;
+      esRenderSammelmail(esZustand);
+      esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  });
+  box.querySelectorAll("[data-es-runde-da]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeDa);
+      if (!r) return;
+      if (!confirm("Alle " + r.anzahl + " Bestellungen aus „" + r.titel + "“ als abgeholt eintragen?")) return;
+      const res = await essenService.setzeRundeStatus(r.id, "abgeholt");
+      if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+      // ⚠️ Wer noch nicht bezahlt hat, wird nicht mit abgehakt. Das muss
+      // dranstehen, sonst sieht es aus, als hätte der Knopf nur halb gewirkt.
+      else if (res.offen && res.offen.length) {
+        esZeigeFehler("es-admin-fehler",
+          "Ohne " + res.offen.join(", ") + " – da fehlt noch das Geld.");
+      }
+    });
+  });
 
   box.querySelectorAll("[data-es-offen]").forEach((d) => {
     d.addEventListener("toggle", () => {
@@ -452,21 +549,31 @@ function esRenderAdminBestellungen(z) {
       else esOffeneBestellungen.delete(d.dataset.esOffen);
     });
   });
+  // ⚠️ Ziel und Rückweg kommen aus dem Service (`naechsterStatus`,
+  // `zurueckStatus`), nicht aus der Kette gerechnet: in einer Sammelbestellung
+  // überspringt „Hat bezahlt" den Schritt „bestellt", der dort schon wahr ist.
   box.querySelectorAll("[data-es-weiter]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esWeiter);
-      if (!b) return;
-      const ziel = essenService.STATUS_KETTE[b.statusIndex + 1];
-      if (!ziel) return;
-      const res = await essenService.setzeStatus(b.id, ziel);
+      if (!b || !b.naechsterStatus) return;
+      const res = await essenService.setzeStatus(b.id, b.naechsterStatus);
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
   box.querySelectorAll("[data-es-zurueck]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esZurueck);
-      if (!b || b.statusIndex <= 0) return;
-      const res = await essenService.setzeStatus(b.id, essenService.STATUS_KETTE[b.statusIndex - 1]);
+      if (!b || !b.zurueckStatus) return;
+      const res = await essenService.setzeStatus(b.id, b.zurueckStatus);
+      if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+    });
+  });
+  box.querySelectorAll("[data-es-raus]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esRaus);
+      if (!b) return;
+      if (!confirm(b.name + " wieder aus der Sammelbestellung nehmen? Die Bestellung landet dann zurück im Stapel.")) return;
+      const res = await essenService.nimmAusRunde(b.id);
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
@@ -513,11 +620,26 @@ function esEinzelId() {
   return String(esMailAuswahl).indexOf("einzeln:") === 0 ? String(esMailAuswahl).slice(8) : null;
 }
 
+// Vierte Möglichkeit: `runde:<id>` – der Text einer Sammelbestellung, die schon
+// raus ist. Zum Nachlesen und zum Nachschicken, wenn beim Lieferanten etwas
+// untergegangen ist. ⚠️ Daraus entsteht KEINE neue Runde; sie ist ja schon eine.
+function esRundeAuswahlId() {
+  return String(esMailAuswahl).indexOf("runde:") === 0 ? String(esMailAuswahl).slice(6) : null;
+}
+
+// ⚠️ Alle drei Sammelwege greifen auf `ohneRunde` zu, nicht auf `bestellungen`.
+// Was schon in einer Mail beim Lieferanten steht, darf nicht ein zweites Mal in
+// eine neue Mail rutschen – das wäre doppelt bestellt und doppelt kassiert.
 function esMailBestellungen(z) {
+  const rid = esRundeAuswahlId();
+  if (rid) {
+    const r = z.runden.find((x) => x.id === rid);
+    return r ? r.bestellungen : [];
+  }
   const einzeln = esEinzelId();
-  if (einzeln) return z.bestellungen.filter((b) => b.id === einzeln);
-  if (esMailAuswahl === "offen") return z.bestellungen.filter((b) => b.status === "neu" || b.status === "bezahlt");
-  return z.bestellungen.filter((b) => b.status === "bezahlt");
+  if (einzeln) return z.ohneRunde.filter((b) => b.id === einzeln);
+  if (esMailAuswahl === "offen") return z.ohneRunde.filter((b) => b.status === "neu" || b.status === "bezahlt");
+  return z.ohneRunde.filter((b) => b.status === "bezahlt");
 }
 
 function esRenderSammelmail(z) {
@@ -525,10 +647,15 @@ function esRenderSammelmail(z) {
   // ⚠️ Die einzeln gewählte Bestellung kann inzwischen weg sein (gelöscht oder
   // vom Besteller storniert). Dann zurück auf den Sammelweg, statt einen leeren
   // Kasten mit dem Namen eines Geistes zu zeigen.
-  if (esEinzelId() && !esMailBestellungen(z).length) esMailAuswahl = "bezahlt";
+  if ((esEinzelId() || esRundeAuswahlId()) && !esMailBestellungen(z).length) esMailAuswahl = "bezahlt";
   const auswahl = esMailBestellungen(z);
   const einzeln = esEinzelId() ? auswahl[0] : null;
+  const runde = esRundeAuswahlId() ? z.runden.find((x) => x.id === esRundeAuswahlId()) : null;
   const brief = essenService.bestelltext(auswahl, z.meta);
+  // Für die Radioknöpfe zählt nur der Stapel – die Zahl in Klammern muss zu
+  // dem passen, was der Knopf darunter dann wirklich verschickt.
+  const stapelBezahlt = z.ohneRunde.filter((b) => b.status === "bezahlt").length;
+  const stapelNeu = z.ohneRunde.filter((b) => b.status === "neu").length;
 
   // Die Vorschau zeigt dieselbe Trennung wie der Brief: was die Teilnehmer
   // bezahlen und was auf die Organisation geht. ⚠️ Beides aus `brief`, nicht
@@ -568,7 +695,12 @@ function esRenderSammelmail(z) {
   box.innerHTML = `
     <p class="feld-label">Sammelbestellung an den Lieferanten</p>
 
-    ${einzeln
+    ${runde
+      ? `<div class="es-mail-wahl">
+           <span>Sammelbestellung <b>${escapeHtml(runde.titel)}</b> – am ${escapeHtml(essenService.zeitLabel(runde.erstelltAm))} rausgegangen</span>
+           <button type="button" class="mini-btn" id="es-btn-alle-zeigen">← zurück zum Stapel</button>
+         </div>`
+      : einzeln
       // Bewusst dieselbe Klasse wie die Radio-Zeile darunter: gleiche Zeile,
       // gleicher Platz, und es braucht keine neue Regel im Stylesheet.
       ? `<div class="es-mail-wahl">
@@ -576,8 +708,8 @@ function esRenderSammelmail(z) {
            <button type="button" class="mini-btn" id="es-btn-alle-zeigen">← alle zusammen</button>
          </div>`
       : `<div class="es-mail-wahl">
-           <label><input type="radio" name="es-mailwahl" value="bezahlt" ${esMailAuswahl === "bezahlt" ? "checked" : ""}> nur bezahlte (${z.zaehler.bezahlt})</label>
-           <label><input type="radio" name="es-mailwahl" value="offen" ${esMailAuswahl === "offen" ? "checked" : ""}> auch unbezahlte (${z.zaehler.neu + z.zaehler.bezahlt})</label>
+           <label><input type="radio" name="es-mailwahl" value="bezahlt" ${esMailAuswahl === "bezahlt" ? "checked" : ""}> nur bezahlte (${stapelBezahlt})</label>
+           <label><input type="radio" name="es-mailwahl" value="offen" ${esMailAuswahl === "offen" ? "checked" : ""}> auch unbezahlte (${stapelNeu + stapelBezahlt})</label>
          </div>`}
 
     ${!auswahl.length ? `
@@ -598,10 +730,12 @@ function esRenderSammelmail(z) {
       ${!brief.empfaenger ? `<p class="hinweis-text">Für „E-Mail öffnen“ fehlt noch die Adresse des Lieferanten – trag sie unten bei den Einstellungen ein.</p>` : ""}
       ${zuLang ? `<p class="hinweis-text">⚠️ Der Text ist lang. Manche Mailprogramme schneiden ihn ab – wenn die Mail leer aufgeht, nimm „Text kopieren“ und füg ihn von Hand ein.</p>` : ""}
 
-      <button class="btn btn-secondary btn-grow" id="es-btn-alle-bestellt">${einzeln
-        ? "Diese Bestellung als „beim Lieferanten bestellt“ markieren"
-        : "Diese " + auswahl.length + " als „beim Lieferanten bestellt“ markieren"}</button>
-      <p class="hinweis-text">Erst klicken, wenn die Mail wirklich raus ist.</p>
+      ${runde
+        ? `<p class="hinweis-text">Diese Sammelbestellung ist schon raus. Der Text steht hier zum Nachlesen und zum Nachschicken – es entsteht daraus keine zweite Bestellung.</p>`
+        : `<button class="btn btn-secondary btn-grow" id="es-btn-alle-bestellt">Ist raus – als „${escapeHtml(
+             (z.meta && z.meta.titel ? z.meta.titel : "Bestellung") + " " + z.naechsteRundeNr
+           )}“ festhalten</button>
+      <p class="hinweis-text">Erst klicken, wenn die Mail wirklich raus ist. ${einzeln ? "Diese eine Bestellung" : "Diese " + auswahl.length + " Bestellungen"} wandern dann zusammen in eine eigene Sammelbestellung, die du hinterher einzeln abrechnen kannst.</p>`}
     `}
     <p class="hinweis-text fehler" id="es-mail-fehler"></p>`;
 
@@ -622,36 +756,25 @@ function esRenderSammelmail(z) {
   });
 
   const alleBtn = esEl("es-btn-alle-bestellt");
-  if (alleBtn && einzeln) alleBtn.addEventListener("click", async () => {
-    const id = einzeln.id;
+  if (alleBtn) alleBtn.addEventListener("click", async () => {
+    const vorher = esMailAuswahl;
+    const ids = auswahl.map((b) => b.id);
+    if (!einzeln && !confirm("Diese " + ids.length + " Bestellungen als eine Sammelbestellung festhalten?")) return;
     // ⚠️ Die Ansicht VOR dem Schreiben zurückstellen. Das Schreiben löst über
     // Firebase sofort ein Neuzeichnen aus – käme die Umstellung erst danach,
     // stünde dort weiter „Nur die Bestellung von …" mit einer Bestellung, die
     // schon durch ist. Genau so beim Bauen gesehen.
     esMailAuswahl = "bezahlt";
-    // Eine einzelne Bestellung geht über setzeStatus, nicht über setzeStatusAlle –
-    // sonst würde der Klick alle anderen auf demselben Stand mitreißen.
-    const res = await essenService.setzeStatus(id, "bestellt");
+    // Ein Aufruf für beide Fälle: eine einzelne Bestellung ist eine
+    // Sammelbestellung mit genau einer Zeile. Zwei Wege wären zwei Stellen, an
+    // denen die Runde entstehen kann – und eine davon würde irgendwann anders
+    // funktionieren als die andere.
+    const res = await essenService.schickeRunde(ids);
     if (!res.erfolg) {
-      esMailAuswahl = "einzeln:" + id;   // hat nicht geklappt, also zurück in die Einzelsicht
+      esMailAuswahl = vorher;   // hat nicht geklappt, also zurück in die alte Sicht
       esRenderSammelmail(esZustand);
       esZeigeFehler("es-mail-fehler", res.fehler);
     }
-  });
-  if (alleBtn && !einzeln) alleBtn.addEventListener("click", async () => {
-    if (!confirm("Alle " + auswahl.length + " Bestellungen auf „beim Lieferanten bestellt“ setzen?")) return;
-    // Zwei Durchläufe, weil „auch unbezahlte" zwei Stände umfasst. Der Service
-    // meldet einen leeren Durchlauf als Fehler – hier ist ein leerer der zweite
-    // Normalfall, deshalb wird nur der Gesamt-Fehlschlag gemeldet.
-    const stufen = esMailAuswahl === "offen" ? ["neu", "bezahlt"] : ["bezahlt"];
-    let gesamt = 0;
-    let letzterFehler = "";
-    for (const stufe of stufen) {
-      const res = await essenService.setzeStatusAlle(stufe, "bestellt");
-      if (res.erfolg) gesamt += res.anzahl;
-      else letzterFehler = res.fehler;
-    }
-    esZeigeFehler("es-mail-fehler", gesamt ? "" : (letzterFehler || "Es hat sich nichts geändert."));
   });
 }
 

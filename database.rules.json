@@ -131,7 +131,20 @@
           "hinweis":          { ".validate": "newData.isString() && newData.val().length <= 400" },
           "annahmeOffen":     { ".validate": "newData.isBoolean()" },
           "annahmeVon":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
-          "annahmeBis":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" }
+          "annahmeBis":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
+          "rundeZaehler":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "rundeTag":         { ".validate": "newData.isString() && newData.val().length <= 60" }
+        },
+
+        "runden": {
+          "$rid": {
+            ".validate": "newData.hasChildren(['nr', 'titel'])",
+            "nr":         { ".validate": "newData.isNumber() && newData.val() > 0" },
+            "tag":        { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "titel":      { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "erstelltAm": { ".validate": "newData.isNumber()" },
+            "$sonst":     { ".validate": false }
+          }
         },
 
         "karte": {
@@ -153,6 +166,7 @@
             "uid":    { ".validate": "newData.isString()" },
             "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
             "orga":   { ".validate": "newData.isBoolean()" },
+            "rundeId": { ".validate": "newData.isString() && newData.val().length <= 60" },
 
             "positionen": {
               "$pos": {

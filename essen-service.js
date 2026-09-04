@@ -31,9 +31,17 @@
 //                       lieferantName, lieferantEmail,
 //                       bestellerName, bestellerTelefon, hinweis }
 //   karte/$gid      : { name, beschreibung, preisCent, kategorie, sort, erstelltAm }
-//   bestellungen/$oid : { uid, name, status, notiz, erstelltAm, aktualisiertAm,
+//   runden/$rid     : { nr, titel, erstelltAm }
+//   bestellungen/$oid : { uid, name, status, orga, rundeId, notiz, erstelltAm,
+//                         aktualisiertAm,
 //                         positionen: { $pid: { gerichtId, name, preisCent,
 //                                               anzahl, sonderwunsch, sort } } }
+//
+// ⚠️ `runden` sind die Sammelbestellungen, die an den Lieferanten rausgehen –
+// an einem Tag mehrere, zu verschiedenen Uhrzeiten. `bestellungen/$oid/rundeId`
+// sagt, in welcher Mail eine Bestellung mitgegangen ist; leer heißt: noch in
+// keiner. Ohne diese Zuordnung ließe sich hinterher nicht sagen, welches Essen
+// zu welcher Lieferung gehört und welche Lieferung wie viel gekostet hat.
 //
 // ⚠️ Name UND Preis stehen in der Position, nicht nur die gerichtId. Eine
 // abgeschickte Bestellung ist ein Beleg: sie muss lesbar bleiben, wenn das
@@ -56,6 +64,7 @@ const ES_MAX_STUECK = 9;          // je Position – schützt vor Vertippern
 const ES_MAX_PREIS_CENT = 10000;  // 100 € für ein Gericht ist die Obergrenze der Vernunft
 const ES_MAX_BESTELLUNGEN = 300;
 const ES_MAX_SONDERWUNSCH = 120;
+const ES_MAX_RUNDEN = 60;         // Sammelbestellungen, die an einem Wochenende rausgehen
 
 // Die Kette, die eine Bestellung durchläuft. Die Reihenfolge im Array IST die
 // Reihenfolge des Ablaufs – „weiter" und „zurück" rechnen darüber.
@@ -288,14 +297,24 @@ function esBestellungenListe(bestellungenRoh) {
       notiz: esText(b && b.notiz, 200),
       status,
       statusIndex: ES_STATUS_KETTE.indexOf(status),
+      // ⚠️ Vorbelegung. Was wirklich dransteht und was als Nächstes anzuklicken
+      // ist, setzt esSchritteSetzen() – erst dort ist bekannt, ob die Bestellung
+      // schon in einer Sammelbestellung steckt.
       statusKurz: esStatusText(status, orga).kurz,
       statusLang: esStatusText(status, orga).lang,
-      naechsterKnopf: esStatusKnopf(status, orga),
+      naechsterStatus: "",
+      naechsterKnopf: "",
+      zurueckStatus: "",
+      inRunde: false,
       // Gehört die Bestellung zur Organisation? Dann zahlt niemand dafür.
       // ⚠️ Steht in der Bestellung, nicht im Konto: was beim Abschicken galt,
       // gilt für diesen Beleg – und der Veranstalter kann es je Bestellung
       // umstellen, ohne jemandem das Merkmal wegzunehmen.
       orga,
+      // Zu welcher Sammelbestellung an den Lieferanten gehört sie? "" heißt:
+      // zu keiner – sie liegt noch im Stapel, aus dem die nächste
+      // zusammengestellt wird.
+      rundeId: esText(b && b.rundeId, 60),
       positionen,
       stueck: positionen.reduce((s, p) => s + p.anzahl, 0),
       summeCent,
@@ -307,7 +326,8 @@ function esBestellungenListe(bestellungenRoh) {
       istEigene: esText(b && b.uid, 60) === esEigeneUid,
       // ⚠️ Bezahlt heißt eingefroren. Wer bezahlt hat, darf seine Bestellung
       // nicht mehr umbauen – sonst wäre der kassierte Betrag ein anderer als
-      // der bestellte. Ab da ändert nur noch der Veranstalter.
+      // der bestellte. Ab da ändert nur noch der Veranstalter. Den endgültigen
+      // Wert setzt esSchritteSetzen(); rausgeschickt ist genauso eingefroren.
       aenderbar: status === "neu",
     });
   });
@@ -362,6 +382,155 @@ function esSammelliste(bestellungen) {
   return liste;
 }
 
+// ===========================================================================
+// Bestellrunden – die Sammelbestellungen, die wirklich rausgehen
+// ===========================================================================
+//
+// Michel am 2026-09-04: „es kann wirklich sein, dass an einem Tag zehn
+// Bestellungen rausgehen, unterschiedliche zu unterschiedlichen Uhrzeiten, die
+// dann auch zu unterschiedlichen Uhrzeiten geliefert werden und die müssen dann
+// im Nachgang auch eindeutig zuzuweisen und eindeutig abzurechnen sein."
+//
+// ⚠️ Eine Runde entsteht in dem Moment, in dem die Mail rausgeht – nicht vorher.
+// Vorher gibt es nur einen Stapel einzelner Bestellungen; was davon mitgeht,
+// entscheidet sich erst beim Abschicken. Eine vorher angelegte Runde, in die
+// man sich einträgt, wäre ein zweiter Ort, an dem gepflegt werden muss, wer
+// mitisst – und der wäre beim Abschicken regelmäßig veraltet.
+//
+// ⚠️ Die Nummer kommt aus `meta.rundeZaehler` und wird NIE wieder vergeben,
+// auch wenn eine Runde später leer wird und verschwindet. „Donnerstag 2" steht
+// in einer Mail beim Lieferanten; zwei verschiedene Mails mit demselben Namen
+// wären hinterher nicht mehr auseinanderzuhalten.
+//
+// ⚠️ Der Titel wird beim Anlegen festgeschrieben, nicht aus `meta.titel`
+// gerechnet. Wird der Plan später umbenannt, heißt eine verschickte Runde
+// weiter so, wie sie beim Lieferanten heißt.
+function esRundenListe(rundenRoh, bestellungen) {
+  const nachRunde = new Map();
+  bestellungen.forEach((b) => {
+    if (!b.rundeId) return;
+    if (!nachRunde.has(b.rundeId)) nachRunde.set(b.rundeId, []);
+    nachRunde.get(b.rundeId).push(b);
+  });
+
+  const liste = Object.entries(rundenRoh || {}).map(([id, r]) => {
+    const mit = nachRunde.get(id) || [];
+    const summeCent = mit.reduce((s, b) => s + b.summeCent, 0);
+    const zahltCent = mit.reduce((s, b) => s + b.zahltCent, 0);
+    // Was in dieser Runde noch hereinkommen muss. ⚠️ Über „auch unbezahlte"
+    // geht auch Unbezahltes mit raus – dann steht hier, wem hinterherzulaufen
+    // ist, und zwar je Runde und nicht nur als eine große Zahl oben.
+    const offenCent = mit
+      .filter((b) => b.status === "neu" && !b.orga)
+      .reduce((s, b) => s + b.zahltCent, 0);
+    const abgeholt = mit.filter((b) => b.status === "abgeholt").length;
+    return {
+      id,
+      nr: Math.round(esZahl(r && r.nr, 0)),
+      titel: esText(r && r.titel, 80) || "Bestellung",
+      // Der Name des Plans, wie er beim Anlegen dieser Runde lautete – daran
+      // hängt die Nummerierung, siehe esNaechsteRundeNr().
+      tag: esText(r && r.tag, 60),
+      erstelltAm: esZahl(r && r.erstelltAm, 0),
+      bestellungen: mit,
+      anzahl: mit.length,
+      stueck: mit.reduce((s, b) => s + b.stueck, 0),
+      summeCent,
+      zahltCent,
+      orgaCent: summeCent - zahltCent,
+      offenCent,
+      abgeholt,
+      fertig: mit.length > 0 && abgeholt === mit.length,
+    };
+  });
+  // Die neueste zuerst: an ihr wird gearbeitet, die älteren sind Nachweis.
+  // ⚠️ Nach der UHRZEIT sortiert, nicht nach der Nummer – die zählt je Tag neu,
+  // und „Freitag 1" ist jünger als „Donnerstag 3".
+  liste.sort((a, b) => (b.erstelltAm - a.erstelltAm) || (b.nr - a.nr));
+  return liste;
+}
+
+// Was als Nächstes anzuklicken ist, hängt davon ab, OB die Bestellung schon
+// beim Lieferanten liegt. Deshalb wird es erst gesetzt, wenn die Runden stehen –
+// nicht schon beim Einlesen der Bestellung.
+//
+// ⚠️ In einer Runde ist „bestellt" bereits wahr. Ein Teilnehmer, der beim
+// Rausschicken noch nicht bezahlt hatte, bleibt deshalb auf `neu` stehen und
+// steckt trotzdem in der Runde. Würde er beim Abschicken auf „bestellt"
+// gehoben, wäre danach nicht mehr erkennbar, dass er noch Geld schuldet – genau
+// das ist beim Bauen aufgefallen: „noch zu kassieren" stand für immer auf 0,00 €.
+// Sein „Hat bezahlt" springt dafür direkt auf „bestellt" und überspringt den
+// Schritt, der schon passiert ist.
+function esSchritteSetzen(b) {
+  b.naechsterStatus = "";
+  b.naechsterKnopf = "";
+  b.zurueckStatus = "";
+
+  if (b.inRunde) {
+    if (b.status === "neu") {
+      // ⚠️ Zielt auf „bestellt", nicht auf „bezahlt": beim Lieferanten liegt
+      // sie ja schon. Die Beschriftung bleibt trotzdem „Hat bezahlt" – das ist
+      // die Handlung, die der Veranstalter gerade tut.
+      b.naechsterStatus = "bestellt";
+      b.naechsterKnopf = esStatusKnopf("neu", b.orga);
+      b.statusKurz = b.orga ? "offen" : "unbezahlt";
+      b.statusLang = b.orga
+        ? "Orga-Essen – beim Lieferanten bestellt, noch nicht freigegeben"
+        : "Beim Lieferanten bestellt – das Geld fehlt noch";
+    } else if (b.status === "bezahlt") {
+      b.naechsterStatus = "bestellt";
+      b.naechsterKnopf = esStatusKnopf("bezahlt", b.orga);
+    } else if (b.status === "bestellt") {
+      b.naechsterStatus = "abgeholt";
+      b.naechsterKnopf = esStatusKnopf("bestellt", b.orga);
+    }
+  } else if (b.status === "neu") {
+    b.naechsterStatus = "bezahlt";
+    b.naechsterKnopf = esStatusKnopf("neu", b.orga);
+  } else if (b.status === "bezahlt") {
+    // ⚠️ Im Stapel gibt es KEINEN „Beim Lieferanten bestellt"-Knopf mehr. Dieser
+    // Schritt gehört zur Sammelbestellung – sonst entstünde eine Bestellung, die
+    // auf „bestellt" steht und in keiner Mail vorkommt, und die hinterher weder
+    // zuzuordnen noch abzurechnen wäre.
+    b.naechsterKnopf = "";
+  } else if (b.status === "bestellt") {
+    // Altbestand aus der Zeit vor den Runden.
+    b.naechsterStatus = "abgeholt";
+    b.naechsterKnopf = esStatusKnopf("bestellt", b.orga);
+  }
+
+  // Zurück heißt nur im Stapel „einen Schritt in der Kette". In einer Runde gibt
+  // es dafür den eigenen Weg „aus der Sammelbestellung nehmen".
+  if (!b.inRunde && b.statusIndex > 0) b.zurueckStatus = ES_STATUS_KETTE[b.statusIndex - 1];
+
+  // ⚠️ Wer schon beim Lieferanten liegt, darf seine Bestellung nicht mehr
+  // umbauen – auch dann nicht, wenn er noch auf `neu` steht, weil er nicht
+  // bezahlt hat. Das Essen ist ja bestellt.
+  b.aenderbar = b.status === "neu" && !b.inRunde;
+}
+
+// ⚠️ Die Nummer zählt JE TAG neu. Michel: „Donnerstag eins, zwei, drei, vier –
+// und wenn dann der Freitag ist, Freitag eins zwei drei vier." Maßgeblich ist
+// der Name des Plans: heißt er anders als beim letzten Rausschicken
+// (`meta.rundeTag`), fängt die Zählung wieder bei 1 an.
+//
+// ⚠️ Der Zähler in `meta` ist die Wahrheit, die höchste vergebene Nummer
+// desselben Tages nur die Absicherung: verschwindet die letzte Runde wieder,
+// darf ihre Nummer trotzdem nicht ein zweites Mal an eine andere Mail gehen.
+// Und wer den Plan zurückbenennt, darf keine zweite „Donnerstag 2" bekommen.
+function esNaechsteRundeNr() {
+  const meta = (esRoh && esRoh.meta) || {};
+  const tag = esText(meta.titel, 60);
+  let hoechste = esText(meta.rundeTag, 60) === tag
+    ? Math.max(0, Math.round(esZahl(meta.rundeZaehler, 0)))
+    : 0;
+  Object.values((esRoh && esRoh.runden) || {}).forEach((r) => {
+    if (esText(r && r.tag, 60) !== tag) return;
+    hoechste = Math.max(hoechste, Math.round(esZahl(r && r.nr, 0)));
+  });
+  return hoechste + 1;
+}
+
 function esGetZustand() {
   const meta = (esRoh && esRoh.meta) || null;
   if (!meta || !meta.titel) {
@@ -371,6 +540,9 @@ function esGetZustand() {
       karte: [],
       kategorien: [],
       bestellungen: [],
+      runden: [],
+      ohneRunde: [],
+      naechsteRundeNr: 1,
       meine: [],
       istAdmin: false,
       eigeneUid: esEigeneUid,
@@ -381,6 +553,16 @@ function esGetZustand() {
   const karte = esKarteListe(esRoh.karte);
   const bestellungen = esBestellungenListe(esRoh.bestellungen);
   const meine = bestellungen.filter((b) => b.istEigene);
+  const runden = esRundenListe(esRoh.runden, bestellungen);
+  // Der Stapel: alles, was noch in keiner verschickten Sammelbestellung steckt.
+  // ⚠️ Eine Bestellung, deren `rundeId` auf eine Runde zeigt, die es nicht mehr
+  // gibt, gehört hierher – sonst fiele sie aus jeder Ansicht heraus und wäre
+  // weder abzurechnen noch abzuholen.
+  const bekannteRunden = new Set(runden.map((r) => r.id));
+  const ohneRunde = bestellungen.filter((b) => !b.rundeId || !bekannteRunden.has(b.rundeId));
+  ohneRunde.forEach((b) => { b.inRunde = false; });
+  runden.forEach((r) => r.bestellungen.forEach((b) => { b.inRunde = true; }));
+  bestellungen.forEach(esSchritteSetzen);
 
   const zaehler = {};
   ES_STATUS_KETTE.forEach((s) => { zaehler[s] = 0; });
@@ -416,6 +598,9 @@ function esGetZustand() {
     karte,
     kategorien: esKarteNachKategorie(karte),
     bestellungen,
+    runden,
+    ohneRunde,
+    naechsteRundeNr: esNaechsteRundeNr(),
     meine,
     zaehler,
     summeGesamtCent: bestellungen.reduce((s, b) => s + b.summeCent, 0),
@@ -902,8 +1087,23 @@ async function esStorniere(bestellungId) {
   if (!b.aenderbar && !z.istAdmin) {
     return { erfolg: false, fehler: "Die Bestellung ist bezahlt. Der Veranstalter muss sie entfernen." };
   }
-  await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).remove();
+  const updates = {};
+  updates["bestellungen/" + bestellungId] = null;
+  esRundeAufraeumen(updates, b.rundeId, bestellungId);
+  await db.ref(ES_BASIS).update(updates);
   return { erfolg: true };
+}
+
+// Verlässt eine Bestellung ihre Runde und war sie die letzte darin, muss die
+// Runde mit weg. ⚠️ Eine leere Runde stünde sonst für immer in der Liste und
+// behauptete eine Mail, in der nichts mehr steht. Ihre Nummer ist trotzdem
+// verbraucht – siehe esNaechsteRundeNr().
+function esRundeAufraeumen(updates, rundeId, ohneBestellungId) {
+  if (!rundeId) return;
+  const rest = esGetZustand().bestellungen.filter(
+    (b) => b.rundeId === rundeId && b.id !== ohneBestellungId
+  );
+  if (!rest.length) updates["runden/" + rundeId] = null;
 }
 
 async function esSetzeStatus(bestellungId, status) {
@@ -912,10 +1112,35 @@ async function esSetzeStatus(bestellungId, status) {
   if (ES_STATUS_KETTE.indexOf(status) < 0) return { erfolg: false, fehler: "Diesen Stand gibt es nicht." };
   const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
   if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
+
   await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
     status,
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
   });
+  return { erfolg: true };
+}
+
+// Eine Bestellung wieder aus ihrer Sammelbestellung lösen – der Weg für „die
+// hätte da nicht mit rein sollen".
+// ⚠️ Der EINZIGE Ausstieg aus einer Runde. Über die Statuskette geht es
+// bewusst nicht: `neu` ist in einer Runde ein gültiger Zustand („bestellt,
+// aber noch nicht bezahlt"), und ein Schritt zurück in der Kette dürfte deshalb
+// nicht nebenbei eine verschickte Mail aus dem Nachweis nehmen.
+async function esNimmAusRunde(bestellungId) {
+  await esAuthBereit;
+  if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
+  if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
+  if (!b.rundeId) return { erfolg: false, fehler: "Die steckt in keiner Sammelbestellung." };
+
+  const updates = {};
+  updates["bestellungen/" + bestellungId + "/rundeId"] = null;
+  // Wer nichts bezahlt hat, ist danach wieder offen; alle anderen liegen wieder
+  // als bezahlt im Stapel und können in die nächste Sammelbestellung.
+  updates["bestellungen/" + bestellungId + "/status"] = b.status === "neu" ? "neu" : "bezahlt";
+  updates["bestellungen/" + bestellungId + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
+  esRundeAufraeumen(updates, b.rundeId, bestellungId);
+  await db.ref(ES_BASIS).update(updates);
   return { erfolg: true };
 }
 
@@ -937,30 +1162,105 @@ async function esSetzeOrga(bestellungId, wert) {
   return { erfolg: true };
 }
 
-// Alle Bestellungen eines Standes auf einmal weiterschalten – der Griff nach
-// dem Absenden der Sammelmail.
-async function esSetzeStatusAlle(vonStatus, nachStatus) {
+// Die ausgewählten Bestellungen zu EINER Sammelbestellung zusammenfassen. Das
+// ist der Klick, der kommt, nachdem die Mail wirklich raus ist.
+async function esSchickeRunde(bestellungIds) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  if (ES_STATUS_KETTE.indexOf(nachStatus) < 0) return { erfolg: false, fehler: "Diesen Stand gibt es nicht." };
-  const treffer = esGetZustand().bestellungen.filter((b) => b.status === vonStatus);
+  const z = esGetZustand();
+  if (!z.vorhanden) return { erfolg: false, fehler: "Es gibt noch keine Essensbestellung." };
+  if (z.runden.length >= ES_MAX_RUNDEN) {
+    return { erfolg: false, fehler: "Mehr als " + ES_MAX_RUNDEN + " Sammelbestellungen gehen nicht." };
+  }
+
+  const ids = Array.isArray(bestellungIds) ? bestellungIds : [];
+  // ⚠️ Nur aus dem Stapel. Eine Bestellung, die schon in einer Runde steckt,
+  // darf nicht in eine zweite wandern – sie wäre dann in zwei Mails gezählt
+  // und beim Abrechnen doppelt drin.
+  const mit = z.ohneRunde.filter((b) => ids.indexOf(b.id) >= 0);
   // ⚠️ Kein stiller Erfolg bei null Treffern: „nichts passiert" und „hat
   // geklappt" sehen am Bildschirm sonst gleich aus.
-  if (!treffer.length) return { erfolg: false, fehler: "Es steht keine Bestellung auf diesem Stand." };
+  if (!mit.length) {
+    return { erfolg: false, fehler: "Da ist keine Bestellung dabei, die noch nicht rausgeschickt wurde." };
+  }
+
+  const nr = esNaechsteRundeNr();
+  const tag = esText(z.meta && z.meta.titel, 60) || "Bestellung";
+  const titel = tag + " " + nr;
+  const rid = esNeueId("rd");
+  const updates = {};
+  updates["runden/" + rid] = {
+    nr,
+    tag,
+    titel,
+    erstelltAm: firebase.database.ServerValue.TIMESTAMP,
+  };
+  updates["meta/rundeZaehler"] = nr;
+  updates["meta/rundeTag"] = tag;
+  mit.forEach((b) => {
+    updates["bestellungen/" + b.id + "/rundeId"] = rid;
+    // ⚠️ Wer noch nicht bezahlt hat, BLEIBT auf `neu` – er steckt trotzdem in
+    // der Runde. Würde er hier auf „bestellt" gehoben, wäre danach nicht mehr
+    // zu sehen, dass er noch Geld schuldet, und „noch zu kassieren" stünde für
+    // immer auf 0,00 €. Orga-Bestellungen zählen als erledigt: da ist nichts
+    // zu holen.
+    if (b.status !== "neu" || b.orga) updates["bestellungen/" + b.id + "/status"] = "bestellt";
+    updates["bestellungen/" + b.id + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
+  });
+  // ⚠️ EIN update(): entweder die Runde entsteht mitsamt ihren Bestellungen
+  // oder gar nicht. Zwei Schreibvorgänge könnten eine leere Runde hinterlassen
+  // oder Bestellungen, die auf eine Runde zeigen, die es nicht gibt.
+  await db.ref(ES_BASIS).update(updates);
+  return { erfolg: true, id: rid, nr, titel, anzahl: mit.length };
+}
+
+// Eine ganze Runde weiterschalten – „das Essen von Donnerstag 2 ist da".
+async function esSetzeRundeStatus(rundeId, status) {
+  await esAuthBereit;
+  if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  // ⚠️ Nur „bestellt" und „abgeholt". Alles darunter löst die Bestellungen aus
+  // der Runde, und das gehört einzeln entschieden – im Rudel wäre eine ganze
+  // verschickte Mail mit einem Klick aus dem Nachweis verschwunden.
+  if (status !== "bestellt" && status !== "abgeholt") {
+    return { erfolg: false, fehler: "Für die ganze Runde geht nur „bestellt“ und „abgeholt“." };
+  }
+  const runde = esGetZustand().runden.find((r) => r.id === rundeId);
+  if (!runde) return { erfolg: false, fehler: "Diese Sammelbestellung gibt es nicht mehr." };
+  // ⚠️ Wer noch nicht bezahlt hat, wird NICHT mitgeschaltet. „Alle abgeholt"
+  // würde sonst nebenbei eine offene Rechnung verschwinden lassen – und danach
+  // weiß niemand mehr, dass da noch Geld fehlt.
+  const offen = runde.bestellungen.filter((b) => b.status === "neu");
+  const treffer = runde.bestellungen.filter((b) => b.status !== status && b.status !== "neu");
+  if (!treffer.length) {
+    return {
+      erfolg: false,
+      fehler: offen.length
+        ? "Da fehlt noch Geld: " + offen.map((b) => b.name).join(", ") + ". Erst kassieren, dann abhaken."
+        : "Da steht schon alles auf diesem Stand.",
+    };
+  }
 
   const updates = {};
   treffer.forEach((b) => {
-    updates["bestellungen/" + b.id + "/status"] = nachStatus;
+    updates["bestellungen/" + b.id + "/status"] = status;
     updates["bestellungen/" + b.id + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
   });
   await db.ref(ES_BASIS).update(updates);
-  return { erfolg: true, anzahl: treffer.length };
+  return {
+    erfolg: true,
+    anzahl: treffer.length,
+    offen: offen.map((b) => b.name),
+  };
 }
 
 async function esLoescheBestellung(bestellungId) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).remove();
+  const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
+  const updates = {};
+  updates["bestellungen/" + bestellungId] = null;
+  if (b) esRundeAufraeumen(updates, b.rundeId, bestellungId);
+  await db.ref(ES_BASIS).update(updates);
   return { erfolg: true };
 }
 
@@ -1003,7 +1303,14 @@ async function esSetzeAnnahme(offen) {
 async function esLeereBestellungen() {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(ES_BASIS + "/bestellungen").remove();
+  // ⚠️ Die Runden müssen mit weg – ohne ihre Bestellungen wären sie leere
+  // Hüllen. Der Zähler in `meta` bleibt bewusst stehen: die nächste Runde heißt
+  // dann „Donnerstag 4" und nicht noch einmal „Donnerstag 1", obwohl es ein
+  // „Donnerstag 1" beim Lieferanten schon gab.
+  const updates = {};
+  updates["bestellungen"] = null;
+  updates["runden"] = null;
+  await db.ref(ES_BASIS).update(updates);
   return { erfolg: true };
 }
 
@@ -1048,7 +1355,9 @@ const essenService = {
   bestelle: esBestelle,
   storniere: esStorniere,
   setzeStatus: esSetzeStatus,
-  setzeStatusAlle: esSetzeStatusAlle,
+  schickeRunde: esSchickeRunde,
+  setzeRundeStatus: esSetzeRundeStatus,
+  nimmAusRunde: esNimmAusRunde,
   setzeOrga: esSetzeOrga,
   loescheBestellung: esLoescheBestellung,
   setzeEinstellungen: esSetzeEinstellungen,
