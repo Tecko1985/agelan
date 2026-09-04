@@ -1067,6 +1067,14 @@ function esKopiereUeberAuswahl(feld, melde) {
 
 // --- Admin: Speisekarte verwalten --------------------------------------------
 function esRenderKarteVerwalten(z) {
+  // ⚠️ Die Zahl gehoert in die zugeklappte Zeile: sonst muss man aufklappen,
+  // nur um zu sehen, ob die Karte ueberhaupt schon steht.
+  const anzahl = esEl("es-karte-anzahl");
+  if (anzahl) {
+    anzahl.textContent = z.karte.length
+      ? z.karte.length + (z.karte.length === 1 ? " Gericht" : " Gerichte")
+      : "noch leer";
+  }
   const box = esEl("es-karte-verwalten");
   box.innerHTML = z.karte.length
     ? z.karte.map((g, i) => `
@@ -1198,6 +1206,15 @@ function esRenderEinstellungen(z) {
 
   const schalter = esEl("es-ein-annahme");
   if (schalter && document.activeElement !== schalter) schalter.checked = z.schalterAn;
+
+  // ⚠️ In der zugeklappten Zeile muss stehen, ob gerade bestellt werden kann –
+  // sonst klappt man den Kasten nur auf, um nachzusehen.
+  const kurz = esEl("es-ein-kurz");
+  if (kurz) {
+    kurz.textContent = z.annahmeOffen
+      ? "Annahme offen"
+      : (!z.schalterAn ? "Annahme zu" : "außerhalb der Zeit");
+  }
 
   // ⚠️ Der Beleg, dass der Tageswechsel gewirkt hat. Ohne ihn muss man erst
   // eine Bestellung durchschicken, um zu sehen, wie die nächste Lieferung heißt.

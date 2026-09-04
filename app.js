@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.4",
+    groups: [
+      { title: "Verwaltungs-Kästen zum Aufklappen", items: [
+          "<b>Speisekarte</b>, <b>Speisekarte importieren</b> und <b>Einstellungen</b> sind jetzt zugeklappt. Die richtet man einmal ein; danach standen sie nur noch zwischen der Bestellliste und dem, was am Abend gebraucht wird.",
+          "In der zugeklappten Zeile steht das Wichtigste: wie viele Gerichte auf der Karte stehen, und ob die Bestellannahme gerade offen ist.",
+          "Was du aufklappst, bleibt offen – bis zum nächsten Neuladen."
+      ]}
+    ]
+  },
+  {
     version: "4.3",
     groups: [
       { title: "Neuer Tag, ohne etwas zu verlieren", items: [

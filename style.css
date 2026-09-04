@@ -1240,10 +1240,38 @@ main#app.sk-breit { max-width: 980px; }
   .es-altbestand-note { color: #f0c46b; }
 }
 
+/* --- Aufklappbare Verwaltungs-Kaesten (Speisekarte, Import, Einstellungen) ---
+   ⚠️ Zugeklappt eingerichtet, kein `open`. Diese Kaesten braucht man einmal beim
+   Aufsetzen; danach stehen sie zwischen der Bestellliste und dem, was am Abend
+   wirklich gebraucht wird. Der Zustand haengt am <details> selbst und ueberlebt
+   ein Neuzeichnen, weil nur der Inhalt darin ersetzt wird. */
+.es-klapp > summary {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; list-style: none;
+  /* ⚠️ Ohne min-height ist die Zeile nur 17 px hoch – am Handy mit dem Daumen
+     kaum zu treffen. Am 04.09.2026 gemessen. Gleiches gilt fuer die Statistik. */
+  min-height: 34px;
+}
+.es-klapp > summary::-webkit-details-marker { display: none; }
+/* Der Pfeil sagt, dass da etwas aufgeht - ohne ihn sieht der Kasten aus wie
+   eine Ueberschrift, die man nicht anfassen kann. */
+.es-klapp > summary::before {
+  content: "›"; flex: 0 0 auto;
+  font-size: 17px; line-height: 1; color: var(--muted);
+  transition: transform 0.15s;
+}
+.es-klapp[open] > summary::before { transform: rotate(90deg); }
+.es-klapp-titel { flex: 1 1 auto; font-size: 13px; font-weight: 600; color: var(--muted); }
+.es-klapp-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Der erste Beschriftungstext direkt unter dem Aufklapper braucht keinen
+   doppelten Abstand nach oben. */
+.es-klapp[open] > *:nth-child(2) { margin-top: 10px; }
+
 /* --- Statistik: wer am meisten bestellt hat --- */
 .es-statistik > summary {
   display: flex; align-items: center; gap: 8px;
   cursor: pointer; list-style: none;
+  min-height: 34px;   /* Tippflaeche, siehe .es-klapp > summary */
 }
 .es-statistik > summary::-webkit-details-marker { display: none; }
 .es-statistik-icon { flex: 0 0 auto; }
