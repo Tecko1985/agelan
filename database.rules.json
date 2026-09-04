@@ -114,6 +114,57 @@
           }
         }
       }
+    },
+
+    "essen": {
+      "$pid": {
+        ".read": true,
+        ".write": "auth != null",
+
+        "meta": {
+          ".validate": "newData.hasChildren(['titel'])",
+          "titel":            { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+          "lieferantName":    { ".validate": "newData.isString() && newData.val().length <= 80" },
+          "lieferantEmail":   { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "bestellerName":    { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "hinweis":          { ".validate": "newData.isString() && newData.val().length <= 400" },
+          "annahmeOffen":     { ".validate": "newData.isBoolean()" }
+        },
+
+        "karte": {
+          "$ger": {
+            ".validate": "newData.hasChildren(['name', 'preisCent'])",
+            "name":         { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "beschreibung": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "kategorie":    { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "preisCent":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000" },
+            "sort":         { ".validate": "newData.isNumber()" }
+          }
+        },
+
+        "bestellungen": {
+          "$oid": {
+            ".validate": "newData.hasChildren(['name', 'positionen'])",
+            "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+            "notiz":  { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "uid":    { ".validate": "newData.isString()" },
+            "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
+
+            "positionen": {
+              "$pos": {
+                ".validate": "newData.hasChildren(['name', 'anzahl', 'preisCent'])",
+                "gerichtId":    { ".validate": "newData.isString()" },
+                "name":         { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+                "sonderwunsch": { ".validate": "newData.isString() && newData.val().length <= 120" },
+                "anzahl":       { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 9" },
+                "preisCent":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000" },
+                "sort":         { ".validate": "newData.isNumber()" }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

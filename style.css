@@ -264,14 +264,24 @@ nav.tabs button {
 }
 nav.tabs button:hover { background: var(--bg); }
 nav.tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* „Einstellungen" steht rechts abgesetzt – Flotten-Konvention. Als CSS-Regel und
+   nicht als style-Attribut am Knopf, damit die Handy-Regel weiter unten sie ohne
+   !important zurücknehmen kann. */
+nav.tabs button#nav-einstellungen { margin-left: auto; }
 /* ⚠️ Mit dem vierten Reiter „Einstellungen" wird die Leiste auf 375 px 385 px
    breit – und weil nav.tabs kein overflow setzt, scrollt die GANZE SEITE
    seitlich. Trifft nur Veranstalter, die als Einzige den vierten Reiter sehen.
    Schmaleres Polster statt overflow-x: auto, weil ein zentrierter Flex-Container
    beim Scrollen den linken Rand unerreichbar macht. */
+/* ⚠️ Mit dem FÜNFTEN Reiter „Essen" reicht enges Polster allein nicht mehr:
+   fünf Knöpfe sind auf 375 px auch zusammengeschoben zu breit. Deshalb darf die
+   Leiste jetzt umbrechen – zwei Zeilen sind besser als eine Seite, die sich
+   seitlich wegschieben lässt. `margin-left:auto` an „Einstellungen" muss dabei
+   weg, sonst steht der Knopf allein und rechtsbündig in der zweiten Zeile. */
 @media (max-width: 430px) {
-  nav.tabs { padding-left: 6px; padding-right: 6px; }
+  nav.tabs { padding-left: 6px; padding-right: 6px; flex-wrap: wrap; row-gap: 0; }
   nav.tabs button { padding-left: 9px; padding-right: 9px; font-size: 13px; }
+  nav.tabs button#nav-einstellungen { margin-left: 0; }
 }
 .tab-section { display: none; }
 .tab-section.active { display: block; }
@@ -955,3 +965,139 @@ main#app.sk-breit { max-width: 980px; }
 /* Notausgang: da, aber nicht im Weg. */
 .notausgang > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; }
 .kopfzeile-status[hidden] { display: none; }
+
+/* ===========================================================================
+   Essensbestellung (Präfix es-)
+   Bewusst sparsam: Stepper, Summenzeile, Einkaufsliste und die Verwaltungs-
+   zeilen der Speisekarte kommen aus dem Frühstück (.fr-…). Hier steht nur,
+   was es dort nicht gibt – Speisekarte, Warenkorb, Status und Import.
+   =========================================================================== */
+
+.es-abschnitt { font-size: 16px; margin: 0 0 10px; color: var(--primary); }
+
+/* --- Speisekarte --- */
+.es-kategorie {
+  margin: 16px 0 4px; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.es-kategorie:first-of-type { margin-top: 4px; }
+.es-gericht {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.es-gericht-info { flex: 1 1 auto; min-width: 0; }
+.es-gericht-name { font-weight: 600; }
+.es-gericht-beschreibung { font-size: 13px; color: var(--muted); }
+.es-gericht-preis { flex: 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; }
+/* 40 px, damit der Knopf am Handy sicher zu treffen ist. */
+.es-plus {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--primary); background: var(--card-bg);
+  color: var(--primary); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.es-plus:active { background: var(--primary); color: #fff; }
+.es-plus:disabled { border-color: var(--border); color: var(--muted); cursor: not-allowed; }
+
+/* --- Warenkorb --- */
+.es-korb-karte { border: 2px solid var(--primary); }
+.es-korb-leer { border-style: dashed; }
+.es-korb-zeile { padding: 10px 0; border-top: 1px solid var(--border); }
+.es-korb-zeile:first-of-type { border-top: none; }
+/* Ein Gericht, das während des Zusammenstellens von der Karte geflogen ist. */
+.es-korb-zeile.fehlt .es-korb-name { color: #dc2626; text-decoration: line-through; }
+.es-korb-kopf { display: flex; align-items: center; gap: 8px; }
+.es-korb-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.es-korb-preis { flex: 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; }
+/* ⚠️ wrap: auf schmalen Geräten rutscht das Wunsch-Feld unter den Stepper,
+   statt auf Restbreite zusammengedrückt zu werden. */
+.es-korb-unten { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.es-wunsch { flex: 1 1 180px; margin: 0; font-size: 14px; padding: 8px 10px; }
+
+/* --- Status --- */
+.status-neu      { --es-farbe: #b45309; }
+.status-bezahlt  { --es-farbe: var(--primary); }
+.status-bestellt { --es-farbe: #7c3aed; }
+.status-abgeholt { --es-farbe: var(--success); }
+.es-status-punkt {
+  flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--es-farbe, var(--muted));
+}
+
+.es-bestellung {
+  border: 1px solid var(--border); border-left: 4px solid var(--es-farbe, var(--muted));
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px;
+}
+.es-best-kopf { display: flex; align-items: center; gap: 8px; }
+.es-best-status { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--es-farbe, var(--text)); font-size: 14px; }
+.es-best-summe { flex: 0 0 auto; font-weight: 700; white-space: nowrap; }
+.es-best-positionen { margin-top: 6px; font-size: 14px; line-height: 1.5; }
+.es-best-positionen i { color: var(--muted); font-style: normal; }
+.es-best-aktionen { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* --- Admin: Bestellliste --- */
+.es-zaehler { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.es-zaehler-teil {
+  font-size: 12px; padding: 4px 9px; border-radius: 999px;
+  border: 1px solid var(--es-farbe, var(--border)); color: var(--es-farbe, var(--muted));
+}
+.es-admin-best {
+  border: 1px solid var(--border); border-left: 4px solid var(--es-farbe, var(--muted));
+  border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--card-bg);
+}
+.es-admin-best > summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; cursor: pointer; list-style: none;
+}
+.es-admin-best > summary::-webkit-details-marker { display: none; }
+.es-admin-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-admin-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.es-admin-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
+.es-zeitstempel { margin-top: 6px; font-size: 12px; min-height: 0; }
+
+/* --- Sammelmail --- */
+.es-mail-wahl { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 14px; }
+.es-mail-wahl label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.es-mail-text { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 1.5; resize: vertical; }
+.es-mail-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.es-mail-knoepfe > * { flex: 1 1 160px; }
+/* Der mailto-Weg ist ein <a>, sieht aber aus wie ein Knopf. */
+.es-mail-link { display: inline-block; text-align: center; text-decoration: none; }
+
+/* --- Import --- */
+.es-import-feld, .es-hinweis-feld { font-size: 14px; line-height: 1.5; resize: vertical; }
+.es-import-kopf { margin-top: 12px; font-size: 14px; }
+/* ⚠️ Eine ganze Speisekarte ist lang – die Vorschau scrollt in sich, sonst
+   schiebt sie die Übernehmen-Knöpfe außer Sicht. */
+.es-import-liste {
+  max-height: 260px; overflow-y: auto; margin-top: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px;
+}
+.es-import-zeile { display: flex; gap: 10px; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+.es-import-zeile i { color: var(--muted); font-style: normal; }
+.es-import-kat {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+}
+.es-import-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.es-import-knoepfe > * { flex: 1 1 160px; }
+
+/* --- Schalter --- */
+.es-schalter { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 15px; cursor: pointer; }
+.es-schalter input { width: 20px; height: 20px; }
+
+/* ⚠️ Alle vier Statusfarben tragen auch Text (Zähler-Chips, „Bezahlt – wird …").
+   Auf dem dunklen Kartengrund #1e293b kommt keine der hellen Fassungen über
+   einen Kontrast von 3 – gemessen: Blau 2,01 und Grün 2,73, also unlesbar.
+   Die Umkehrung ist deshalb Pflicht, nicht Kosmetik. Gemessene Werte dunkel:
+   6,85 / 6,74 / 5,38 / 7,61. */
+@media (prefers-color-scheme: dark) {
+  .status-neu      { --es-farbe: #f0a04b; }
+  .status-bezahlt  { --es-farbe: #7fb3f5; }
+  .status-bestellt { --es-farbe: #a78bfa; }
+  .status-abgeholt { --es-farbe: #34d399; }
+}
+
+/* Sperr-Hinweis, wenn die Firebase-Regeln fuer `essen` noch fehlen. */
+.es-regelwarnung { border-left: 4px solid #dc2626; }
+.es-regelwarnung h2 { color: #dc2626; }
+.es-regelwarnung code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }

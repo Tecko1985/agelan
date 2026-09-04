@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2.8">
+<link rel="stylesheet" href="style.css?v=2.9">
 </head>
 <body>
 
@@ -46,6 +46,15 @@
       <span class="hub-kachel-text">
         <span class="hub-name">Frühstück</span>
         <span class="hub-beschreibung">Frühstückspakete für den nächsten Morgen – bestellt wird am Abend vorher.</span>
+      </span>
+      <span class="hub-schloss" aria-hidden="true">🔒</span>
+    </button>
+
+    <button type="button" class="hub-kachel" data-hub-ziel="essen">
+      <span class="hub-icon">🍕</span>
+      <span class="hub-kachel-text">
+        <span class="hub-name">Essen</span>
+        <span class="hub-beschreibung">Warmes Essen vom Lieferanten – Karte ansehen, zusammenstellen, vorne bezahlen, abholen.</span>
       </span>
       <span class="hub-schloss" aria-hidden="true">🔒</span>
     </button>
@@ -156,9 +165,10 @@
   <button data-tab="turnier" class="active">Turnier</button>
   <button data-tab="stream">Stream</button>
   <button data-tab="fruehstueck">Frühstück</button>
+  <button data-tab="essen">Essen</button>
   <!-- Nur fuer Veranstalter. Versteckt per hidden, eingeblendet in app.js,
        sobald das Konto das Merkmal traegt. -->
-  <button data-tab="einstellungen" id="nav-einstellungen" style="margin-left:auto;" hidden>Einstellungen</button>
+  <button data-tab="einstellungen" id="nav-einstellungen" hidden>Einstellungen</button>
 </nav>
 
 <main id="app">
@@ -691,6 +701,164 @@
 
  </div>
 
+ <!-- Essensbestellung. Der Ablauf steht oben in essen-service.js: zusammen-
+      stellen -> vorne bezahlen -> wir bestellen beim Lieferanten -> abholen.
+      ⚠️ Nicht mit dem Frühstück verwechseln: dort ist eine Bestellung an einen
+      Morgen gebunden, hier ist jede Bestellung ein eigener Vorgang mit Status. -->
+ <div class="tab-section" id="tab-essen">
+
+  <!-- noch keine Essensbestellung -> anlegen -->
+  <div class="sk-view aktiv" id="es-kein-plan">
+    <!-- ⚠️ Erscheint nur, wenn Firebase das Lesen von `essen` ablehnt. Ohne
+         diesen Kasten sähe der Bereich aus wie „noch nichts angelegt", und der
+         Anlege-Knopf liefe stumm ins Leere. Der Grund ist immer derselbe: der
+         `essen`-Block fehlt in den Datenbank-Regeln. -->
+    <div class="karte-block es-regelwarnung" id="es-regelwarnung" hidden>
+      <h2>Die Datenbank lässt diesen Bereich noch nicht zu</h2>
+      <p class="hinweis-text">Essen ist ein neuer Bereich in der Datenbank, und ein neuer Bereich ist bei
+      Firebase erst einmal für alles gesperrt. Damit er aufgeht, müssen die Regeln aus
+      <code>database.rules.json</code> einmal in der Firebase-Konsole eingespielt werden
+      (Realtime Database → Regeln → einfügen → veröffentlichen). Danach genügt ein Neuladen dieser Seite.</p>
+    </div>
+
+    <div class="karte-block">
+      <h2>Essensbestellung anlegen</h2>
+      <p class="hinweis-text">Speisekarte hinterlegen, Teilnehmer stellen sich ihr Essen zusammen. Bezahlt wird vorne, danach geht eine Sammelbestellung an den Lieferanten.</p>
+
+      <label class="feld-label" for="es-neu-titel">Name</label>
+      <input type="text" id="es-neu-titel" class="eingabe" placeholder="z. B. Pizza am Samstagabend" maxlength="60" autocomplete="off">
+
+      <label class="feld-label" for="es-neu-lieferant">Lieferant</label>
+      <input type="text" id="es-neu-lieferant" class="eingabe" placeholder="z. B. Pizzeria Bella Napoli" maxlength="80" autocomplete="off">
+
+      <label class="feld-label" for="es-neu-email">E-Mail des Lieferanten</label>
+      <input type="email" id="es-neu-email" class="eingabe" placeholder="bestellung@example.de" maxlength="120" autocomplete="off">
+      <p class="hinweis-text">Dorthin geht später die Sammelbestellung. Lässt sich auch nachtragen.</p>
+
+      <div class="feld-zeile">
+        <div>
+          <label class="feld-label" for="es-neu-besteller">Wer bestellt</label>
+          <input type="text" id="es-neu-besteller" class="eingabe" maxlength="60" autocomplete="off">
+        </div>
+        <div>
+          <label class="feld-label" for="es-neu-telefon">Telefon für Rückfragen</label>
+          <input type="tel" id="es-neu-telefon" class="eingabe" maxlength="40" autocomplete="off">
+        </div>
+      </div>
+
+      <label class="feld-label" for="es-neu-pin">Veranstalter-PIN</label>
+      <input type="text" id="es-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+
+      <button class="btn btn-primary btn-grow" id="es-btn-erstellen">Essensbestellung anlegen</button>
+      <p class="hinweis-text fehler" id="es-neu-fehler"></p>
+    </div>
+  </div>
+
+  <!-- Essensbestellung vorhanden -->
+  <div class="sk-view" id="es-plan">
+    <div class="sk-kopf">
+      <h2 id="es-titel">Essensbestellung</h2>
+      <p class="hinweis-text" id="es-kopfzeile"></p>
+    </div>
+
+    <div id="es-karte"></div>
+    <div id="es-korb"></div>
+    <div id="es-meine"></div>
+
+    <div class="karte-block" id="es-admin-login">
+      <p class="feld-label">Veranstalter</p>
+      <div class="feld-zeile">
+        <div>
+          <input type="text" id="es-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn btn-secondary" id="es-btn-admin-anmelden">Anmelden</button>
+        </div>
+      </div>
+      <p class="hinweis-text fehler" id="es-admin-login-fehler"></p>
+    </div>
+
+    <div id="es-admin" style="display:none">
+
+      <div class="karte-block">
+        <p class="feld-label">Alle Bestellungen</p>
+        <div id="es-admin-bestellungen"></div>
+        <p class="hinweis-text fehler" id="es-admin-fehler"></p>
+      </div>
+
+      <div class="karte-block" id="es-sammelmail"></div>
+
+      <div class="karte-block">
+        <p class="feld-label">Speisekarte</p>
+        <div id="es-karte-verwalten"></div>
+
+        <label class="feld-label" for="es-ger-name">Neues Gericht</label>
+        <input type="text" id="es-ger-name" class="eingabe" placeholder="Name, z. B. Pizza Salami" maxlength="80" autocomplete="off">
+        <input type="text" id="es-ger-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
+        <input type="text" id="es-ger-kategorie" class="eingabe" placeholder="Kategorie, z. B. Pizza (freiwillig)" maxlength="40" autocomplete="off" style="margin-top:8px">
+        <input type="text" id="es-ger-preis" class="eingabe" placeholder="Preis in €, z. B. 9,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
+        <button class="btn btn-secondary btn-grow" id="es-btn-ger-anlegen">Gericht hinzufügen</button>
+        <p class="hinweis-text fehler" id="es-gericht-fehler"></p>
+      </div>
+
+      <!-- Import: eine ganze Karte auf einmal, statt 40 Gerichte einzeln
+           anzulegen. Die Vorschau steht bewusst zwischen Einfügen und
+           Übernehmen – ein Import, der sofort schreibt, wäre bei einem
+           Formatfehler nicht mehr zurückzuholen. -->
+      <div class="karte-block">
+        <p class="feld-label">Speisekarte importieren</p>
+        <p class="hinweis-text">Ein Gericht je Zeile. Felder mit <b>|</b> trennen: <i>Name | Beschreibung | Preis</i>. Eine Zeile mit <b>#</b> davor beginnt eine Kategorie. Beschreibung und Preis darf man weglassen.</p>
+        <textarea id="es-import-text" class="eingabe es-import-feld" rows="8" spellcheck="false" placeholder="# Pizza&#10;Margherita | Tomate, Käse | 8,50&#10;Salami | Tomate, Käse, Salami | 9,50&#10;&#10;# Beilagen&#10;Pommes | 3,00"></textarea>
+        <button class="btn btn-secondary btn-grow" id="es-btn-import-pruefen">Vorschau anzeigen</button>
+        <div id="es-import-vorschau"></div>
+        <p class="hinweis-text fehler" id="es-import-fehler"></p>
+      </div>
+
+      <div class="karte-block">
+        <p class="feld-label">Einstellungen</p>
+
+        <label class="es-schalter">
+          <input type="checkbox" id="es-ein-annahme">
+          <span>Bestellannahme ist offen</span>
+        </label>
+        <p class="hinweis-text">Ausschalten, sobald die Sammelbestellung rausgeht – dann kommt nichts Neues mehr dazu.</p>
+
+        <label class="feld-label" for="es-ein-lieferant">Lieferant</label>
+        <input type="text" id="es-ein-lieferant" class="eingabe" maxlength="80" autocomplete="off">
+
+        <label class="feld-label" for="es-ein-email">E-Mail des Lieferanten</label>
+        <input type="email" id="es-ein-email" class="eingabe" maxlength="120" autocomplete="off">
+
+        <div class="feld-zeile">
+          <div>
+            <label class="feld-label" for="es-ein-besteller">Wer bestellt</label>
+            <input type="text" id="es-ein-besteller" class="eingabe" maxlength="60" autocomplete="off">
+          </div>
+          <div>
+            <label class="feld-label" for="es-ein-telefon">Telefon</label>
+            <input type="tel" id="es-ein-telefon" class="eingabe" maxlength="40" autocomplete="off">
+          </div>
+        </div>
+
+        <label class="feld-label" for="es-ein-hinweis">Zusatz für die E-Mail</label>
+        <textarea id="es-ein-hinweis" class="eingabe es-hinweis-feld" rows="3" maxlength="400" placeholder="z. B. Lieferadresse, gewünschte Uhrzeit"></textarea>
+
+        <button class="btn btn-secondary btn-grow" id="es-btn-ein-speichern">Einstellungen speichern</button>
+        <p class="hinweis-text fehler" id="es-ein-fehler"></p>
+      </div>
+
+      <div class="karte-block">
+        <button class="btn btn-secondary btn-grow" id="es-btn-leeren">Alle Bestellungen entfernen</button>
+        <p class="hinweis-text">Die Speisekarte und die Einstellungen bleiben stehen.</p>
+
+        <button class="btn btn-danger btn-grow" id="es-btn-plan-loeschen">Essensbestellung löschen</button>
+        <p class="hinweis-text">Löscht alles: Speisekarte, Einstellungen und Bestellungen. Turnier, Stream und Frühstück bleiben unberührt.</p>
+      </div>
+    </div>
+  </div>
+
+ </div>
+
  <div class="tab-section" id="tab-einstellungen">
    <div class="karte-block">
      <h2>Angemeldete Nutzer</h2>
@@ -858,11 +1026,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.3',
-    'app.js?v=2.9',
+    'app.js?v=3.0',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',
-    'fruehstueck-app.js?v=1.5'
+    'fruehstueck-app.js?v=1.5',
+    'essen-service.js?v=1.0',
+    'essen-app.js?v=1.0'
   ];
 
   var input = document.getElementById('pw-gate-input');
@@ -881,7 +1051,7 @@
   // Welchen Bereich hat der Klick im Vorraum gemeint? Nach der Anmeldung soll
   // die App genau dort aufgehen und nicht auf dem Turnier-Tab.
   var zielTab = null;
-  var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück' };
+  var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück', essen: 'Essen' };
   var frei = false;
   var modusNeu = false;   // false = anmelden, true = Konto anlegen
 

@@ -1271,6 +1271,28 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.7",
+    groups: [
+      { title: "Neu: Essensbestellung", items: [
+          "Fünfter Bereich neben Turnier, Stream und Frühstück – für das warme Essen vom Lieferanten. Der Weg ist der, den es vorne am Tisch auch gibt: zusammenstellen, bezahlen, wir bestellen, du holst ab.",
+          "Zu jedem Gericht lässt sich ein eigener Sonderwunsch schreiben („Pommes mit Spezialsoße“). Dasselbe Gericht darf zweimal auf der Bestellung stehen, einmal mit und einmal ohne – für die Küche sind das zwei verschiedene Dinge.",
+          "Jede Bestellung hat einen Stand, den alle Beteiligten sehen: noch nicht bezahlt, bezahlt, beim Lieferanten bestellt, abgeholt.",
+          "Ändern und stornieren geht, solange nicht bezahlt ist. Danach ist die Bestellung fest – sonst wäre der kassierte Betrag ein anderer als der bestellte."
+      ]},
+      { title: "Für den Veranstalter", items: [
+          "Speisekarte importieren: eine ganze Karte auf einmal einfügen statt vierzig Gerichte einzeln anzulegen. Ein Gericht je Zeile, Felder mit „|“ getrennt, eine Zeile mit „#“ beginnt eine Kategorie. Vor dem Übernehmen steht eine Vorschau – wahlweise anhängen oder die alte Karte ersetzen.",
+          "Sammelbestellung auf Knopfdruck: Die App zählt gleiche Gerichte zusammen, schreibt den fertigen E-Mail-Text und öffnet damit das Mailprogramm. Der Text lässt sich vorher noch ändern oder in die Zwischenablage kopieren.",
+          "In der E-Mail stehen bewusst keine Namen der Besteller – der Lieferant braucht Mengen und Sonderwünsche, sonst nichts.",
+          "Ist die Mail raus, setzt ein Klick alle mitgeschickten Bestellungen auf „beim Lieferanten bestellt“.",
+          "Die Bestellannahme lässt sich schließen, solange eine Sammelbestellung unterwegs ist.",
+          "Preise werden mit der Bestellung festgeschrieben. Wer für 8,50 € bestellt hat, zahlt 8,50 €, auch wenn die Karte danach anders aussieht. Ein Gericht von der Karte zu nehmen lässt bestehende Bestellungen unangetastet."
+      ]},
+      { title: "Handy", items: [
+          "Mit dem fünften Reiter passte die Leiste auf schmalen Geräten nicht mehr in eine Zeile. Statt die Seite seitlich wegschiebbar zu machen, bricht die Leiste jetzt um."
+      ]}
+    ]
+  },
+  {
     version: "2.6",
     groups: [
       { title: "Die Änderungsliste ist wieder sichtbar", items: [

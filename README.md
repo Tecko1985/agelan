@@ -1,9 +1,8 @@
-# 🎮 AgeLan – Turniere & Streamplan
+# 🎮 AgeLan – alles zur LAN
 
-Turnier- und Streamplan-Seite der AgeLan. Im Reiter **Turnier** stehen alle
-Turniere der Veranstaltung nebeneinander — jede:r schreibt sich in die ein, bei
-denen sie oder er mitspielen will. Im Reiter **Stream** tragen die Streamer
-selbst ein, wer wann vom Kanal sendet.
+Die Seite zur AgeLan: Turniere, Sendeplan und das Essen an einem Ort. Wer die
+Seite öffnet, sieht zuerst einen offenen Vorraum mit den Bereichen; das Passwort
+kommt erst beim Betreten eines Bereichs.
 
 **➡️ [AgeLan öffnen](https://tecko1985.github.io/agelan/)**
 
@@ -13,7 +12,9 @@ selbst ein, wer wann vom Kanal sendet.
 |---|---|
 | **Turnier** | Alle Turniere nebeneinander, zum Selbst-Eintragen. Der Veranstalter legt neue an, lost aus und pflegt die **K.-o.-Runde** |
 | **Stream** | Der Sendeplan über die Veranstaltungstage — die Streamer tragen sich selbst ein |
-| **Info** | Was die Seite kann, die Änderungsliste und der Datenschutz-Hinweis |
+| **Frühstück** | Frühstückspakete für den nächsten Morgen, bestellt wird am Abend vorher |
+| **Essen** | Warmes Essen vom Lieferanten: Speisekarte, Bestellung mit Sonderwünschen, bezahlen, abholen |
+| **Einstellungen** | Nur für den Veranstalter: die angemeldeten Konten und die Änderungsliste |
 
 Unter **Alle Einträge** steht der Gesamtstand, das Anlegen von Turnier und
 Streamplan bleibt dem **Veranstalter** vorbehalten.
@@ -38,6 +39,25 @@ Zum Ausprobieren legt der Veranstalter Testspieler an und würfelt offene Spiele
 Ließ sich etwas nicht speichern — Funkloch, abgelaufene Anmeldung —, sagt es ein roter
 Balken am unteren Rand, statt dass der Klick stillschweigend verpufft.
 
+## Essen bestellen
+
+Der Veranstalter hinterlegt eine **Speisekarte** — von Hand oder als Import, bei
+dem eine ganze Karte auf einmal eingefügt wird (ein Gericht je Zeile, Felder mit
+`|` getrennt, `#` beginnt eine Kategorie). Jede:r stellt sich daraus eine
+Bestellung zusammen und kann **zu jedem Gericht einen eigenen Sonderwunsch**
+schreiben — „Pommes mit Spezialsoße". Dasselbe Gericht darf zweimal auf der
+Bestellung stehen, einmal mit und einmal ohne.
+
+Danach läuft es wie am Tisch: bezahlen, wir bestellen, du holst ab. Jede
+Bestellung trägt sichtbar ihren Stand (**noch nicht bezahlt → bezahlt → beim
+Lieferanten bestellt → abgeholt**). Ändern und stornieren geht, solange nicht
+bezahlt ist.
+
+Für die Sammelbestellung zählt die App gleiche Gerichte zusammen, schreibt den
+fertigen **E-Mail-Text** und öffnet damit das Mailprogramm; der Text lässt sich
+vorher ändern oder kopieren. Namen der Besteller stehen bewusst nicht drin — der
+Lieferant braucht Mengen und Sonderwünsche.
+
 ## Zugang
 
 Die Seite ist mit einem **eigenen Passwort** geschützt, nicht über das
@@ -56,4 +76,5 @@ Vanilla JavaScript ohne Build-Schritt — die Dateien werden so ausgeliefert, wi
 
 ---
 
-Ein Werkzeug des 1. SC 1911 Heiligenstadt. Alle Werkzeuge auf einen Blick: [Tools-Übersicht](https://sc1911heiligenstadt.github.io/ToolsUebersicht/) · Erklärungen im [Toolbox Wiki](https://sc1911heiligenstadt.github.io/Vereinswiki/).
+Die AgeLan ist eine private Veranstaltung, kein Angebot eines Vereins. Der
+Datenschutz-Hinweis steht im Vorraum der Seite, vor der Anmeldung.
