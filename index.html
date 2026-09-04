@@ -973,12 +973,19 @@
            Weg. Vor der Loesch-Zone, damit die das Letzte bleibt. -->
       <div class="karte-block" id="es-statistik"></div>
 
+      <!-- ⚠️ Zugeklappt ist hier mehr als Ordnung: die beiden Knoepfe loeschen
+           unwiederbringlich, und zugeklappt kann man sie nicht im Vorbeiscrollen
+           erwischen. Beide fragen zusaetzlich nach. -->
       <div class="karte-block">
+        <details class="es-klapp">
+        <summary><span class="es-klapp-titel">Löschen und zurücksetzen</span><span class="es-klapp-kurz">nicht rückgängig zu machen</span></summary>
+
         <button class="btn btn-secondary btn-grow" id="es-btn-leeren">Alle Bestellungen entfernen</button>
         <p class="hinweis-text">Die Speisekarte und die Einstellungen bleiben stehen.</p>
 
         <button class="btn btn-danger btn-grow" id="es-btn-plan-loeschen">Essensbestellung löschen</button>
         <p class="hinweis-text">Löscht alles: Speisekarte, Einstellungen und Bestellungen. Turnier, Stream und Frühstück bleiben unberührt.</p>
+        </details>
       </div>
     </div>
   </div>
@@ -1158,7 +1165,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.20',
+    'app.js?v=3.21',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',

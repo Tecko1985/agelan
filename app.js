@@ -1271,6 +1271,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.8",
+    groups: [
+      { title: "Lösch-Knöpfe zugeklappt", items: [
+          "„Alle Bestellungen entfernen“ und „Essensbestellung löschen“ stecken jetzt hinter <b>„Löschen und zurücksetzen“</b>. Zugeklappt kann man sie nicht im Vorbeiscrollen erwischen – beide fragen weiterhin zusätzlich nach."
+      ]}
+    ]
+  },
+  {
     version: "4.7",
     groups: [
       { title: "Statistik weiter nach unten", items: [
