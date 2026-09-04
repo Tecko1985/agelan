@@ -1271,6 +1271,21 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.4",
+    groups: [
+      { title: "Essen ist da – alle auf einen Klick benachrichtigen", items: [
+          "Bei jeder Sammelbestellung gibt es den Knopf <b>📣 Bescheid geben</b>. Er schreibt allen Bestellern dieser Lieferung per Discord, dass ihr Essen vorne bereitliegt.",
+          "Danach steht dort, <b>wer nicht erreicht wurde und warum</b> – keine Discord-ID hinterlegt, Direktnachrichten gesperrt, kein Konto mit dem Namen. Diesen Leuten muss man selbst Bescheid sagen.",
+          "Der Knopf ändert keinen Stand und darf mehrfach gedrückt werden – falls jemand beim ersten Mal nicht reagiert.",
+          "Wer zweimal in derselben Lieferung bestellt hat, bekommt trotzdem nur eine Nachricht."
+      ]},
+      { title: "Unter der Haube", items: [
+          "Die App schickt nur die <b>Namen</b> an den Server, nie die Discord-IDs – nachgeschlagen wird dort. Die IDs verlassen den Server nicht.",
+          "Verschickt wird nacheinander statt alles auf einmal, weil Discord beim Massenversand bremst. Höchstens 60 Leute je Durchgang."
+      ]}
+    ]
+  },
+  {
     version: "3.3",
     groups: [
       { title: "Essen: jede Sammelbestellung für sich", items: [

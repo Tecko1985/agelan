@@ -471,15 +471,82 @@ function esRundeHtml(r) {
           <span><b>${essenService.centLabel(r.zahltCent)}</b></span>
         </div>
         ${note.length ? `<p class="hinweis-text es-geldnote">${note.join(" ")}</p>` : ""}
+        ${esBescheidHtml(r)}
         <div class="es-best-aktionen es-runde-knoepfe">
           <button type="button" class="mini-btn" data-es-runde-mail="${escapeHtml(r.id)}"
             title="Den Text dieser Sammelbestellung noch einmal ansehen">✉ Mailtext</button>
+          ${r.fertig ? "" : `<button type="button" class="mini-btn" data-es-runde-bescheid="${escapeHtml(r.id)}"
+            title="Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt">📣 Bescheid geben</button>`}
           ${r.fertig ? "" : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
             title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
         </div>
         ${r.bestellungen.map(esBestellungHtml).join("")}
       </div>
     </details>`;
+}
+
+// Das Ergebnis des letzten Bescheid-Laufs, je Lieferung gemerkt.
+// \u26a0\ufe0f Als Modul-Variable, nicht als Text irgendwo im DOM: die Bestellliste
+// zeichnet sich bei jeder \u00c4nderung neu, und die Nachfassliste w\u00e4re dann sofort
+// wieder weg - genau die Liste, wegen der man den Knopf gedr\u00fcckt hat.
+let esBescheidStand = {};
+
+function esBescheidHtml(r) {
+  const e = esBescheidStand[r.id];
+  if (!e) return "";
+  if (e.laeuft) return `<p class="hinweis-text es-bescheid-lauf">Schicke Nachrichten \u2026</p>`;
+  if (e.fehler) return `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}</p>`;
+
+  const gut = e.geschickt
+    ? `<b>\u2705 ${e.geschickt} benachrichtigt.</b>`
+    : `<b>Niemand erreicht.</b>`;
+  // \u26a0\ufe0f Die Nachfassliste ist der Punkt der ganzen \u00dcbung. Ohne sie h\u00e4lt Michel
+  // alle f\u00fcr informiert - und wer keine Nachricht bekam, holt sein Essen nie ab.
+  const schlecht = e.offen && e.offen.length
+    ? `<br><b>\u26a0\ufe0f ${e.offen.length} nicht erreicht \u2013 diesen Leuten selbst Bescheid sagen:</b><br>` +
+      e.offen.map((o) => `\u2022 ${escapeHtml(o.nickname)} \u2013 ${escapeHtml(o.grund)}`).join("<br>")
+    : "";
+  return `<p class="hinweis-text es-bescheid${e.offen && e.offen.length ? " es-bescheid-luecke" : ""}">${gut}${schlecht}</p>`;
+}
+
+// "Dein Essen ist da" an alle Besteller dieser Lieferung.
+//
+// \u26a0\ufe0f Der Client schickt NAMEN, keine Discord-IDs - die kennt er gar nicht und
+// soll er auch nicht kennen. Nachgeschlagen wird im Worker.
+async function esBescheidGeben(runde, knopf) {
+  // Dieselbe Person kann mehrere Bestellungen in einer Lieferung haben; der
+  // Worker wirft Doppelte weg, aber die Zahl in der R\u00fcckfrage muss schon hier
+  // stimmen, sonst steht dort eine Zahl, die niemand wiederfindet.
+  const alle = runde.bestellungen.map((b) => b.name).filter(Boolean);
+  const namen = [];
+  const gesehen = new Set();
+  alle.forEach((n) => {
+    const k = String(n).trim().toLowerCase();
+    if (!k || gesehen.has(k)) return;
+    gesehen.add(k);
+    namen.push(String(n).trim());
+  });
+
+  if (!namen.length) {
+    esBescheidStand[runde.id] = { fehler: "In dieser Lieferung steht kein Name." };
+    esRender(esZustand);
+    return;
+  }
+  if (!confirm(namen.length + (namen.length === 1 ? " Person" : " Leuten") + " per Discord sagen, dass das Essen da ist?\n\nWer keine Discord-ID hinterlegt hat, bekommt nichts \u2013 die stehen danach in einer Liste zum Nachfassen.")) return;
+
+  knopf.disabled = true;
+  esBescheidStand[runde.id] = { laeuft: true };
+  esRender(esZustand);
+  try {
+    const daten = await kontenRufe("discord-sammel", { nicknames: namen, titel: runde.titel });
+    esBescheidStand[runde.id] = {
+      geschickt: daten.geschickt || 0,
+      offen: daten.offen || [],
+    };
+  } catch (e) {
+    esBescheidStand[runde.id] = { fehler: e.message };
+  }
+  esRender(esZustand);
 }
 
 function esRenderAdminBestellungen(z) {
@@ -525,6 +592,13 @@ function esRenderAdminBestellungen(z) {
       esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
     });
   });
+  box.querySelectorAll("[data-es-runde-bescheid]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeBescheid);
+      if (r) esBescheidGeben(r, btn);
+    });
+  });
+
   box.querySelectorAll("[data-es-runde-da]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeDa);

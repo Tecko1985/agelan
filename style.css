@@ -936,6 +936,19 @@ main#app.sk-breit { max-width: 980px; }
 .konto-kein-discord { flex: 0 0 auto; font-size: 13px; opacity: 0.85; cursor: help; }
 .konten-fehlend { margin: 0 0 10px; font-size: 13px; line-height: 1.45; color: #8a6100; }
 
+/* Ergebnis eines Bescheid-Laufs an einer Lieferung. ⚠️ Die Nachfassliste ist
+   der Punkt der ganzen Übung - sie MUSS auffallen. Sonst hält der Veranstalter
+   alle für informiert, und wer keine Nachricht bekam, holt sein Essen nie ab. */
+.es-bescheid { margin: 8px 0 4px; line-height: 1.5; }
+.es-bescheid-lauf { margin: 8px 0 4px; opacity: 0.8; }
+.es-bescheid-luecke {
+  padding: 8px 10px;
+  border-left: 3px solid #f0b429;
+  border-radius: 4px;
+  background: rgba(240, 180, 41, 0.10);
+  color: #8a6100;
+}
+
 /* Banner der Veranstaltung auf der Startseite. Breite begrenzt, Hoehe
    automatisch - width/height stehen am <img>, damit beim Laden nichts springt. */
 .hub-banner {
