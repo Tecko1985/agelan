@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.3",
+    groups: [
+      { title: "Neuer Tag, ohne etwas zu verlieren", items: [
+          "Unter „Einstellungen“ steht jetzt ganz oben das Feld <b>Tag</b>. Trag dort „Freitag“ ein, wenn der nächste Tag beginnt – bis jetzt ließ sich der Name gar nicht ändern.",
+          "Die Zählung der Sammelbestellungen fängt dann wieder bei 1 an: „Freitag 1“, „Freitag 2“ … Alles vom Vortag bleibt stehen und behält seinen Namen („Donnerstag 1“ heißt weiter so).",
+          "Speisekarte, Lieferant und Zeiten bleiben ebenfalls. Es geht nichts verloren – im Gegensatz zu „alles löschen“.",
+          "Unter dem Feld steht sofort, wie die nächste Sammelbestellung heißen wird und wie viele es an diesem Tag schon gab."
+      ]}
+    ]
+  },
+  {
     version: "4.2",
     groups: [
       { title: "Rückweg nach einem Fehlklick", items: [

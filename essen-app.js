@@ -1184,6 +1184,7 @@ function esRenderEinstellungen(z) {
     const el = esEl(id);
     if (el && document.activeElement !== el) el.value = wert || "";
   };
+  setze("es-ein-titel", z.meta.titel);
   setze("es-ein-lieferant", z.meta.lieferantName);
   setze("es-ein-email", z.meta.lieferantEmail);
   setze("es-ein-besteller", z.meta.bestellerName);
@@ -1197,6 +1198,15 @@ function esRenderEinstellungen(z) {
 
   const schalter = esEl("es-ein-annahme");
   if (schalter && document.activeElement !== schalter) schalter.checked = z.schalterAn;
+
+  // ⚠️ Der Beleg, dass der Tageswechsel gewirkt hat. Ohne ihn muss man erst
+  // eine Bestellung durchschicken, um zu sehen, wie die nächste Lieferung heißt.
+  const tagstand = esEl("es-ein-tagstand");
+  if (tagstand) {
+    const bisher = z.runden.filter((r) => r.tag === z.meta.titel).length;
+    tagstand.textContent = "Die nächste Sammelbestellung heißt „" + z.meta.titel + " " + z.naechsteRundeNr + "“."
+      + (bisher ? " Bisher an diesem Tag: " + bisher + "." : "");
+  }
 
   const stand = esEl("es-ein-fensterstand");
   if (stand) {
@@ -1242,6 +1252,7 @@ function esWireEvents() {
 
   esEl("es-btn-ein-speichern").addEventListener("click", async () => {
     const res = await essenService.setzeEinstellungen({
+      titel: esEl("es-ein-titel").value,
       lieferantName: esEl("es-ein-lieferant").value,
       lieferantEmail: esEl("es-ein-email").value,
       bestellerName: esEl("es-ein-besteller").value,

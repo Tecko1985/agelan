@@ -901,6 +901,14 @@
       <div class="karte-block">
         <p class="feld-label">Einstellungen</p>
 
+        <!-- ⚠️ Der Name IST der Tag. Ihn zu ändern ist der Weg in einen neuen
+             Tag: die Nummerierung der Sammelbestellungen fängt wieder bei 1 an,
+             alles Bisherige bleibt stehen und behält seinen Namen. -->
+        <label class="feld-label" for="es-ein-titel">Tag</label>
+        <input type="text" id="es-ein-titel" class="eingabe" maxlength="60" autocomplete="off" placeholder="z. B. Donnerstag">
+        <p class="hinweis-text">So heißt der Tag oben auf der Seite, und so heißen die Sammelbestellungen: „Donnerstag 1“, „Donnerstag 2“ … Trag hier <b>Freitag</b> ein, wenn der nächste Tag beginnt – die Zählung fängt dann wieder bei 1 an, und alles vom Vortag bleibt mit seinem Namen stehen. Nichts geht verloren.</p>
+        <p class="hinweis-text" id="es-ein-tagstand"></p>
+
         <label class="es-schalter">
           <input type="checkbox" id="es-ein-annahme">
           <span>Bestellannahme ist offen</span>
@@ -1133,13 +1141,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.15',
+    'app.js?v=3.16',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',
     'fruehstueck-app.js?v=1.5',
-    'essen-service.js?v=1.8',
-    'essen-app.js?v=2.3'
+    'essen-service.js?v=1.9',
+    'essen-app.js?v=2.4'
   ];
 
   var input = document.getElementById('pw-gate-input');

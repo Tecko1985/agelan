@@ -1415,9 +1415,17 @@ async function esLoescheBestellung(bestellungId) {
   return { erfolg: true };
 }
 
-async function esSetzeEinstellungen({ lieferantName, lieferantEmail, bestellerName, bestellerTelefon, hinweis, annahmeOffen, annahmeVon, annahmeBis }) {
+async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, bestellerName, bestellerTelefon, hinweis, annahmeOffen, annahmeVon, annahmeBis }) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  // ⚠️ Der Titel ist der TAG, und ihn zu ändern ist der einzige Weg in einen
+  // neuen Tag, ohne die alten Daten zu verlieren: `esNaechsteRundeNr()` fängt
+  // bei einem anderen Namen wieder bei 1 an, die verschickten Runden behalten
+  // ihren eingefrorenen Titel. Leer ist er nie – sonst verschwände die
+  // Essensbestellung, weil `esGetZustand()` einen Plan ohne `titel` als „gibt es
+  // nicht" liest.
+  const t = esText(titel, 60);
+  if (!t) return { erfolg: false, fehler: "Der Tag braucht einen Namen." };
   const mail = esText(lieferantEmail, 120);
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
     return { erfolg: false, fehler: "Die E-Mail-Adresse des Lieferanten sieht nicht richtig aus." };
@@ -1434,6 +1442,7 @@ async function esSetzeEinstellungen({ lieferantName, lieferantEmail, bestellerNa
     // gesetztes Fenster nie wieder wegnehmen, ohne den Knoten anzufassen.
     annahmeVon: von === null ? -1 : von,
     annahmeBis: bis === null ? -1 : bis,
+    titel: t,
     lieferantName: esText(lieferantName, 80),
     lieferantEmail: mail,
     bestellerName: esText(bestellerName, 60),
