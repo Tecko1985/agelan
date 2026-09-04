@@ -72,11 +72,17 @@
 
         <p><strong>Was gespeichert wird:</strong> der Name, unter dem du dich anmeldest,
         und dein Passwort (verschlüsselt, nicht lesbar). Dazu, was du selbst einträgst –
-        Turnier-Anmeldungen und Ergebnisse, Sendezeiten im Streamplan und deine
-        Frühstücksbestellungen. Keine E-Mail-Adresse, keine Anschrift, keine Werbung,
-        keine Weitergabe an Dritte.</p>
+        Turnier-Anmeldungen und Ergebnisse, Sendezeiten im Streamplan, Frühstücks- und
+        Essensbestellungen. Keine E-Mail-Adresse, keine Anschrift, keine Werbung.</p>
 
-        <p><strong>Wo es liegt:</strong> Anmeldedaten bei Cloudflare, alles Übrige in der
+        <p><strong>Freiwillig: deine Discord-Benutzer-ID.</strong> Wenn du sie unter
+        „Mein Konto“ einträgst, schickt dir der AgeLan-Bot eine Direktnachricht, sobald dein
+        Essen zum Abholen bereitliegt. Dafür geht deine ID beim Verschicken an
+        <strong>Discord</strong> – anders kann dich dort niemand erreichen. Ohne ID geht gar
+        nichts an Discord; du bestellst dann genauso, fragst aber selbst nach. Löschen kannst
+        du sie jederzeit im selben Feld, indem du es leer machst und speicherst.</p>
+
+        <p><strong>Wo es liegt:</strong> Anmeldedaten und Discord-ID bei Cloudflare, alles Übrige in der
         Echtzeit-Datenbank von Google (Firebase). Das Rechenzentrum steht in
         <strong>Belgien</strong> und wird von Google betrieben. <strong>Wenn du das nicht
         möchtest, melde dich mit einem Spitznamen statt deines echten Namens an.</strong></p>
@@ -138,6 +144,54 @@
   </div>
 </div>
 
+<!-- ============ Mein Konto ============ -->
+<!-- ⚠️ Der Reiter „Einstellungen" ist NUR fuer Veranstalter. Ohne diesen Dialog
+     gaebe es fuer alle anderen ueberhaupt keinen Weg, etwas am eigenen Konto zu
+     aendern - die Discord-ID waere nur beim Anlegen eintragbar und danach nie
+     wieder. Erreichbar ueber den eigenen Namen in der Kopfzeile. -->
+<div id="konto-gate" class="pw-overlay" hidden>
+  <div class="pw-box konto-box">
+    <div class="pw-icon">👤</div>
+    <h2 class="pw-titel">Mein Konto</h2>
+    <p class="pw-text" id="konto-wer"></p>
+
+    <label class="pw-label" for="konto-discord">Deine Discord-ID <span class="pw-freiwillig">(freiwillig)</span></label>
+    <!-- inputmode="numeric" holt am Handy die Zifferntastatur.
+         ⚠️ Bewusst KEIN type="number": das machte aus der 18-stelligen Zahl
+         eine Fliesskommazahl und schnitte hinten Stellen ab. -->
+    <input id="konto-discord" type="text" inputmode="numeric" autocomplete="off"
+           placeholder="z. B. 247882849853407232" maxlength="20" class="pw-eingabe">
+    <p class="konto-hinweis">Damit sagt dir der AgeLan-Bot per Direktnachricht Bescheid, sobald dein Essen zum Abholen bereitliegt. Ohne ID bekommst du keine Nachricht und musst selbst nachfragen.</p>
+
+    <details class="konto-hilfe">
+      <summary>Wo finde ich die?</summary>
+      <div class="konto-hilfe-text">
+        <p><b>Das ist nicht dein Discord-Name</b>, sondern eine lange Zahl.</p>
+        <ol>
+          <li>Discord öffnen, unten links auf das <b>Zahnrad</b> (Einstellungen)</li>
+          <li>In der Liste weiter unten <b>Erweitert</b> antippen</li>
+          <li><b>Entwicklermodus</b> einschalten</li>
+          <li>Zurück zum Chat, dann <b>Rechtsklick auf dich selbst</b> – am Handy lange antippen</li>
+          <li><b>„Benutzer-ID kopieren"</b> wählen und hier einfügen</li>
+        </ol>
+      </div>
+    </details>
+
+    <button id="konto-btn-speichern" type="button" class="pw-knopf">Speichern</button>
+
+    <!-- ⚠️ Der wichtigste Knopf in diesem Dialog. Eine falsche, aber gueltig
+         aussehende Zahl geht an eine wildfremde Person oder ins Leere - ohne
+         dass es irgendwer merkt. Erst die Testnachricht macht aus dem stillen
+         Fehler einen sichtbaren. Deshalb steht er hier offen und nicht
+         irgendwo versteckt. -->
+    <button id="konto-btn-test" type="button" class="pw-knopf konto-knopf-test" hidden>Testnachricht schicken</button>
+    <p class="konto-hinweis" id="konto-test-hinweis" hidden>Kommt nichts an, stimmt entweder die ID nicht – oder du hast in Discord die Direktnachrichten von Servermitgliedern ausgeschaltet.</p>
+
+    <p id="konto-msg" class="pw-meldung"></p>
+    <button id="konto-zurueck" type="button" class="pw-zurueck">Schließen</button>
+  </div>
+</div>
+
 <header class="kopfzeile">
   <div class="kopfzeile-left">
     <!-- Führt zurück aufs Dashboard mit den Kacheln. Als <button>, nicht als
@@ -152,7 +206,10 @@
     <!-- Wer ist hier angemeldet? Bleibt leer, solange es kein Konto gibt.
          ⚠️ Kein Vereinslogo: die AgeLan ist Michels privates Event, das Wappen
          des Vereins hat hier nichts zu suchen. -->
-    <span class="kopfzeile-konto" id="kopf-konto" hidden></span>
+    <!-- Als <button>, nicht als <span>: das ist fuer alle ausser dem
+         Veranstalter der EINZIGE Weg zum eigenen Konto, und der muss auch mit
+         Tastatur erreichbar sein - genau wie der Titel links daneben. -->
+    <button type="button" class="kopfzeile-konto" id="kopf-konto" hidden></button>
     <!-- ⚠️ Bleibt im Normalbetrieb LEER (Michel: das „live" kann raus). Es
          fuellt sich nur im Test-Modus mit „lokal (Test)" – ohne diese Warnung
          sieht eine Sitzung gegen die Mock-Datenbank aus wie die echte. -->
@@ -865,6 +922,10 @@
      <p class="hinweis-text">Alle, die sich ein Konto angelegt haben. ⭐ ist Veranstalter, 🛠 gehört zur Organisation.</p>
      <p class="hinweis-text">Das Häkchen <b>🛠</b> nimmt jemanden in die Organisation auf: die Person bekommt damit <b>alle Rechte</b> – wie ein Veranstalter, nur ohne das Veranstalter-Passwort – und <b>zahlt beim Essen nichts</b>. Bei Veranstaltern ist es fest gesetzt, sie gehören immer dazu.</p>
      <p class="hinweis-text">Das Häkchen <b>🎥</b> gibt frei, sich in den Streamplan einzutragen – ohne das Häkchen darf man ihn nur lesen. Veranstalter und Organisation dürfen es immer.</p>
+     <!-- ⚠️ Bewusst nur JA/NEIN, nie die Zahl selbst: der Veranstalter muss
+          wissen, wer noch keine hinterlegt hat - die ID braucht er dafuer
+          nicht, und sie steht auch niemandem sonst zu. -->
+     <p class="hinweis-text">Steht <b>💬❌</b> hinter einem Namen, hat die Person keine Discord-ID hinterlegt und bekommt <b>keine Nachricht</b>, wenn ihr Essen bereitliegt. Eintragen kann sie nur sie selbst – oben auf den eigenen Namen tippen, dann „Mein Konto“. Die ID selbst siehst du hier nicht.</p>
      <button class="btn btn-secondary btn-grow" id="btn-konten-laden">Liste laden</button>
      <div id="konten-liste"></div>
      <p class="hinweis-text fehler" id="konten-fehler"></p>
@@ -1080,9 +1141,15 @@
     if (el) {
       if (konto && konto.nickname) {
         el.textContent = (konto.admin ? '⭐ ' : '👤 ') + konto.nickname;
-        el.title = konto.admin
+        // ⚠️ Ohne hinterlegte Discord-ID bekommt die Person KEINE Nachricht,
+        // wenn ihr Essen bereitliegt. Der gelbe Punkt am Namen ist der einzige
+        // Hinweis darauf - sonst faellt es erst auf, wenn das Essen kalt ist.
+        el.classList.toggle('konto-ohne-discord', !konto.discordId);
+        el.title = (konto.admin
           ? 'Angemeldet als ' + konto.nickname + ' (Veranstalter)'
-          : 'Angemeldet als ' + konto.nickname;
+          : 'Angemeldet als ' + konto.nickname)
+          + (konto.discordId ? '' : ' – noch keine Discord-ID hinterlegt')
+          + '\nKlicken für „Mein Konto“';
         el.hidden = false;
       } else {
         el.textContent = '';
@@ -1202,7 +1269,7 @@
     }).then(function (resp) {
       return resp.json().catch(function () { return {}; }).then(function (b) {
         if (resp.ok && b.ok && b.token) {
-          var konto = { nickname: b.nickname, token: b.token, admin: !!b.admin, streamer: !!b.streamer, orga: !!b.orga };
+          var konto = { nickname: b.nickname, token: b.token, admin: !!b.admin, streamer: !!b.streamer, orga: !!b.orga, discordId: b.discordId || '' };
           kontoSchreiben(konto);
           kontoAnzeigen(konto);
           msg.style.color = '#5a6b82';
@@ -1228,6 +1295,102 @@
     });
   }
 
+  // --- Mein Konto: die Discord-ID -------------------------------------------
+  var kontoGate   = document.getElementById('konto-gate');
+  var kdFeld      = document.getElementById('konto-discord');
+  var kdMsg       = document.getElementById('konto-msg');
+  var kdSpeichern = document.getElementById('konto-btn-speichern');
+  var kdTest      = document.getElementById('konto-btn-test');
+  var kdTestText  = document.getElementById('konto-test-hinweis');
+
+  // Dieselbe Regel wie im Worker: reine Ziffern, 17 bis 20 Stellen.
+  // ⚠️ Sie ERSETZT die Prüfung dort nicht - sie sagt nur früher Bescheid,
+  // ohne dass jemand erst auf den Server warten muss.
+  var DISCORD_ID_RE = /^[0-9]{17,20}$/;
+
+  function kdMelden(text, istFehler) {
+    kdMsg.style.color = istFehler ? '#c0392b' : '#5a6b82';
+    kdMsg.textContent = text;
+  }
+
+  // Den Test gibt es nur, wenn eine ID auch wirklich GESPEICHERT ist. Er prüft
+  // den Stand im Konto, nicht den im Feld - sonst bestätigte er eine Zahl, die
+  // noch gar nicht abgelegt ist.
+  function kdTestZeigen(gespeichert) {
+    kdTest.hidden = !gespeichert;
+    kdTestText.hidden = !gespeichert;
+  }
+
+  function oeffneKonto() {
+    var k = kontoLesen();
+    if (!k || !k.nickname) return;
+    document.getElementById('konto-wer').textContent = 'Angemeldet als ' + k.nickname;
+    kdFeld.value = k.discordId || '';
+    kdMelden('', false);
+    kdTestZeigen(k.discordId);
+    kontoGate.hidden = false;
+    kdFeld.focus();
+  }
+
+  function schliesseKonto() { kontoGate.hidden = true; }
+
+  // Ein Aufruf an den Worker, der immer denselben Weg nimmt: Knopf sperren,
+  // melden, wieder entsperren. ⚠️ Ohne das gemeinsame Entsperren am Ende
+  // bliebe ein Knopf nach einem Netzfehler für immer gesperrt.
+  function kdRufe(knopf, koerper, beiErfolg) {
+    var k = kontoLesen();
+    if (!k || !k.token) return kdMelden('Du bist nicht mehr angemeldet.', true);
+    koerper.token = k.token;
+    knopf.disabled = true;
+    fetch(GATEWAY, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(koerper)
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (b) {
+        if (resp.ok && b.ok) beiErfolg(b, k);
+        else kdMelden(b.error || ('Es hat nicht geklappt (HTTP ' + resp.status + ').'), true);
+      });
+    }).catch(function () {
+      kdMelden('Keine Verbindung zum Server.', true);
+    }).then(function () { knopf.disabled = false; });
+  }
+
+  function kdSpeichernTun() {
+    var wert = kdFeld.value.trim();
+    // ⚠️ Fast jede:r tippt beim ersten Mal seinen Discord-NAMEN hier hinein.
+    // Deshalb sagt die Meldung nicht bloss "falsch", sondern wohin man schauen
+    // muss - die Klickfolge steht gleich darüber zum Aufklappen.
+    if (wert && !DISCORD_ID_RE.test(wert)) {
+      return kdMelden('Das ist keine Discord-ID. Gemeint ist nicht dein Discord-Name, sondern eine lange Zahl aus 17 bis 20 Ziffern. Wie du sie findest, steht oben unter „Wo finde ich die?“.', true);
+    }
+    kdMelden('Speichere …', false);
+    kdRufe(kdSpeichern, { action: 'konto-discord', discordId: wert }, function (b, k) {
+      k.discordId = b.discordId || '';
+      kontoSchreiben(k);
+      kontoAnzeigen(k);
+      kdFeld.value = k.discordId;
+      kdTestZeigen(k.discordId);
+      kdMelden(k.discordId
+        ? 'Gespeichert. Schick dir jetzt eine Testnachricht – erst dann weißt du sicher, dass die ID stimmt.'
+        : 'Gespeichert. Du hast jetzt keine Discord-ID hinterlegt und bekommst keine Nachricht.', false);
+    });
+  }
+
+  function kdTestTun() {
+    kdMelden('Schicke …', false);
+    kdRufe(kdTest, { action: 'discord-test' }, function () {
+      kdMelden('Ist raus. Schau in Discord nach. Kommt nichts an, gehört die ID jemand anderem – oder deine Direktnachrichten sind zu.', false);
+    });
+  }
+
+  kdSpeichern.addEventListener('click', kdSpeichernTun);
+  kdTest.addEventListener('click', kdTestTun);
+  document.getElementById('konto-zurueck').addEventListener('click', schliesseKonto);
+  kontoGate.addEventListener('click', function (e) { if (e.target === kontoGate) schliesseKonto(); });
+  kdFeld.addEventListener('keydown', function (e) { if (e.key === 'Enter') kdSpeichernTun(); });
+  var kopfKonto = document.getElementById('kopf-konto');
+  if (kopfKonto) kopfKonto.addEventListener('click', oeffneKonto);
+
   // --- Verdrahtung ----------------------------------------------------------
   Array.prototype.forEach.call(document.querySelectorAll('[data-hub-ziel]'), function (k) {
     k.addEventListener('click', function () { oeffneBereich(k.getAttribute('data-hub-ziel')); });
@@ -1249,6 +1412,7 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    if (!kontoGate.hidden) { schliesseKonto(); return; }
     if (!gate.hidden) { schliesseGate(); return; }
     // Das Dashboard lässt sich nur schließen, wenn dahinter auch etwas liegt.
     if (frei && hub && !hub.hidden) versteckeHub();
@@ -1273,15 +1437,23 @@
         // ⚠️ Name UND Veranstalter-Stand kommen frisch vom Server: ein entzogenes
         // Recht muss sofort wirken, nicht erst wenn das Token in 120 Tagen abläuft.
         // Schickt der Server ein neues Token mit, ersetzt es das alte.
+        // ⚠️ Auf `typeof === "string"` geprüft statt blind `|| ""` genommen:
+        // solange der Worker noch die alte Fassung ist, schickt er gar kein
+        // Feld mit - ein blindes Nehmen würde eine eingetragene ID beim
+        // nächsten Start stillschweigend weglöschen. Nur ein wirklich
+        // gesendeter Wert zählt.
+        var idNeu = typeof b.discordId === 'string' ? b.discordId : null;
         var geaendert = (b.nickname && b.nickname !== konto.nickname)
           || !!b.admin !== !!konto.admin
           || !!b.streamer !== !!konto.streamer
-          || !!b.orga !== !!konto.orga;
+          || !!b.orga !== !!konto.orga
+          || (idNeu !== null && idNeu !== (konto.discordId || ''));
         if (geaendert || b.token) {
           if (b.nickname) konto.nickname = b.nickname;
           konto.admin = !!b.admin;
           konto.streamer = !!b.streamer;
           konto.orga = !!b.orga;
+          if (idNeu !== null) konto.discordId = idNeu;
           if (b.token) konto.token = b.token;
           kontoSchreiben(konto);
           kontoAnzeigen(konto);

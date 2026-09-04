@@ -1284,6 +1284,25 @@ const APP_CHANGELOG = [
   {
     version: "2.9",
     groups: [
+      { title: "Neu: Bescheid per Discord, wenn das Essen da ist", items: [
+          "Unter „Mein Konto“ – oben in der Kopfzeile auf den eigenen Namen tippen – lässt sich die eigene Discord-Benutzer-ID hinterlegen. Der AgeLan-Bot schickt dann eine Direktnachricht, sobald das Essen zum Abholen bereitliegt.",
+          "Freiwillig, kein Pflichtfeld. Wer die ID gerade nicht findet, bestellt trotzdem ganz normal und fragt eben selbst nach.",
+          "Gemeint ist <b>nicht der Discord-Name</b>, sondern eine lange Zahl. Die App prüft das Format (17 bis 20 Ziffern) und zeigt die Klickfolge zum Finden gleich zum Aufklappen mit an.",
+          "Knopf „Testnachricht schicken“: Eine falsche, aber gültig aussehende Zahl ginge an eine wildfremde Person oder ins Leere – ohne dass es irgendwer merkt. Der Test macht aus dem stillen Fehler einen sichtbaren.",
+          "Wer noch keine ID hinterlegt hat, sieht einen gelben Punkt an seinem Namen in der Kopfzeile."
+      ]},
+      { title: "Für den Veranstalter", items: [
+          "Die Konten-Liste unter „Einstellungen“ nennt jetzt oben namentlich, wer noch keine Discord-ID hinterlegt hat. Diese Leute bekommen keine Nachricht und müssen anders erreicht werden.",
+          "Die ID selbst steht dort bewusst nicht – nur, ob eine hinterlegt ist."
+      ]},
+      { title: "Kleinkram", items: [
+          "Der Datenschutz-Hinweis im Vorraum sagt jetzt auch, dass die Discord-ID gespeichert wird, wofür sie an Discord geht und wie man sie wieder loswürde. Die Essensbestellungen fehlten dort ebenfalls noch."
+      ]}
+    ]
+  },
+  {
+    version: "2.9",
+    groups: [
       { title: "Keine Beträge mehr in der Bestell-E-Mail", items: [
           "Der Brief an den Lieferanten nennt nur noch Mengen und Sonderwünsche. Was die Organisation isst, wird nicht bezahlt – eine Summe daneben hätte eine Forderung behauptet, die es gar nicht gibt.",
           "Was wer zahlt, steht weiter in der App: in der Übersicht über der E-Mail und bei jeder einzelnen Bestellung."
@@ -1651,11 +1670,23 @@ async function ladeKonten() {
   try {
     const daten = await kontenRufe("konto-liste");
     const eigener = (window.__AGELAN_KONTO__ || {}).nickname;
+
+    // ⚠️ Die Nachfassliste. Wer keine Discord-ID hinterlegt hat, bekommt
+    // KEINE Nachricht, wenn sein Essen bereitliegt - und merkt das von selbst
+    // nie. Ohne diesen Satz haelt der Veranstalter alle fuer informiert und
+    // drei Leute holen ihr Essen nicht ab.
+    const ohneId = daten.konten.filter((k) => !k.discord).map((k) => k.nickname);
+    const fehlend = ohneId.length
+      ? `<p class="konten-fehlend"><b>⚠️ ${ohneId.length} ohne Discord-ID:</b> ${escapeHtml(ohneId.join(", "))}<br>
+         Diese Leute bekommen keine Nachricht, wenn ihr Essen da ist. Jede:r trägt sie selbst ein – oben auf den eigenen Namen tippen, dann „Mein Konto“.</p>`
+      : "";
+
     box.innerHTML = daten.konten.length
-      ? `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
+      ? fehlend + `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
         daten.konten.map((k) => `
           <div class="konto-zeile">
             <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
+            ${k.discord ? "" : `<span class="konto-kein-discord" title="Keine Discord-ID hinterlegt – bekommt keine Nachricht, wenn das Essen bereitliegt">💬❌</span>`}
             <label class="konto-streamer" title="Gehört zur Organisation: hat alle Rechte und zahlt beim Essen nichts">
               <input type="checkbox" data-konto-orga="${escapeHtml(k.nickname)}" ${k.orga || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}>
               🛠

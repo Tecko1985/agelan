@@ -76,6 +76,25 @@ body {
   background: rgba(255, 255, 255, 0.16);
   font-size: 12px;
   font-weight: 600;
+  /* Der Chip ist ein <button>: die Browser-Vorgaben (Rahmen, eigene Schrift,
+     eigene Farbe) muessen weg, sonst sieht er nicht mehr aus wie vorher. */
+  border: none;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.kopfzeile-konto:hover { background: rgba(255, 255, 255, 0.28); }
+/* ⚠️ Ohne hinterlegte Discord-ID bekommt die Person keine Nachricht, wenn
+   ihr Essen bereitliegt. Der gelbe Punkt ist der einzige Hinweis darauf. */
+.kopfzeile-konto.konto-ohne-discord::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #f0b429;
 }
 .btn-abbrechen {
   background: rgba(255,255,255,0.15); color: #fff;
@@ -870,6 +889,52 @@ main#app.sk-breit { max-width: 980px; }
 .pw-box .pw-eingabe { margin-bottom: 0; }
 .pw-box .pw-knopf { margin-top: 16px; }
 .pw-freiwillig { font-weight: 400; opacity: 0.75; }
+
+/* --- Mein Konto ----------------------------------------------------------- */
+/* ⚠️ Dieser Dialog ist laenger als der Anmelde-Dialog: Feld, Hilfe zum
+   Aufklappen, zwei Knoepfe. Am Handy QUER passt er sonst nicht aufs Bild - er
+   muss IN SICH scrollen, nicht die Seite dahinter mitnehmen. */
+.konto-box {
+  max-height: 92vh;
+  overflow-y: auto;
+  text-align: left;
+}
+.konto-box .pw-icon,
+.konto-box .pw-titel,
+.konto-box .pw-text { text-align: center; }
+.konto-hinweis[hidden] { display: none; }
+.konto-hinweis {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.konto-hilfe { margin-top: 12px; }
+.konto-hilfe > summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.konto-hilfe-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.konto-hilfe-text p { margin: 4px 0 8px; }
+.konto-hilfe-text ol { margin: 0; padding-left: 20px; }
+.konto-hilfe-text li { margin-bottom: 5px; }
+/* Der Test steht unter dem Speichern und ist bewusst der ruhigere von beiden:
+   erst speichern, dann testen. */
+.konto-knopf-test[hidden] { display: none; }
+.konto-knopf-test {
+  margin-top: 8px;
+  background: var(--card-bg);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+/* In der Konten-Liste steht ein Zeichen NUR bei denen OHNE ID. Bei allen
+   anderen bliebe die Zeile sonst unnoetig lang - und sichtbar sein muessen
+   genau die Faelle, bei denen etwas fehlt. */
+.konto-kein-discord { flex: 0 0 auto; font-size: 13px; opacity: 0.85; cursor: help; }
+.konten-fehlend { margin: 0 0 10px; font-size: 13px; line-height: 1.45; color: #8a6100; }
 
 /* Banner der Veranstaltung auf der Startseite. Breite begrenzt, Hoehe
    automatisch - width/height stehen am <img>, damit beim Laden nichts springt. */

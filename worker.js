@@ -14,6 +14,9 @@
 // Secrets (im Cloudflare-Dashboard bei DIESEM Worker zu setzen):
 //   PW_AGELAN              = Einladung: einmal noetig, um sich ein Konto anzulegen
 //   PW_AGELAN_VERANSTALTER = Turniere anlegen und Konten verwalten (nur Michel)
+//   DISCORD_BOT_TOKEN      = Token des Bots, der die Benachrichtigungen verschickt.
+//                            Fehlt es, sagen NUR die Discord-Aktionen das klar;
+//                            alles Uebrige laeuft unveraendert weiter.
 //
 // Bindings:
 //   KONTEN (KV) = die Benutzerkonten. Fehlt das Binding, laufen die Konto-
@@ -90,6 +93,8 @@ export default {
     if (aktion === "konto-orga")     return kontoOrga(body, env, cors);
     if (aktion === "konto-liste")    return kontoListe(body, env, cors);
     if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
+    if (aktion === "konto-discord")  return kontoDiscord(body, env, cors);
+    if (aktion === "discord-test")   return discordTest(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
 };
@@ -198,6 +203,129 @@ const NICK_MAX = 20;
 const PW_MIN = 4;              // Fun-Event, kein Bankkonto – aber nicht leer
 const TOKEN_TAGE = 120;        // deckt eine Veranstaltung samt Vorlauf ab
 const PBKDF2_RUNDEN = 100000;
+
+// --- Discord ---------------------------------------------------------------
+// Eine Discord-Benutzer-ID ist ein "Snowflake": eine reine Zahl, keine
+// Buchstaben. 17 Stellen haben die aeltesten Konten von 2016, heute werden 18
+// bis 19 vergeben; 20 ist Reserve, damit die Pruefung nicht in ein paar Jahren
+// faelschlich ablehnt.
+//
+// ⚠️ Fast jede:r tippt beim ersten Mal seinen Discord-NAMEN hier hinein. Das
+// ist der haeufigste Fehler ueberhaupt, deshalb sagt die Meldung nicht bloss
+// "falsch", sondern gleich die Klickfolge zum Richtigen.
+const DISCORD_ID_RE = /^[0-9]{17,20}$/;
+const DISCORD_ID_HILFE =
+  "Das ist keine Discord-ID. Gemeint ist nicht dein Discord-Name, sondern eine lange Zahl. " +
+  "So findest du sie: Discord öffnen → Einstellungen → Erweitert → Entwicklermodus einschalten. " +
+  "Dann Rechtsklick auf dich selbst → „Benutzer-ID kopieren“.";
+
+const DISCORD_API = "https://discord.com/api/v10";
+
+// Wie oft darf ein Konto eine Testnachricht ausloesen. ⚠️ Nicht Bequemlichkeit,
+// sondern Schutz: wer eine FREMDE ID hinterlegt, koennte diese Person sonst im
+// Sekundentakt zuspammen. Der Zeitstempel liegt im KV, nicht im Speicher des
+// Workers - sonst waere die Bremse nach jedem Neustart wieder offen.
+const DISCORD_TEST_PAUSE_MS = 60000;
+
+// Leer ist erlaubt und heisst "nicht hinterlegt": die ID ist FREIWILLIG. Als
+// Pflichtfeld wuerde sie jeden aussperren, der sie gerade nicht findet - und
+// wer sich nicht anmelden kann, kann auch kein Essen bestellen.
+function discordIdPruefen(wert) {
+  const s = String(wert == null ? "" : wert).trim();
+  if (!s) return { id: "" };
+  if (!DISCORD_ID_RE.test(s)) return { fehler: DISCORD_ID_HILFE };
+  return { id: s };
+}
+
+// Schickt EINE Direktnachricht. Gibt immer ein Ergebnisobjekt zurueck und wirft
+// nie: der spaetere Sammelversand muss weiterlaufen, wenn es bei einer Person
+// hakt, und danach sagen koennen, bei WEM es gehakt hat.
+//
+// Zwei Aufrufe sind noetig - Discord kennt kein "schick an Benutzer X". Man
+// oeffnet erst einen DM-Kanal und schreibt dann hinein.
+//
+// ⚠️ Zwei Grenzen, die niemand umgehen kann:
+//   - Der Bot erreicht nur, wer mit ihm auf demselben Server ist.
+//   - Wer "Direktnachrichten von Servermitgliedern" ausgeschaltet hat, bekommt
+//     nichts; Discord antwortet dann 403. Auch der Veranstalter kann das nicht
+//     aendern, die Person muss es selbst umstellen.
+// Beides MUSS der Aufrufer dem Menschen zeigen. Sonst denkt der Veranstalter,
+// alle waeren informiert, und drei Leute holen ihr Essen nie ab.
+async function discordDm(env, empfaengerId, text) {
+  if (!env.DISCORD_BOT_TOKEN) {
+    return { ok: false, grund: "Der Discord-Bot ist noch nicht eingerichtet (Secret DISCORD_BOT_TOKEN fehlt)." };
+  }
+  const geprueft = discordIdPruefen(empfaengerId);
+  if (geprueft.fehler || !geprueft.id) {
+    return { ok: false, grund: "Keine gültige Discord-ID hinterlegt." };
+  }
+
+  const kopf = {
+    "Authorization": "Bot " + env.DISCORD_BOT_TOKEN,
+    "Content-Type": "application/json",
+  };
+
+  // Schritt 1: DM-Kanal oeffnen - oder den bestehenden zurueckbekommen.
+  const kanal = await discordRufe(DISCORD_API + "/users/@me/channels", {
+    method: "POST", headers: kopf,
+    body: JSON.stringify({ recipient_id: geprueft.id }),
+  });
+  if (!kanal.ok) return { ok: false, grund: discordGrund(kanal.status, true) };
+  const kanalId = kanal.daten && kanal.daten.id;
+  if (!kanalId) return { ok: false, grund: "Discord hat keinen Kanal zurückgegeben." };
+
+  // Schritt 2: hineinschreiben. 2000 Zeichen sind die Grenze, 1900 laesst Luft.
+  const nachricht = await discordRufe(DISCORD_API + "/channels/" + kanalId + "/messages", {
+    method: "POST", headers: kopf,
+    body: JSON.stringify({ content: String(text).slice(0, 1900) }),
+  });
+  if (!nachricht.ok) return { ok: false, grund: discordGrund(nachricht.status, false) };
+  return { ok: true };
+}
+
+// Aus einem HTTP-Status wird ein Satz, den ein Mensch versteht UND der sagt,
+// wer etwas dagegen tun kann.
+function discordGrund(status, beimOeffnen) {
+  if (status === 403) return "Direktnachrichten sind gesperrt. Die Person muss sie in Discord für Servermitglieder erlauben.";
+  if (status === 401) return "Der Bot-Token stimmt nicht. Das muss der Veranstalter richten.";
+  if (status === 429) return "Discord bremst gerade. Bitte in ein paar Minuten noch einmal versuchen.";
+  if (status === 0)   return "Discord war nicht erreichbar.";
+  if (beimOeffnen && (status === 400 || status === 404)) {
+    return "Diese Discord-ID gibt es nicht, oder die Person ist nicht auf dem AgeLan-Server.";
+  }
+  return "Discord antwortet mit Fehler " + status + ".";
+}
+
+// Ein Aufruf an Discord, mit EINEM Wiederholversuch bei 429. Discord nennt die
+// Wartezeit selbst in `retry_after` (Sekunden, mit Nachkommastellen); blind zu
+// wiederholen wuerde die Sperre nur verlaengern.
+// ⚠️ Nur einmal wiederholt und hoechstens 10 Sekunden gewartet: ein Worker hat
+// ein Zeitbudget, eine Warteschleife wuerde den ganzen Sammelversand mitreissen.
+async function discordRufe(url, optionen) {
+  let antwort;
+  try {
+    antwort = await fetch(url, optionen);
+  } catch (e) {
+    return { ok: false, status: 0, daten: null };
+  }
+  if (antwort.status === 429) {
+    let warten = 1;
+    try {
+      const b = await antwort.json();
+      if (b && typeof b.retry_after === "number") warten = b.retry_after;
+    } catch (e) { /* ohne Angabe bleibt es bei einer Sekunde */ }
+    if (warten > 10) return { ok: false, status: 429, daten: null };
+    await new Promise((r) => setTimeout(r, Math.ceil(warten * 1000)));
+    try {
+      antwort = await fetch(url, optionen);
+    } catch (e) {
+      return { ok: false, status: 0, daten: null };
+    }
+  }
+  let daten = null;
+  try { daten = await antwort.json(); } catch (e) { /* eine 204 hat keinen Rumpf */ }
+  return { ok: antwort.ok, status: antwort.status, daten: daten };
+}
 
 // Die Rundenzahl wandert MIT in den gespeicherten Hash. Sonst ließen sich alte
 // Konten nach einer Änderung dieser Zahl nicht mehr prüfen.
@@ -338,6 +466,12 @@ async function kontoAnlegen(request, body, env, cors) {
     return json({ error: "Das Passwort braucht mindestens " + PW_MIN + " Zeichen." }, 400, cors);
   }
 
+  // Freiwillig - leer ist der Normalfall. Steht aber etwas drin, muss es
+  // stimmen. ⚠️ Sonst legt jemand sein Konto mit "Tecko" als Discord-ID an und
+  // erfaehrt nie, dass er keine Benachrichtigung bekommt.
+  const discord = discordIdPruefen(body.discordId);
+  if (discord.fehler) return json({ error: discord.fehler }, 400, cors);
+
   const schluessel = nickSchluessel(geprueft.nick);
   if (await env.KONTEN.get(schluessel)) {
     return json({ error: "Diesen Namen gibt es schon. Nimm einen anderen – oder melde dich damit an." }, 409, cors);
@@ -355,6 +489,7 @@ async function kontoAnlegen(request, body, env, cors) {
     admin: istAdmin,
     streamer: false,   // vergibt der Veranstalter, siehe konto-streamer
     orga: false,       // vergibt der Veranstalter, siehe konto-orga
+    discordId: discord.id,   // "" = nicht hinterlegt, jederzeit nachtragbar
     angelegtAm: Date.now(),
   }));
 
@@ -368,6 +503,10 @@ async function kontoAnlegen(request, body, env, cors) {
     // weiter `orga: false`, damit ein abgegebenes Veranstalter-Recht die
     // Orga-Zugehoerigkeit nicht heimlich mitnimmt.
     orga: istAdmin,
+    // ⚠️ Die eigene ID darf zurueck an den eigenen Client - er hat sie selbst
+    // geschickt. In die KONTEN-LISTE fuer den Veranstalter gehoert sie nicht,
+    // dort steht nur, OB eine hinterlegt ist.
+    discordId: discord.id,
     token: await tokenBauen(env, geprueft.nick, istAdmin, false, istAdmin),
   }, 200, cors);
 }
@@ -404,6 +543,7 @@ async function kontoLogin(request, body, env, cors) {
     admin: !!konto.admin,
     streamer: !!konto.streamer,
     orga: !!konto.orga || !!konto.admin,
+    discordId: konto.discordId || "",
     token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer, !!konto.orga || !!konto.admin),
   }, 200, cors);
 }
@@ -423,18 +563,24 @@ async function kontoPruefen(body, env, cors) {
   let admin = false;
   let streamer = false;
   let orga = false;
+  let discordId = "";
   try {
     const k = JSON.parse(roh);
     admin = !!k.admin;
     streamer = !!k.streamer;
     orga = !!k.orga;
+    discordId = k.discordId || "";
   } catch (e) { /* kaputter Eintrag gilt als ohne Rechte */ }
   orga = orga || admin;   // Veranstalter gehoeren immer dazu
 
   // Weicht der Stand vom Token ab, bekommt der Client ein frisches.
   const abweichend = admin !== gelesen.admin || streamer !== gelesen.streamer || orga !== gelesen.orga;
   const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer, orga) : null;
-  return json({ ok: true, nickname: gelesen.nick, admin, streamer, orga, token }, 200, cors);
+  // ⚠️ Die ID muss bei JEDEM Start mitkommen, nicht nur beim Anmelden. Wer sie
+  // an einem Geraet nachtraegt, soll sie am naechsten auch sehen - sonst
+  // behauptet das zweite Geraet, es sei nichts hinterlegt, und der Mensch
+  // traegt sie ein zweites Mal ein.
+  return json({ ok: true, nickname: gelesen.nick, admin, streamer, orga, discordId, token }, 200, cors);
 }
 
 // Ein bestehendes Konto zum Veranstalter machen (oder das Recht wieder abgeben).
@@ -586,6 +732,10 @@ async function kontoListe(body, env, cors) {
           admin: !!konto.admin,
           streamer: !!konto.streamer,
           orga: !!konto.orga || !!konto.admin,
+          // ⚠️ Bewusst nur JA/NEIN, nicht die Zahl. Der Veranstalter muss
+          // sehen, wer noch keine hinterlegt hat (die bekommen keine
+          // Benachrichtigung) - die ID selbst braucht er dafuer nicht.
+          discord: !!konto.discordId,
           angelegtAm: konto.angelegtAm || 0,
         });
       } catch (e) { /* kaputter Eintrag wird übersprungen */ }
@@ -619,6 +769,94 @@ async function kontoLoeschen(body, env, cors) {
     cursor = seite.list_complete ? null : seite.cursor;
   } while (cursor);
   return json({ ok: true, geloescht: anzahl }, 200, cors);
+}
+
+// --- Discord-Anbindung ------------------------------------------------------
+
+// Ein Konto liest sich selbst aus dem KV. Beide Discord-Aktionen brauchen das,
+// und beide muessen dabei DASSELBE tun: nur das eigene Konto, nur ueber das
+// signierte Token.
+async function eigenesKonto(body, env) {
+  const gelesen = await tokenLesen(env, body.token);
+  if (!gelesen) return { fehler: "Nicht angemeldet.", status: 403 };
+  const roh = await env.KONTEN.get(nickSchluessel(gelesen.nick));
+  if (!roh) return { fehler: "Dieses Konto gibt es nicht mehr.", status: 404 };
+  try {
+    const konto = JSON.parse(roh);
+    return { konto: konto, schluessel: nickSchluessel(gelesen.nick) };
+  } catch (e) {
+    return { fehler: "Der Konto-Eintrag ist beschädigt.", status: 500 };
+  }
+}
+
+// Die eigene Discord-ID eintragen, aendern oder wieder loeschen (leer schicken).
+//
+// ⚠️ Braucht bewusst KEIN Veranstalter-Recht: jede:r pflegt die eigene ID. Der
+// Nickname kommt dabei aus dem SIGNIERTEN TOKEN, nicht aus dem Body - sonst
+// koennte jede:r Angemeldete einem Fremden eine ID unterschieben und damit
+// dessen Benachrichtigungen auf sich selbst umleiten.
+async function kontoDiscord(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+
+  // Erst die Anmeldung, dann das Format - wie überall sonst in dieser Datei.
+  // Wer nicht angemeldet ist, soll nicht einmal erfahren, wie die Prüfung
+  // aussieht.
+  const eigen = await eigenesKonto(body, env);
+  if (eigen.fehler) return json({ error: eigen.fehler }, eigen.status, cors);
+
+  const geprueft = discordIdPruefen(body.discordId);
+  if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
+
+  eigen.konto.discordId = geprueft.id;
+  await env.KONTEN.put(eigen.schluessel, JSON.stringify(eigen.konto));
+  return json({ ok: true, discordId: geprueft.id }, 200, cors);
+}
+
+// Testnachricht an die EIGENE hinterlegte ID.
+//
+// ⚠️ Das ist der wichtigste Teil der ganzen Discord-Anbindung. Eine falsche,
+// aber gueltig aussehende Zahl geht an eine wildfremde Person oder ins Leere -
+// ohne dass es irgendwer merkt. Erst diese Testnachricht macht aus dem stillen
+// Fehler einen sichtbaren.
+//
+// ⚠️ Die ID kommt aus dem KV, NICHT aus dem Body. Sonst waere das hier ein
+// Werkzeug, mit dem jede:r Angemeldete beliebige Discord-Nutzer anschreiben
+// koennte - eine Spam-Schleuder mit Michels Bot als Absender.
+async function discordTest(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+
+  const eigen = await eigenesKonto(body, env);
+  if (eigen.fehler) return json({ error: eigen.fehler }, eigen.status, cors);
+  const konto = eigen.konto;
+
+  if (!konto.discordId) {
+    return json({ error: "Du hast noch keine Discord-ID hinterlegt. Trag sie ein, speichere sie – danach geht der Test." }, 400, cors);
+  }
+
+  // ⚠️ Die Bremse wird VOR dem Versand geschrieben, nicht danach. Zwei schnelle
+  // Klicks laufen sonst beide durch, weil der zweite den Zeitstempel des ersten
+  // noch nicht sieht.
+  const jetzt = Date.now();
+  const seit = jetzt - (konto.discordTestZuletzt || 0);
+  if (seit < DISCORD_TEST_PAUSE_MS) {
+    const rest = Math.ceil((DISCORD_TEST_PAUSE_MS - seit) / 1000);
+    return json({ error: "Gerade eben lief schon ein Test. Bitte warte noch " + rest + " Sekunden." }, 429, cors);
+  }
+  konto.discordTestZuletzt = jetzt;
+  await env.KONTEN.put(eigen.schluessel, JSON.stringify(konto));
+
+  const ergebnis = await discordDm(
+    env,
+    konto.discordId,
+    "Hallo " + konto.nick + "! 👋\n\n" +
+    "Das ist eine Testnachricht aus der AgeLan-App.\n\n" +
+    "Wenn du sie liest, ist deine Discord-ID richtig hinterlegt. Du bekommst hier " +
+    "Bescheid, sobald dein Essen zum Abholen bereitliegt.\n\n" +
+    "Du musst jetzt nichts weiter tun."
+  );
+  // 502, nicht 500: der Fehler kommt von Discord, nicht aus diesem Worker.
+  if (!ergebnis.ok) return json({ error: ergebnis.grund }, 502, cors);
+  return json({ ok: true }, 200, cors);
 }
 
 // --- base64-Helfer ----------------------------------------------------------
