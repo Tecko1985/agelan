@@ -152,6 +152,7 @@
         "karte": {
           "$ger": {
             ".validate": "newData.hasChildren(['name', 'preisCent'])",
+            "nummer":       { ".validate": "newData.isString() && newData.val().length <= 10" },
             "name":         { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
             "beschreibung": { ".validate": "newData.isString() && newData.val().length <= 200" },
             "kategorie":    { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -174,6 +175,7 @@
               "$pos": {
                 ".validate": "newData.hasChildren(['name', 'anzahl', 'preisCent'])",
                 "gerichtId":    { ".validate": "newData.isString()" },
+                "nummer":       { ".validate": "newData.isString() && newData.val().length <= 10" },
                 "name":         { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
                 "sonderwunsch": { ".validate": "newData.isString() && newData.val().length <= 120" },
                 "anzahl":       { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 9" },
