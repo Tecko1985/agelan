@@ -525,7 +525,7 @@ function esRenderSammelmail(z) {
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>
       <textarea id="es-mail-text" class="eingabe es-mail-text" rows="12" spellcheck="false">${escapeHtml(brief.text)}</textarea>
-      <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen der Besteller stehen bewusst nicht drin – der Lieferant braucht Mengen und Sonderwünsche.</p>
+      <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen und Beträge stehen bewusst nicht drin – der Lieferant braucht Mengen und Sonderwünsche und rechnet nach seiner eigenen Karte ab. Was wer zahlt, steht oben in dieser Übersicht.</p>
 
       <div class="es-mail-knoepfe">
         <button type="button" class="btn btn-secondary" id="es-btn-kopieren">Text kopieren</button>

@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "2.9",
+    groups: [
+      { title: "Keine Beträge mehr in der Bestell-E-Mail", items: [
+          "Der Brief an den Lieferanten nennt nur noch Mengen und Sonderwünsche. Was die Organisation isst, wird nicht bezahlt – eine Summe daneben hätte eine Forderung behauptet, die es gar nicht gibt.",
+          "Was wer zahlt, steht weiter in der App: in der Übersicht über der E-Mail und bei jeder einzelnen Bestellung."
+      ]}
+    ]
+  },
+  {
     version: "2.8",
     groups: [
       { title: "Organisation: eigenes Merkmal am Konto", items: [

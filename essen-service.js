@@ -422,12 +422,13 @@ function esBestelltext(bestellungen, meta) {
     listeZahlend.forEach((p) => zeilen.push(zeile(p)));
   }
 
-  zeilen.push("");
-  zeilen.push("Gesamt nach unserer Rechnung: " + esCentLabel(summeCent));
-  if (listeZahlend.length && listeOrga.length) {
-    zeilen.push("davon Teilnehmer " + esCentLabel(summeZahlendCent) +
-      " und Organisation " + esCentLabel(summeOrgaCent));
-  }
+  // ⚠️ KEINE Beträge im Brief. Was die Organisation isst, wird nicht bezahlt –
+  // eine Summe daneben behauptete eine Forderung, die es nicht gibt. Und eine
+  // Summe nur über den halben Zettel wäre für die Küche erst recht verwirrend,
+  // weil sie nicht zu den aufgezählten Sachen passt. Michel am 2026-09-04:
+  // „die Beträge dann immer wegnehmen."
+  // Das Geld steht weiter in der App – dort, wo der Veranstalter kassiert.
+  // Der Lieferant rechnet ohnehin nach seiner eigenen Karte ab.
   if (hinweis) {
     zeilen.push("");
     zeilen.push(hinweis);
