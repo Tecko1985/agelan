@@ -866,10 +866,6 @@
         <p class="hinweis-text fehler" id="es-admin-fehler"></p>
       </div>
 
-      <!-- Statistik. Zugeklappt, weil sie zum Arbeiten nicht gebraucht wird -
-           aufgeklappt bleibt sie ueber ein Neuzeichnen hinweg offen. -->
-      <div class="karte-block" id="es-statistik"></div>
-
       <div class="karte-block" id="es-sammelmail"></div>
 
       <div class="karte-block">
@@ -969,6 +965,13 @@
         <p class="hinweis-text fehler" id="es-ein-fehler"></p>
         </details>
       </div>
+
+      <!-- Statistik. Zugeklappt, weil sie zum Arbeiten nicht gebraucht wird -
+           aufgeklappt bleibt sie ueber ein Neuzeichnen hinweg offen.
+           Steht bewusst WEIT UNTEN: sie ist zum Nachschauen da, nicht zum
+           Arbeiten, und stand zwischen der Bestellliste und der Sammelmail im
+           Weg. Vor der Loesch-Zone, damit die das Letzte bleibt. -->
+      <div class="karte-block" id="es-statistik"></div>
 
       <div class="karte-block">
         <button class="btn btn-secondary btn-grow" id="es-btn-leeren">Alle Bestellungen entfernen</button>
@@ -1155,7 +1158,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.4',
-    'app.js?v=3.19',
+    'app.js?v=3.20',
     'stream-service.js?v=1.4',
     'stream-app.js?v=1.6',
     'fruehstueck-service.js?v=1.3',

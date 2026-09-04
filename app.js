@@ -1271,6 +1271,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.7",
+    groups: [
+      { title: "Statistik weiter nach unten", items: [
+          "Der Statistik-Kasten stand zwischen der Bestellliste und der Sammelbestellung im Weg. Er steht jetzt ganz unten, direkt über den Lösch-Knöpfen – zum Nachschauen, nicht zum Arbeiten."
+      ]}
+    ]
+  },
+  {
     version: "4.6",
     groups: [
       { title: "Discord-Nachricht mit Uhrzeiten", items: [
