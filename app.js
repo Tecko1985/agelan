@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "4.2",
+    groups: [
+      { title: "Rückweg nach einem Fehlklick", items: [
+          "In einer Lieferung gibt es jetzt einen Schritt zurück: <b>„↺ doch nicht abgeholt“</b> und <b>„↺ doch nicht bezahlt“</b>. Die Bestellung bleibt dabei in der Lieferung – vorher gab es dort nur „↩ herausnehmen“, und das riss sie ganz aus der Sammelbestellung.",
+          "Auch für die ganze Lieferung: hat man „Alle abgeholt“ zu früh gedrückt, setzt ein Klick alle wieder auf „beim Lieferanten bestellt“.",
+          "Die Knöpfe sagen jetzt, was sie tun, statt nur „zurück“ – bei einem Orga-Essen heißt es entsprechend „doch nicht freigegeben“.",
+          "Wird jemand auf „doch nicht bezahlt“ zurückgesetzt, taucht sein Betrag sofort wieder unter „Noch zu kassieren“ auf."
+      ]}
+    ]
+  },
+  {
     version: "4.1",
     groups: [
       { title: "Bescheid geben: Uhrzeit dabei, und keine Nachricht an Abgeholte", items: [

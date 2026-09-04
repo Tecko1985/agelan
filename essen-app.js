@@ -422,7 +422,8 @@ function esBestellungHtml(b) {
               ? `<button type="button" class="mini-btn primary" data-es-weiter="${escapeHtml(b.id)}">${escapeHtml(b.naechsterKnopf)}</button>`
               : ""}
             ${b.zurueckStatus
-              ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}" title="Einen Schritt zurück">↺ zurück</button>`
+              ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}"
+                  title="${b.inRunde ? "Fehlklick zurücknehmen – die Bestellung bleibt in der Lieferung" : "Einen Schritt zurück"}">${escapeHtml(b.zurueckKnopf || "↺ zurück")}</button>`
               : ""}
             ${b.inRunde
               ? `<button type="button" class="mini-btn" data-es-raus="${escapeHtml(b.id)}"
@@ -479,8 +480,14 @@ function esRundeHtml(r) {
             title="${r.bescheidAm
               ? "Noch einmal anstupsen – wer schon abgeholt hat, bekommt nichts"
               : "Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt"}">📣 ${r.bescheidAm ? "Nochmal Bescheid" : "Bescheid geben"}</button>`}
-          ${r.fertig ? "" : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
-            title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
+          ${r.fertig
+            // ⚠️ Auch die ganze Lieferung braucht einen Rückweg. Ohne ihn müsste
+            // man nach einem Fehlklick auf „Alle abgeholt" jede Bestellung
+            // einzeln aufklappen und zurücksetzen.
+            ? `<button type="button" class="mini-btn" data-es-runde-zurueck="${escapeHtml(r.id)}"
+                title="Doch nicht abgeholt – alle wieder auf „beim Lieferanten bestellt“">↺ doch nicht abgeholt</button>`
+            : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
+                title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
         </div>
         ${r.bestellungen.map(esBestellungHtml).join("")}
       </div>
@@ -680,6 +687,15 @@ function esRenderAdminBestellungen(z) {
     });
   });
 
+  box.querySelectorAll("[data-es-runde-zurueck]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeZurueck);
+      if (!r) return;
+      if (!confirm("Alle " + r.anzahl + " Bestellungen aus „" + r.titel + "“ wieder auf „beim Lieferanten bestellt“ setzen?")) return;
+      const res = await essenService.setzeRundeStatus(r.id, "bestellt");
+      if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+    });
+  });
   box.querySelectorAll("[data-es-runde-da]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeDa);

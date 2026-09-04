@@ -305,6 +305,7 @@ function esBestellungenListe(bestellungenRoh) {
       naechsterStatus: "",
       naechsterKnopf: "",
       zurueckStatus: "",
+      zurueckKnopf: "",
       inRunde: false,
       // Gehört die Bestellung zur Organisation? Dann zahlt niemand dafür.
       // ⚠️ Steht in der Bestellung, nicht im Konto: was beim Abschicken galt,
@@ -471,6 +472,7 @@ function esSchritteSetzen(b) {
   b.naechsterStatus = "";
   b.naechsterKnopf = "";
   b.zurueckStatus = "";
+  b.zurueckKnopf = "";
 
   if (b.inRunde) {
     if (b.status === "neu") {
@@ -505,9 +507,30 @@ function esSchritteSetzen(b) {
     b.naechsterKnopf = esStatusKnopf("bestellt", b.orga);
   }
 
-  // Zurück heißt nur im Stapel „einen Schritt in der Kette". In einer Runde gibt
-  // es dafür den eigenen Weg „aus der Sammelbestellung nehmen".
-  if (!b.inRunde && b.statusIndex > 0) b.zurueckStatus = ES_STATUS_KETTE[b.statusIndex - 1];
+  // Der Rückweg. ⚠️ In einer Runde ist er GENAU die Umkehrung des Vorwärtswegs
+  // und lässt die Bestellung in der Lieferung: „abgeholt" zurück auf „bestellt",
+  // „bestellt" zurück auf „neu" (also unbezahlt). Michel am 04.09.2026: „ich
+  // brauche auch einen rückweg wenn jemand aus versehen abgeholt angeklickt
+  // hat." Vorher gab es dort nur „herausnehmen" – das hätte die Bestellung aus
+  // der Sammelbestellung gerissen, statt bloß einen Fehlklick zurückzunehmen.
+  //
+  // ⚠️ Aus `neu` heraus gibt es in einer Runde keinen Schritt zurück: das ist
+  // dort der Anfangszustand. Wer die Bestellung ganz aus der Lieferung nehmen
+  // will, nimmt „herausnehmen".
+  if (b.inRunde) {
+    if (b.status === "abgeholt") {
+      b.zurueckStatus = "bestellt";
+      b.zurueckKnopf = "↺ doch nicht abgeholt";
+    } else if (b.status === "bestellt") {
+      b.zurueckStatus = "neu";
+      b.zurueckKnopf = b.orga ? "↺ doch nicht freigegeben" : "↺ doch nicht bezahlt";
+    }
+  } else if (b.statusIndex > 0) {
+    b.zurueckStatus = ES_STATUS_KETTE[b.statusIndex - 1];
+    b.zurueckKnopf = b.status === "bezahlt"
+      ? (b.orga ? "↺ doch nicht freigegeben" : "↺ doch nicht bezahlt")
+      : "↺ zurück";
+  }
 
   // ⚠️ Wer schon beim Lieferanten liegt, darf seine Bestellung nicht mehr
   // umbauen – auch dann nicht, wenn er noch auf `neu` steht, weil er nicht
