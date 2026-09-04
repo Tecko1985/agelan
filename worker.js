@@ -95,6 +95,7 @@ export default {
     if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
     if (aktion === "konto-discord")  return kontoDiscord(body, env, cors);
     if (aktion === "discord-test")   return discordTest(body, env, cors);
+    if (aktion === "discord-sammel") return discordSammel(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
 };
@@ -226,6 +227,12 @@ const DISCORD_API = "https://discord.com/api/v10";
 // Sekundentakt zuspammen. Der Zeitstempel liegt im KV, nicht im Speicher des
 // Workers - sonst waere die Bremse nach jedem Neustart wieder offen.
 const DISCORD_TEST_PAUSE_MS = 60000;
+
+// Höchstens so viele Leute in einem Rutsch anschreiben. ⚠️ Jede Person kostet
+// ZWEI Aufrufe an Discord (Kanal öffnen, hineinschreiben), und ein Worker hat
+// ein Zeitbudget. Lieber sauber ablehnen als mittendrin sterben - dann wäre
+// unklar, wer schon Bescheid weiß und wer nicht.
+const DISCORD_SAMMEL_MAX = 60;
 
 // Leer ist erlaubt und heisst "nicht hinterlegt": die ID ist FREIWILLIG. Als
 // Pflichtfeld wuerde sie jeden aussperren, der sie gerade nicht findet - und
@@ -857,6 +864,80 @@ async function discordTest(body, env, cors) {
   // 502, nicht 500: der Fehler kommt von Discord, nicht aus diesem Worker.
   if (!ergebnis.ok) return json({ error: ergebnis.grund }, 502, cors);
   return json({ ok: true }, 200, cors);
+}
+
+// Alle Besteller einer Lieferung anschreiben: "dein Essen ist da".
+//
+// \u26a0\ufe0f Der Client schickt NAMEN, keine Discord-IDs. Die IDs verlassen den Worker
+// nie - der Veranstalter sieht in seiner Konten-Liste nur, OB eine hinterlegt
+// ist. Ein Client, der sie zum Verschicken br\u00e4uchte, h\u00e4tte damit alle.
+//
+// \u26a0\ufe0f Den Nachrichtentext baut dieser Worker, nicht der Client. Sonst w\u00e4re das
+// hier ein Versandweg f\u00fcr beliebigen Text an beliebige Konten - mit Michels Bot
+// als Absender. Anpassbar ist nur ein kurzer Zusatz.
+//
+// \u26a0\ufe0f Die Antwort ist IMMER eine Nachfassliste: wer NICHT erreicht wurde und
+// warum. Ohne die h\u00e4lt der Veranstalter alle f\u00fcr informiert, und drei Leute
+// holen ihr Essen nie ab.
+async function discordSammel(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  if (!env.DISCORD_BOT_TOKEN) {
+    return json({ error: "Der Discord-Bot ist noch nicht eingerichtet (Secret DISCORD_BOT_TOKEN fehlt)." }, 500, cors);
+  }
+
+  // Doppelte Namen fallen raus: dieselbe Person hat oft mehrere Bestellungen in
+  // einer Lieferung, soll aber genau EINE Nachricht bekommen.
+  const roh = Array.isArray(body.nicknames) ? body.nicknames : [];
+  const namen = [];
+  const gesehen = new Set();
+  for (const n of roh) {
+    const wert = String(n == null ? "" : n).trim();
+    if (!wert) continue;
+    const schluessel = wert.toLowerCase();
+    if (gesehen.has(schluessel)) continue;
+    gesehen.add(schluessel);
+    namen.push(wert);
+  }
+  if (!namen.length) return json({ error: "Es sind keine Namen mitgekommen." }, 400, cors);
+  if (namen.length > DISCORD_SAMMEL_MAX) {
+    return json({ error: "Das sind " + namen.length + " Leute auf einmal. Mehr als " + DISCORD_SAMMEL_MAX + " gehen in einem Durchgang nicht." }, 400, cors);
+  }
+
+  const was = String(body.titel || "").trim().slice(0, 60);
+  const zusatz = String(body.hinweis || "").trim().slice(0, 200);
+
+  const erreicht = [];
+  const offen = [];
+  // \u26a0\ufe0f Nacheinander, nicht alle auf einmal: Discord bremst beim Massen\u00f6ffnen
+  // von DM-Kan\u00e4len, und ein Schwall parallel liefe direkt in die Sperre.
+  for (const name of namen) {
+    const eintrag = await env.KONTEN.get(nickSchluessel(name));
+    if (!eintrag) { offen.push({ nickname: name, grund: "Kein Konto mit diesem Namen." }); continue; }
+
+    let konto;
+    try {
+      konto = JSON.parse(eintrag);
+    } catch (e) {
+      offen.push({ nickname: name, grund: "Der Konto-Eintrag ist besch\u00e4digt." });
+      continue;
+    }
+    if (!konto.discordId) {
+      offen.push({ nickname: konto.nick || name, grund: "Keine Discord-ID hinterlegt." });
+      continue;
+    }
+
+    const text =
+      "Hallo " + (konto.nick || name) + "! \ud83c\udf55\n\n" +
+      "Dein Essen ist da" + (was ? " (" + was + ")" : "") + " \u2013 du kannst es vorne abholen." +
+      (zusatz ? "\n\n" + zusatz : "");
+
+    const ergebnis = await discordDm(env, konto.discordId, text);
+    if (ergebnis.ok) erreicht.push(konto.nick || name);
+    else offen.push({ nickname: konto.nick || name, grund: ergebnis.grund });
+  }
+
+  return json({ ok: true, geschickt: erreicht.length, erreicht: erreicht, offen: offen }, 200, cors);
 }
 
 // --- base64-Helfer ----------------------------------------------------------
