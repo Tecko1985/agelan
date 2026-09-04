@@ -410,6 +410,8 @@ function esRenderAdminBestellungen(z) {
             ${b.statusIndex > 0
               ? `<button type="button" class="mini-btn" data-es-zurueck="${escapeHtml(b.id)}" title="Einen Schritt zurück">↺ zurück</button>`
               : ""}
+            <button type="button" class="mini-btn" data-es-mail="${escapeHtml(b.id)}"
+              title="Nur diese eine Bestellung an den Lieferanten schicken">✉ nur diese</button>
             <button type="button" class="mini-btn" data-es-orga="${escapeHtml(b.id)}"
               title="${b.orga ? "Doch zahlen lassen" : "Als Orga-Essen führen – kostet dann nichts"}">
               ${b.orga ? "🛠 → zahlt" : "→ 🛠 Orga"}</button>
@@ -444,6 +446,14 @@ function esRenderAdminBestellungen(z) {
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
+  box.querySelectorAll("[data-es-mail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      esMailAuswahl = "einzeln:" + btn.dataset.esMail;
+      esRenderSammelmail(esZustand);
+      esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  });
+
   box.querySelectorAll("[data-es-orga]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esOrga);
@@ -469,14 +479,31 @@ function esRenderAdminBestellungen(z) {
 // Welche Bestellungen gehen in die Mail? „bezahlt" ist der Normalfall: erst
 // zahlen, dann bestellen wir. Die zweite Wahl nimmt die noch nicht bezahlten
 // mit – für den Fall, dass jemand später zahlt und das Essen trotzdem mit soll.
+//
+// ⚠️ Dritte Möglichkeit: `einzeln:<id>` – EINE Bestellung für sich allein.
+// Michel am 2026-09-04: „jeder tag kann mehrere bestellungen haben, die einzeln
+// abzuwickeln sind." Auf der LAN kommt nicht jeder gleichzeitig; wer um 18 Uhr
+// bezahlt, soll nicht warten müssen, bis um 20 Uhr genug für eine Sammelmail
+// zusammen ist. Der Sammelweg bleibt der Normalfall und ist unangetastet.
+function esEinzelId() {
+  return String(esMailAuswahl).indexOf("einzeln:") === 0 ? String(esMailAuswahl).slice(8) : null;
+}
+
 function esMailBestellungen(z) {
+  const einzeln = esEinzelId();
+  if (einzeln) return z.bestellungen.filter((b) => b.id === einzeln);
   if (esMailAuswahl === "offen") return z.bestellungen.filter((b) => b.status === "neu" || b.status === "bezahlt");
   return z.bestellungen.filter((b) => b.status === "bezahlt");
 }
 
 function esRenderSammelmail(z) {
   const box = esEl("es-sammelmail");
+  // ⚠️ Die einzeln gewählte Bestellung kann inzwischen weg sein (gelöscht oder
+  // vom Besteller storniert). Dann zurück auf den Sammelweg, statt einen leeren
+  // Kasten mit dem Namen eines Geistes zu zeigen.
+  if (esEinzelId() && !esMailBestellungen(z).length) esMailAuswahl = "bezahlt";
   const auswahl = esMailBestellungen(z);
+  const einzeln = esEinzelId() ? auswahl[0] : null;
   const brief = essenService.bestelltext(auswahl, z.meta);
 
   // Die Vorschau zeigt dieselbe Trennung wie der Brief: was die Teilnehmer
@@ -508,10 +535,17 @@ function esRenderSammelmail(z) {
   box.innerHTML = `
     <p class="feld-label">Sammelbestellung an den Lieferanten</p>
 
-    <div class="es-mail-wahl">
-      <label><input type="radio" name="es-mailwahl" value="bezahlt" ${esMailAuswahl === "bezahlt" ? "checked" : ""}> nur bezahlte (${z.zaehler.bezahlt})</label>
-      <label><input type="radio" name="es-mailwahl" value="offen" ${esMailAuswahl === "offen" ? "checked" : ""}> auch unbezahlte (${z.zaehler.neu + z.zaehler.bezahlt})</label>
-    </div>
+    ${einzeln
+      // Bewusst dieselbe Klasse wie die Radio-Zeile darunter: gleiche Zeile,
+      // gleicher Platz, und es braucht keine neue Regel im Stylesheet.
+      ? `<div class="es-mail-wahl">
+           <span>Nur die Bestellung von <b>${escapeHtml(einzeln.name)}</b></span>
+           <button type="button" class="mini-btn" id="es-btn-alle-zeigen">← alle zusammen</button>
+         </div>`
+      : `<div class="es-mail-wahl">
+           <label><input type="radio" name="es-mailwahl" value="bezahlt" ${esMailAuswahl === "bezahlt" ? "checked" : ""}> nur bezahlte (${z.zaehler.bezahlt})</label>
+           <label><input type="radio" name="es-mailwahl" value="offen" ${esMailAuswahl === "offen" ? "checked" : ""}> auch unbezahlte (${z.zaehler.neu + z.zaehler.bezahlt})</label>
+         </div>`}
 
     ${!auswahl.length ? `
       <p class="fr-leer-hinweis">Auf diesem Stand liegt gerade keine Bestellung.</p>
@@ -536,7 +570,9 @@ function esRenderSammelmail(z) {
       ${!brief.empfaenger ? `<p class="hinweis-text">Für „E-Mail öffnen“ fehlt noch die Adresse des Lieferanten – trag sie unten bei den Einstellungen ein.</p>` : ""}
       ${zuLang ? `<p class="hinweis-text">⚠️ Der Text ist lang. Manche Mailprogramme schneiden ihn ab – wenn die Mail leer aufgeht, nimm „Text kopieren“ und füg ihn von Hand ein.</p>` : ""}
 
-      <button class="btn btn-secondary btn-grow" id="es-btn-alle-bestellt">Diese ${auswahl.length} als „beim Lieferanten bestellt“ markieren</button>
+      <button class="btn btn-secondary btn-grow" id="es-btn-alle-bestellt">${einzeln
+        ? "Diese Bestellung als „beim Lieferanten bestellt“ markieren"
+        : "Diese " + auswahl.length + " als „beim Lieferanten bestellt“ markieren"}</button>
       <p class="hinweis-text">Erst klicken, wenn die Mail wirklich raus ist.</p>
     `}
     <p class="hinweis-text fehler" id="es-mail-fehler"></p>`;
@@ -551,8 +587,30 @@ function esRenderSammelmail(z) {
   const kopieren = esEl("es-btn-kopieren");
   if (kopieren) kopieren.addEventListener("click", () => esKopiereMailText());
 
+  const zurueckBtn = esEl("es-btn-alle-zeigen");
+  if (zurueckBtn) zurueckBtn.addEventListener("click", () => {
+    esMailAuswahl = "bezahlt";
+    esRenderSammelmail(esZustand);
+  });
+
   const alleBtn = esEl("es-btn-alle-bestellt");
-  if (alleBtn) alleBtn.addEventListener("click", async () => {
+  if (alleBtn && einzeln) alleBtn.addEventListener("click", async () => {
+    const id = einzeln.id;
+    // ⚠️ Die Ansicht VOR dem Schreiben zurückstellen. Das Schreiben löst über
+    // Firebase sofort ein Neuzeichnen aus – käme die Umstellung erst danach,
+    // stünde dort weiter „Nur die Bestellung von …" mit einer Bestellung, die
+    // schon durch ist. Genau so beim Bauen gesehen.
+    esMailAuswahl = "bezahlt";
+    // Eine einzelne Bestellung geht über setzeStatus, nicht über setzeStatusAlle –
+    // sonst würde der Klick alle anderen auf demselben Stand mitreißen.
+    const res = await essenService.setzeStatus(id, "bestellt");
+    if (!res.erfolg) {
+      esMailAuswahl = "einzeln:" + id;   // hat nicht geklappt, also zurück in die Einzelsicht
+      esRenderSammelmail(esZustand);
+      esZeigeFehler("es-mail-fehler", res.fehler);
+    }
+  });
+  if (alleBtn && !einzeln) alleBtn.addEventListener("click", async () => {
     if (!confirm("Alle " + auswahl.length + " Bestellungen auf „beim Lieferanten bestellt“ setzen?")) return;
     // Zwei Durchläufe, weil „auch unbezahlte" zwei Stände umfasst. Der Service
     // meldet einen leeren Durchlauf als Fehler – hier ist ein leerer der zweite

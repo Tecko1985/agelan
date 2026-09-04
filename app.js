@@ -1271,6 +1271,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "3.0",
+    groups: [
+      { title: "Bestellungen einzeln abwickeln", items: [
+          "Neben jeder einzelnen Bestellung steht jetzt „✉ nur diese“. Damit geht genau diese eine an den Lieferanten, statt auf eine Sammelbestellung zu warten – auf der LAN kommt nicht jeder gleichzeitig, und wer um 18 Uhr bezahlt, soll sein Essen nicht erst um 20 Uhr bestellt bekommen.",
+          "Der E-Mail-Kasten zeigt dann „Nur die Bestellung von …“ und schaltet danach genau diese eine auf „beim Lieferanten bestellt“ – die anderen bleiben unberührt.",
+          "Ein Klick auf „← alle zusammen“ führt zurück zur Sammelbestellung. Die bleibt der Normalfall und ist unverändert.",
+          "Mehrere Bestellungen von derselben Person gab es schon immer: abgeschickte wandern unter „Deine Bestellungen“, und der Zettel darüber ist sofort wieder frei für die nächste."
+      ]}
+    ]
+  },
+  {
     version: "2.9",
     groups: [
       { title: "Keine Beträge mehr in der Bestell-E-Mail", items: [
