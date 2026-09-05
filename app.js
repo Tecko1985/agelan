@@ -842,8 +842,19 @@ function oeffneMeldeDialog(spielId, adminModus) {
   document.getElementById("melden-name-b").textContent = teamNameVon(zustand, s.teamB);
   document.getElementById("melden-saetze-a").value = s.saetzeA == null ? 0 : s.saetzeA;
   document.getElementById("melden-saetze-b").value = s.saetzeB == null ? 0 : s.saetzeB;
-  const noetig = window.turnierService ? turnierService.noetigeSaetze(zustand.meta.bestOf) : 2;
-  document.getElementById("melden-hinweis").textContent = `Best of ${zustand.meta.bestOf}: Sieger braucht ${noetig} Sätze.`;
+  // ⚠️ Nicht meta.bestOf: das Finale kann ein eigenes Best-of haben
+  // („Finale Best of 5“). Der Hinweis muss denselben Wert nennen, den
+  // validiereSaetze gleich darauf prueft – sonst fordert der Dialog eine
+  // Eingabe, die er selbst ablehnt. Das ist zugleich die einzige Stelle der
+  // App, an der waehrend des Turniers ein Modus benannt wird.
+  // ⚠️ Und NICHT window.turnierService abfragen: der Service steht als
+  // `const` im Skript und landet damit nie am window – die Bedingung war immer
+  // falsch, der Hinweis nannte deshalb stur „2 Sätze", egal welches Best-of
+  // eingestellt war. turnier-service.js wird vor app.js geladen, der direkte
+  // Aufruf ist sicher.
+  const bestOf = turnierService.bestOfFuer(s, zustand.meta);
+  const noetig = turnierService.noetigeSaetze(bestOf);
+  document.getElementById("melden-hinweis").textContent = `Best of ${bestOf}: Sieger braucht ${noetig} Sätze.`;
   document.getElementById("melden-fehler").textContent = "";
   document.getElementById("modal-melden").classList.add("aktiv");
 }
@@ -1270,6 +1281,16 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "5.5",
+    groups: [
+      { title: "Melde-Dialog nennt den richtigen Modus", items: [
+          "Im Fenster „Ergebnis melden“ stand bisher immer <b>„Sieger braucht 2 Sätze“</b> – auch bei Best of 5 oder Best of 7. Wer sich daran hielt, bekam beim Absenden eine Absage.",
+          "Im Finale kam dazu, dass der Hinweis das allgemeine Best-of nannte und nicht das eigene des Finales („Finale Best of 5“). Wer sich schon beim Spielen daran gehalten hat, hat einen Satz zu wenig gespielt.",
+          "Der Hinweis rechnet jetzt mit genau dem Modus, den das Absenden gleich darauf prueft – Finale eingeschlossen."
+      ]}
+    ]
+  },
   {
     version: "5.4",
     groups: [

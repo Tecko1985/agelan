@@ -2088,6 +2088,10 @@ const turnierService = {
   loescheTurnier,
   loescheTurnierMitId,
   noetigeSaetze,
+  // ⚠️ Gehört zu noetigeSaetze: das Finale kann ein eigenes Best-of tragen
+  // (meta.bestOfFinale). Wer im Melde-Dialog einen Modus benennt, muss diese
+  // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
+  bestOfFuer,
   // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,
   // unter dem abgerechnet wird. Steht kein Konto bereit (aeltere Anmeldung,
   // privater Modus), gilt weiter der zuletzt benutzte Name.
