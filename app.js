@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.1",
+    groups: [
+      { title: "Essen: eine Bestellung faellt nicht mehr aus der Lieferung", items: [
+          "Wer als Veranstalter seine eigene Bestellung noch offen hatte und sie speicherte, <b>nachdem</b> die Sammelbestellung schon rausgegangen war, riss sie damit still aus der Lieferung. Sie landete wieder im Stapel und waere in der naechsten Sammelmail ein zweites Mal beim Lieferanten gelandet; die Lieferung blieb als leere Huelle mit 0,00 € stehen.",
+          "Die Zuordnung zur Lieferung bleibt jetzt beim Speichern erhalten. Herausnehmen geht weiterhin nur ueber <b>„Aus der Lieferung nehmen“</b>."
+      ]}
+    ]
+  },
+  {
     version: "5.0",
     groups: [
       { title: "Der Streamkalender ist jetzt immer gleich breit", items: [

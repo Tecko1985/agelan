@@ -1247,6 +1247,12 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     name: n,
     orga: !!orgaJetzt,
     status: bisher ? bisher.status : "neu",
+    // ⚠️ Muss mitgeschrieben werden, sonst reisst jedes set() die Bestellung
+    // aus ihrer Sammelbestellung: sie faellt zurueck in den Stapel, geht in
+    // der naechsten Mail ein ZWEITES Mal an den Lieferanten und die Lieferung
+    // bleibt als leere Huelle mit 0,00 € stehen. Der einzige Ausstieg aus
+    // einer Runde ist esNimmAusRunde.
+    rundeId: bisher && bisher.rundeId ? bisher.rundeId : null,
     notiz: esText(notiz, 200),
     positionen: sauber,
     erstelltAm: bisher ? bisher.erstelltAm : firebase.database.ServerValue.TIMESTAMP,
