@@ -163,6 +163,13 @@ const ABLAUF_TITEL = {
 // bei jeder neuen Anmeldung (Live-Update) auf den gespeicherten Stand zurück.
 let formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
 
+// Hat jemand seinen Rating-Regler in der Lobby angefasst, ohne zu speichern?
+// ⚠️ Aus demselben Grund wie formatEntwurf: renderLobby läuft bei JEDER
+// fremden An- und Abmeldung. Ohne diesen Merker sprang der Regler auf den
+// gespeicherten Wert zurück, und „Speichern" – das das Feld erst beim Klick
+// liest – schrieb genau den alten Wert wieder in die Datenbank.
+let lobbyRatingBeruehrt = false;
+
 function formatEntwurfAus(z) {
   if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
   if (formatEntwurf.koTyp === null) formatEntwurf.koTyp = z.koTyp;
@@ -327,7 +334,7 @@ function renderLobby(z) {
   const eigen = document.getElementById("lobby-eigen");
   if (z.eigenerSpieler) {
     eigen.style.display = "";
-    setRating("lobby-rating-slider", "lobby-rating", z.eigenerSpieler.rating);
+    if (!lobbyRatingBeruehrt) setRating("lobby-rating-slider", "lobby-rating", z.eigenerSpieler.rating);
   } else {
     eigen.style.display = "none";
   }
@@ -896,6 +903,16 @@ function wireEvents() {
   koppleRating("login-rating-slider", "login-rating");
   koppleRating("lobby-rating-slider", "lobby-rating");
 
+  // Ab der ersten Bewegung gehört der Regler dem Spieler, nicht mehr dem
+  // Live-Update (siehe lobbyRatingBeruehrt).
+  ["lobby-rating-slider", "lobby-rating"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", () => {
+      lobbyRatingBeruehrt = true;
+      zeigeFehler("lobby-rating-hinweis", "");
+    });
+  });
+
   // Turnier erstellen (legt immer ein zusätzliches an)
   document.getElementById("btn-turnier-erstellen").addEventListener("click", async () => {
     const res = await turnierService.erstelleTurnier({
@@ -1045,7 +1062,13 @@ function wireEvents() {
 
   // Lobby: Rating speichern
   document.getElementById("btn-lobby-rating-speichern").addEventListener("click", async () => {
-    await turnierService.aktualisiereRating(document.getElementById("lobby-rating").value);
+    const res = await turnierService.aktualisiereRating(document.getElementById("lobby-rating").value);
+    // Erst wenn es wirklich drin steht, darf das nächste Update den Regler
+    // wieder nachziehen. Bei einem Fehler bleibt der eingestellte Wert stehen.
+    if (res && res.erfolg) lobbyRatingBeruehrt = false;
+    const hinweis = document.getElementById("lobby-rating-hinweis");
+    if (hinweis) hinweis.classList.toggle("fehler", !(res && res.erfolg));
+    zeigeFehler("lobby-rating-hinweis", res && res.erfolg ? "Gespeichert ✓" : (res && res.fehler) || "");
   });
 
   // Lobby: als Veranstalter selbst mitspielen
@@ -1281,6 +1304,16 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "5.6",
+    groups: [
+      { title: "Lobby: der Rating-Regler bleibt stehen, wo man ihn hinzieht", items: [
+          "Sobald sich jemand anders an- oder abmeldete, sprang der eigene Rating-Regler auf den gespeicherten Wert zurueck – und „Speichern“ schrieb genau diesen alten Wert wieder in die Datenbank. Gemerkt hat man es erst beim Auslosen, weil aus dem Rating die Teams gebaut werden.",
+          "Der Regler gehoert jetzt ab der ersten Bewegung dem Spieler; erst nach dem Speichern zieht die Anzeige wieder nach.",
+          "Unter dem Knopf steht jetzt <b>„Gespeichert ✓“</b> – vorher war der Klick vollstaendig stumm."
+      ]}
+    ]
+  },
   {
     version: "5.5",
     groups: [
