@@ -1271,6 +1271,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.2",
+    groups: [
+      { title: "Fruehstueck: eine abgegebene Bestellung behaelt ihren Preis", items: [
+          "Bisher holte die Anzeige Name und Preis bei jedem Aufruf frisch aus dem Paket. Wer den Preis eines Pakets spaeter aenderte, rechnete damit <b>alle</b> Bestellungen aller vergangenen Morgen um – auch die, die in der Abrechnung schon als bezahlt abgehakt waren. Der Haken blieb stehen, der Betrag daneben war ploetzlich ein anderer.",
+          "Name und Preis werden jetzt beim Abschicken auf der Bestellung festgeschrieben, so wie es das Essen schon macht. Eine abgegebene Bestellung ist ein Beleg – eine Preisaenderung gilt ab jetzt und nicht rueckwirkend.",
+          "Bestellungen von vorher rechnen unveraendert weiter mit dem Paketpreis."
+      ]}
+    ]
+  },
+  {
     version: "5.1",
     groups: [
       { title: "Essen: eine Bestellung faellt nicht mehr aus der Lieferung", items: [

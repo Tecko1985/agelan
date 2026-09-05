@@ -15,8 +15,14 @@
 //   meta        : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
 //                   anzahlTage, schlussUhr }
 //   pakete/$pid : { name, beschreibung, preisCent, sort, erstelltAm }
-//   bestellungen/$datum/$uid : { name, positionen:{pid:anzahl}, notiz,
+//   bestellungen/$datum/$uid : { name, positionen:{pid:anzahl},
+//                                preise:{pid:{name,preisCent}}, notiz,
 //                                abgeholt, bezahlt, aktualisiertAm }
+//
+// ⚠️ preise ist der BELEG zur Bestellung: Name und Preis, wie sie beim
+// Abschicken galten. Die Anzeige rechnet damit, nicht mit dem aktuellen Paket –
+// sonst würde eine spätere Preisänderung schon kassierte Bestellungen
+// rückwirkend umrechnen. Altbestand ohne preise fällt aufs Paket zurück.
 //
 // startDatum ist der erste FRÜHSTÜCKSMORGEN, nicht der Anreisetag.
 //
@@ -191,19 +197,31 @@ function frSchlussZeitpunkt(datum, schlussUhr) {
 // wenn jemand alle Zähler wieder auf 0 stellt. Sie wird beim Speichern entfernt,
 // hier aber zusätzlich ausgefiltert, damit ein Rest im Baum nicht als „hat
 // bestellt" durchgeht.
-function frPositionenListe(positionenRoh, pakete) {
+function frPositionenListe(positionenRoh, pakete, preiseRoh) {
   const positionen = [];
   Object.entries(positionenRoh || {}).forEach(([pid, anzahl]) => {
     const n = Math.round(frZahl(anzahl, 0));
     if (n <= 0) return;
     const paket = pakete.find((p) => p.id === pid);
-    if (!paket) return;   // Paket wurde nachträglich gelöscht
+    // ⚠️ Name und Preis kommen aus dem Beleg, den frBestelle beim Abschicken
+    // festgeschrieben hat – NICHT aus dem Paket. Eine abgegebene Bestellung
+    // ist ein Beleg: ihr Betrag darf sich nicht ändern, nur weil der
+    // Veranstalter den Preis nachträglich anpasst. Sonst stünde in der
+    // Abrechnung neben einem gesetzten „bezahlt"-Haken plötzlich eine andere
+    // Summe. (Genauso hält es das Essens-Modul, siehe essen-service.js.)
+    // Nur Altbestand ohne Beleg fällt auf das Paket zurück.
+    const fest = (preiseRoh || {})[pid];
+    const name = fest ? frText(fest && fest.name, 60) : (paket ? paket.name : "");
+    const preisCent = fest
+      ? Math.max(0, Math.round(frZahl(fest && fest.preisCent, 0)))
+      : (paket ? paket.preisCent : null);
+    if (!name || preisCent === null) return;   // Paket gelöscht und kein Beleg da
     positionen.push({
       paketId: pid,
-      name: paket.name,
+      name,
       anzahl: Math.min(FR_MAX_STUECK, n),
-      preisCent: paket.preisCent,
-      summeCent: paket.preisCent * Math.min(FR_MAX_STUECK, n),
+      preisCent,
+      summeCent: preisCent * Math.min(FR_MAX_STUECK, n),
     });
   });
   positionen.sort((a, b) => pakete.findIndex((p) => p.id === a.paketId) - pakete.findIndex((p) => p.id === b.paketId));
@@ -214,7 +232,7 @@ function frBestellungenEinesTages(bestellungenRoh, datum, pakete) {
   const roh = (bestellungenRoh || {})[datum] || {};
   const liste = [];
   Object.entries(roh).forEach(([uid, b]) => {
-    const positionen = frPositionenListe(b && b.positionen, pakete);
+    const positionen = frPositionenListe(b && b.positionen, pakete, b && b.preise);
     if (!positionen.length) return;
     liste.push({
       uid,
@@ -487,6 +505,7 @@ async function frLoeschePaket(id) {
     tag.bestellungen.forEach((b) => {
       if (b.positionen.some((pos) => pos.paketId === id)) {
         updates["bestellungen/" + tag.datum + "/" + b.uid + "/positionen/" + id] = null;
+        updates["bestellungen/" + tag.datum + "/" + b.uid + "/preise/" + id] = null;
       }
     });
   });
@@ -531,13 +550,19 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   if (!n) return { erfolg: false, fehler: "Bitte trag deinen Namen ein." };
 
   const sauber = {};
+  // ⚠️ Name und Preis werden beim Abschicken festgeschrieben, nicht erst beim
+  // Anzeigen aus dem Paket geholt. Sonst rechnet eine spätere Preisänderung
+  // alle schon abgehakten Bestellungen rückwirkend um.
+  const feste = {};
   let stueck = 0;
   Object.entries(positionen || {}).forEach(([pid, anzahl]) => {
-    if (!z.pakete.some((p) => p.id === pid)) return;
+    const paket = z.pakete.find((p) => p.id === pid);
+    if (!paket) return;
     const wert = Math.round(frZahl(anzahl, 0));
     if (wert <= 0) return;
     const begrenzt = Math.min(FR_MAX_STUECK, wert);
     sauber[pid] = begrenzt;
+    feste[pid] = { name: paket.name, preisCent: paket.preisCent };
     stueck += begrenzt;
   });
 
@@ -557,6 +582,7 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   await db.ref(pfad).set({
     name: n,
     positionen: sauber,
+    preise: feste,
     notiz: frText(notiz, 200),
     abgeholt: !!(bisher && bisher.abgeholt),
     bezahlt: !!(bisher && bisher.bezahlt),
