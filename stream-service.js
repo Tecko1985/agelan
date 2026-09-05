@@ -125,6 +125,17 @@ function skIstAdmin() {
   return !!meta.adminPin && skGespeicherterPin() === meta.adminPin;
 }
 
+// Wer darf sich in den Kalender eintragen?
+// ⚠️ EINE Stelle für alle Wege: der Zustand blendet den Knopf „Zeit belegen"
+// danach ein, und skBelegeZeit/skAendereSlot/skLoescheSlot prüfen dasselbe.
+// Standen hier zwei Ausdrücke, bot die Oberfläche einem Veranstalter per PIN
+// oder hostId den Knopf an und der Schreibweg schickte ihn danach mit
+// „Melde dich bei Michel" zu sich selbst.
+function skDarfEintragen() {
+  if (skIstAdmin()) return true;
+  return typeof kontoDarfStreamen !== "function" || kontoDarfStreamen();
+}
+
 // PIN des laufenden Turniers, falls es eines gibt und wir dort Veranstalter
 // sind. Damit übernimmt ein neuer Streamplan denselben PIN und es gibt nicht
 // zwei Geheimnisse für dieselbe Person.
@@ -254,7 +265,7 @@ function skGetZustand() {
     slots,
     programm,
     istAdmin: admin,
-    darfEintragen: admin || (typeof kontoDarfStreamen === "function" && kontoDarfStreamen()),
+    darfEintragen: skDarfEintragen(),
     eigeneUid: skEigeneUid,
     turnierPin: skTurnierPin(),
     achseVon: Math.min.apply(null, tage.map((t) => t.von)),
@@ -422,9 +433,9 @@ async function skSetzeTagesfenster(liste) {
 
 async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
-  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
-  // sehen den Plan, aendern ihn aber nicht.
-  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
+  // Veranstalter. Genau derselbe Ausdruck steuert die Anzeige des Knopfes.
+  if (!skDarfEintragen()) {
     return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
   }
   const z = skGetZustand();
@@ -448,9 +459,9 @@ async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
 
 async function skAendereSlot(id, { datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
-  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
-  // sehen den Plan, aendern ihn aber nicht.
-  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
+  // Veranstalter. Genau derselbe Ausdruck steuert die Anzeige des Knopfes.
+  if (!skDarfEintragen()) {
     return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
   }
   const z = skGetZustand();
@@ -564,9 +575,9 @@ async function skLoescheProgramm(id) {
 
 async function skLoescheSlot(id) {
   await skAuthBereit;
-  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist. Alle anderen
-  // sehen den Plan, aendern ihn aber nicht.
-  if (typeof kontoDarfStreamen === "function" && !kontoDarfStreamen()) {
+  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
+  // Veranstalter. Genau derselbe Ausdruck steuert die Anzeige des Knopfes.
+  if (!skDarfEintragen()) {
     return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
   }
   const z = skGetZustand();

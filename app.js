@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.3",
+    groups: [
+      { title: "Stream: der Veranstalter darf jetzt auch, was ihm angeboten wird", items: [
+          "Wer sich mit dem Stream-PIN als Veranstalter angemeldet hatte (oder den Plan selbst angelegt hat), sah den Knopf <b>„Zeit belegen“</b> – und bekam danach „Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel.“ Also eine Absage, die ihn zu sich selbst schickt. Dasselbe beim Verschieben und Loeschen eines Blocks mit der Maus.",
+          "Anzeige und Schreibweg fragen jetzt dieselbe Stelle. Fuer alle anderen aendert sich nichts: eintragen darf weiterhin nur, wer freigegeben ist."
+      ]}
+    ]
+  },
+  {
     version: "5.2",
     groups: [
       { title: "Fruehstueck: eine abgegebene Bestellung behaelt ihren Preis", items: [
