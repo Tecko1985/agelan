@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.0",
+    groups: [
+      { title: "Der Streamkalender ist jetzt immer gleich breit", items: [
+          "Über den Vorraum geöffnet war der Streamkalender nur halb so breit wie über die Reiterleiste – die Spalten schmaler, die Blöcke enger. Umgekehrt blieb die größere Breite hängen, wenn die App bei fehlendem Recht auf den Turnier-Reiter zurücksprang.",
+          "Die Breite hängt jetzt am Reiter selbst, nicht mehr am Weg dorthin."
+      ]}
+    ]
+  },
+  {
     version: "4.9",
     groups: [
       { title: "Die Essensdaten sind nicht mehr oeffentlich lesbar", items: [
@@ -1832,6 +1841,15 @@ const AGELAN_TAB_KEY = "agelan_tab";
 function activateTab(name) {
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
+  // Der Streamkalender braucht mehr Breite als die 560 px der Turnier-Screens
+  // (style.css: main#app.sk-breit { max-width: 980px }). Der Schalter steht
+  // HIER und nicht am Klickhorcher der Reiterleiste, weil es zwei weitere Wege
+  // in den Reiter gibt: den Vorraum (index.html oeffneBereich) und den
+  // Rueckfall auf "turnier" bei Rechteverlust. Ueber den Klickhorcher blieb der
+  // Kalender vom Vorraum aus 560 px schmal, und umgekehrt hing die Klasse nach
+  // dem Rechteverlust am Turnier-Reiter fest.
+  const app = document.getElementById("app");
+  if (app) app.classList.toggle("sk-breit", name === "stream");
   try {
     localStorage.setItem(AGELAN_TAB_KEY, name);
   } catch (e) { /* privater Modus: dann startet es eben wieder im Turnier */ }

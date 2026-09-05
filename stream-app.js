@@ -793,13 +793,10 @@ function skWireEvents() {
     skZeigeFehler("sk-admin-panel-fehler", res.erfolg ? "" : res.fehler);
   });
 
-  // Der Kalender braucht mehr Breite als die 560px der Turnier-Screens.
-  // Über eine Klasse am Container statt über :has(), das auf älteren iPhones fehlt.
-  document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
-    b.addEventListener("click", () => {
-      document.getElementById("app").classList.toggle("sk-breit", b.dataset.tab === "stream");
-    });
-  });
+  // Die Breitenklasse "sk-breit" setzt seit dem 05.09.2026 activateTab() in
+  // app.js selbst — dort greift sie für JEDEN Weg in den Reiter, auch für den
+  // Vorraum und den Rückfall bei Rechteverlust. Der frühere Klickhorcher an
+  // dieser Stelle kannte nur den Weg über die Reiterleiste.
 }
 
 // --- Start ------------------------------------------------------------------
