@@ -1271,6 +1271,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.4",
+    groups: [
+      { title: "Fruehstueck: die Einstellungen bleiben stehen, bis gespeichert ist", items: [
+          "„Morgen“ und „Bestellschluss“ wurden bei jedem Update neu befuellt – und die Frühstücksliste aktualisiert sich bei jeder fremden Bestellung und zusaetzlich alle 30 Sekunden von selbst. Wer laenger als eine halbe Minute tippte, hatte danach wieder die alten Werte im Feld; „Speichern“ schrieb sie zurueck und meldete Erfolg.",
+          "Ab der ersten Aenderung fasst kein Update die beiden Felder mehr an. Erst nach dem Speichern zieht die Anzeige wieder nach."
+      ]}
+    ]
+  },
+  {
     version: "5.3",
     groups: [
       { title: "Stream: der Veranstalter darf jetzt auch, was ihm angeboten wird", items: [

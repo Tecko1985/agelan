@@ -9,6 +9,10 @@ let frZustand = null;
 let frAktiverTag = null;          // Datum des gerade angezeigten Morgens
 let frEntwurf = null;             // { positionen:{pid:anzahl}, notiz } – laufende Bestellung vor dem Speichern
 let frBearbeitetesPaketId = null; // null = "Neues Paket"-Formular legt an, sonst bearbeitet es dieses Paket
+// Hat der Veranstalter an den Einstellungsfeldern (Morgen/Bestellschluss) etwas
+// geändert, das noch nicht gespeichert ist? Solange ja, fasst kein Live-Update
+// die beiden Felder mehr an – sonst geht die Eingabe still verloren.
+let frEinstellungenBeruehrt = false;
 // ⚠️ Wer beim Kassieren eine Zeile abhakt, loest ein Live-Update aus und die
 // Liste wird neu gezeichnet. Ohne dieses Merken klappte die Person dabei jedes
 // Mal wieder zu – genau bei der Taetigkeit, fuer die die Liste da ist.
@@ -383,8 +387,18 @@ function frRenderAdmin(z) {
   frEl("fr-admin-panel").style.display = z.istAdmin ? "" : "none";
   if (!z.istAdmin) return;
 
-  frEl("fr-ein-tage").value = z.meta.anzahlTage;
-  frEl("fr-ein-schluss").value = frZeitInputWert(z.meta.schlussUhr);
+  // ⚠️ Die beiden Einstellungsfelder werden NICHT überschrieben, solange der
+  // Veranstalter darin etwas geändert hat. frRender hängt an jeder fremden
+  // Bestellung UND am 30-Sekunden-Takt des Service; ohne diesen Halt stand nach
+  // einer halben Minute wieder der alte Wert im Feld, „Speichern" las ihn beim
+  // Klick frisch aus und schrieb ihn zurück – lautlos, mit Erfolgsmeldung.
+  // ⚠️ Ein Blick auf document.activeElement reicht dafür nicht: sobald man ins
+  // NACHBARFELD wechselt, ist das erste nicht mehr im Fokus und würde wieder
+  // zurückgesetzt. Deshalb ein Entwurfs-Merker über beide Felder.
+  if (!frEinstellungenBeruehrt) {
+    frEl("fr-ein-tage").value = z.meta.anzahlTage;
+    frEl("fr-ein-schluss").value = frZeitInputWert(z.meta.schlussUhr);
+  }
 
   frRenderPaketeVerwalten(z);
 }
@@ -457,11 +471,19 @@ function frWireEvents() {
     if (res.erfolg) frEl("fr-admin-pin").value = "";
   });
 
+  // Ab der ersten Änderung gehört das Feld dem Veranstalter, nicht mehr dem
+  // Live-Update (siehe frRenderAdmin).
+  frEl("fr-ein-tage").addEventListener("input", () => { frEinstellungenBeruehrt = true; });
+  frEl("fr-ein-schluss").addEventListener("input", () => { frEinstellungenBeruehrt = true; });
+
   frEl("fr-btn-einstellungen-speichern").addEventListener("click", async () => {
     const res = await fruehstueckService.setzeEinstellungen({
       anzahlTage: frEl("fr-ein-tage").value,
       schlussUhr: frMinutenAusZeitInput(frEl("fr-ein-schluss").value, fruehstueckService.STANDARD_SCHLUSS),
     });
+    // Erst wenn es wirklich drin steht, darf das nächste Update die Felder
+    // wieder befüllen. Bei einem Fehler bleibt der Entwurf stehen.
+    if (res.erfolg) frEinstellungenBeruehrt = false;
     frZeigeFehler("fr-einstellungen-fehler", res.erfolg ? "" : res.fehler);
   });
 
