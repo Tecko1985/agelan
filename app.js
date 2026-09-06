@@ -1305,6 +1305,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.7",
+    groups: [
+      { title: "Datenschutz: der Text sagt jetzt, was „Konto loeschen“ wirklich macht", items: [
+          "Im Datenschutz-Hinweis im Vorraum stand „dein Konto samt Bestellungen ist in einer Minute weg“. Das stimmte nicht: geloescht werden nur Anmeldedaten und Discord-ID bei Cloudflare. Bestellungen, Turnier-Anmeldung und Streamplan-Zeiten bleiben mit Namen in der Datenbank stehen – die Rueckfrage vor dem Loeschen sagte das sogar richtig.",
+          "Der Text nennt jetzt beides: was das Loeschen entfernt, was stehen bleibt (Essen samt Sonderwunsch, Fruehstueck, Turnier, Streamplan) und wie man es loswird – beim Veranstalter melden, der loescht es auf Zuruf."
+      ]}
+    ]
+  },
+  {
     version: "5.6",
     groups: [
       { title: "Lobby: der Rating-Regler bleibt stehen, wo man ihn hinzieht", items: [
