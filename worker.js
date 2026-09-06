@@ -89,13 +89,13 @@ export default {
     if (aktion === "konto-login")    return kontoLogin(request, body, env, cors);
     if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
     if (aktion === "konto-admin")    return kontoAdmin(request, body, env, cors);
-    if (aktion === "konto-streamer") return kontoStreamer(body, env, cors);
-    if (aktion === "konto-orga")     return kontoOrga(body, env, cors);
-    if (aktion === "konto-liste")    return kontoListe(body, env, cors);
-    if (aktion === "konto-loeschen") return kontoLoeschen(body, env, cors);
+    if (aktion === "konto-streamer") return kontoStreamer(request, body, env, cors);
+    if (aktion === "konto-orga")     return kontoOrga(request, body, env, cors);
+    if (aktion === "konto-liste")    return kontoListe(request, body, env, cors);
+    if (aktion === "konto-loeschen") return kontoLoeschen(request, body, env, cors);
     if (aktion === "konto-discord")  return kontoDiscord(body, env, cors);
     if (aktion === "discord-test")   return discordTest(body, env, cors);
-    if (aktion === "discord-sammel") return discordSammel(body, env, cors);
+    if (aktion === "discord-sammel") return discordSammel(request, body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
 };
@@ -505,7 +505,7 @@ async function kontoAnlegen(request, body, env, cors) {
   // Wer beim Anlegen auch das Veranstalter-Passwort mitschickt, wird gleich
   // Veranstalter. Michel muss sich so nicht zweimal durch Masken klicken.
   const istAdmin = body.veranstalterPasswort
-    ? await veranstalterOk(body, env)
+    ? (await veranstalterOk(request, body, env)).ok
     : false;
 
   await env.KONTEN.put(schluessel, JSON.stringify({
@@ -655,9 +655,10 @@ async function kontoAdmin(request, body, env, cors) {
 
 // Streamer-Merkmal setzen oder nehmen. Nur der Veranstalter - anders als beim
 // Veranstalter-Recht gibt es hier keinen Selbstbedienungsweg per Passwort.
-async function kontoStreamer(body, env, cors) {
+async function kontoStreamer(request, body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
 
   const geprueft = nickPruefen(body.nickname);
   if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
@@ -685,9 +686,10 @@ async function kontoStreamer(body, env, cors) {
 // ⚠️ Bei einem Veranstalter laesst es sich nicht abschalten — er richtet die
 // Veranstaltung aus und gehoert damit zur Organisation. Der Weg dorthin ist,
 // ihm zuerst das Veranstalter-Recht zu nehmen.
-async function kontoOrga(body, env, cors) {
+async function kontoOrga(request, body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
 
   const geprueft = nickPruefen(body.nickname);
   if (geprueft.fehler) return json({ error: geprueft.fehler }, 400, cors);
@@ -720,7 +722,19 @@ async function kontoOrga(body, env, cors) {
 // ueber das Veranstalter-Passwort (der Weg fuer den ersten Zugang und nach
 // „alle Konten loeschen"), `orga` per Klick von jemandem, der die Rechte schon
 // hat. Damit muss Michel sein Passwort nicht an die Crew weitergeben.
-async function veranstalterOk(body, env) {
+// ⚠️ Der Passwort-Zweig braucht DIESELBE Bremse wie konto-admin. Bis
+// 2026-09-06 hatte er keine: konto-streamer, konto-orga, konto-liste,
+// konto-loeschen und discord-sammel pruefen alle dasselbe Veranstalter-
+// Passwort, riefen aber weder `bremseOffen` noch `bremseFehlschlag`. Damit war
+// das Passwort ueber jede dieser Nebenaktionen unbegrenzt durchprobierbar, und
+// ein Treffer gibt die ganze Kontenliste her bzw. loescht mit {alle:true}
+// jedes Konto. Die Bremse gehoert deshalb HIER hinein, nicht in die Aufrufer -
+// sonst faellt sie beim naechsten neuen Aufrufer wieder hinten runter.
+//
+// Rueckgabe ist ein Objekt, kein Boolescher Wert: der Aufrufer muss 429 von
+// 403 unterscheiden koennen, sonst sieht ein Ausgesperrter nur "Nur der
+// Veranstalter" und probiert weiter.
+async function veranstalterOk(request, body, env) {
   if (body.token) {
     const gelesen = await tokenLesen(env, body.token);
     if (gelesen && (gelesen.admin || gelesen.orga)) {
@@ -729,19 +743,34 @@ async function veranstalterOk(body, env) {
       if (roh) {
         try {
           const k = JSON.parse(roh);
-          if (k.admin || k.orga) return true;
+          if (k.admin || k.orga) return { ok: true };
         } catch (e) { /* kaputter Eintrag zaehlt nicht */ }
       }
     }
   }
-  if (!env.PW_AGELAN_VERANSTALTER) return false;
-  if (!body.veranstalterPasswort) return false;
-  return passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
+  const nurToken = { ok: false, fehler: "Nur der Veranstalter.", status: 403 };
+  if (!env.PW_AGELAN_VERANSTALTER) return nurToken;
+  // Kein Passwort mitgeschickt = kein Rateversuch. Das zaehlt nicht mit, sonst
+  // sperrt ein Client mit abgelaufenem Token sich selbst aus.
+  if (!body.veranstalterPasswort) return nurToken;
+
+  // Die Bremse VOR dem Vergleich, wie in pruefePasswort: sonst kostet jeder
+  // Rateversuch weiterhin einen vollen Durchlauf.
+  if (!bremseOffen(request)) {
+    return { ok: false, fehler: "Zu viele Fehlversuche. Bitte später erneut versuchen.", status: 429 };
+  }
+  const stimmt = await passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
+  if (!stimmt) {
+    bremseFehlschlag(request);
+    return nurToken;
+  }
+  return { ok: true };
 }
 
-async function kontoListe(body, env, cors) {
+async function kontoListe(request, body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
 
   const liste = [];
   let cursor;
@@ -772,9 +801,10 @@ async function kontoListe(body, env, cors) {
   return json({ ok: true, konten: liste }, 200, cors);
 }
 
-async function kontoLoeschen(body, env, cors) {
+async function kontoLoeschen(request, body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
 
   // Ein einzelnes Konto ...
   if (body.nickname) {
@@ -917,9 +947,10 @@ function postenListe(roh) {
   return raus;
 }
 
-async function discordSammel(body, env, cors) {
+async function discordSammel(request, body, env, cors) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
-  if (!(await veranstalterOk(body, env))) return json({ error: "Nur der Veranstalter." }, 403, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
   if (!env.DISCORD_BOT_TOKEN) {
     return json({ error: "Der Discord-Bot ist noch nicht eingerichtet (Secret DISCORD_BOT_TOKEN fehlt)." }, 500, cors);
   }
