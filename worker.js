@@ -989,8 +989,14 @@ async function discordSammel(request, body, env, cors) {
     return json({ error: "Das sind " + namen.length + " Leute auf einmal. Mehr als " + DISCORD_SAMMEL_MAX + " gehen in einem Durchgang nicht." }, 400, cors);
   }
 
-  const was = String(body.titel || "").trim().slice(0, 60);
-  const zusatz = String(body.hinweis || "").trim().slice(0, 200);
+  // ⚠️ Beide durch discordSauber, nicht nur trimmen und kuerzen. Bis
+  // 2026-09-06 gingen sie roh in die DM - mit Zeilenumbruechen, `@`, Backticks
+  // und Markdown, zusammen bis 260 Zeichen, an bis zu DISCORD_SAMMEL_MAX Konten
+  // unter Michels Bot-Namen. Genau das, was der Kommentar oben ausschliesst
+  // ("Anpassbar ist nur ein kurzer Zusatz") - `gericht`, `sonderwunsch` und
+  // `daSeit` waren schon sauber, diese beiden nicht.
+  const was = discordSauber(body.titel, 60);
+  const zusatz = discordSauber(body.hinweis, 200);
   // Wann das Essen angekommen ist – fuer alle in dieser Lieferung dieselbe Zeit.
   const daSeit = discordSauber(body.daSeit, 20);
 
