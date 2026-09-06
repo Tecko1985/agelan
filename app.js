@@ -1305,6 +1305,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.8",
+    groups: [
+      { title: "Passwort-Fenster quer am Handy: Zurueck-Knopf und Fehlermeldung sind wieder da", items: [
+          "Quer gehaltenes Handy (812x375): der Kasten ist 483 Pixel hoch und wurde oben wie unten abgeschnitten – er sass von −54 bis 429. Damit lagen der Knopf „← Zurueck zur Uebersicht“ (341–375) und die Fehlerzeile (385–403) unter dem Bildrand, und das Fenster liess sich nicht scrollen. Wer sein Passwort falsch eintippte, sah schlicht nichts passieren.",
+          "Das Fenster scrollt jetzt, wenn der Inhalt nicht hineinpasst. Gemessen nach der Aenderung: Kasten 20–503, nach dem Scrollen Zurueck-Knopf 267–302 und Fehlerzeile 312–329 – beide im Bild. Hochkant bleibt alles wie es war (Kasten 165–647, mittig).",
+          "Betrifft alle drei Fenster dieser Bauart: Anmelden, Mein Konto und der QR-Code."
+      ]}
+    ]
+  },
+  {
     version: "5.7",
     groups: [
       { title: "Datenschutz: der Text sagt jetzt, was „Konto loeschen“ wirklich macht", items: [
