@@ -319,13 +319,14 @@ function esRenderKorb() {
           </div>
           <div class="es-korb-unten">
             <div class="fr-stepper">
-              <button type="button" data-es-weniger="${escapeHtml(pos.lid)}" ${pos.anzahl <= 1 ? "disabled" : ""}>−</button>
+              <button type="button" data-es-weniger="${escapeHtml(pos.lid)}" ${pos.anzahl <= 1 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(g ? g.name : "diesem Gericht")}">−</button>
               <span class="fr-stepper-zahl">${pos.anzahl}</span>
-              <button type="button" data-es-mehr="${escapeHtml(pos.lid)}" ${pos.anzahl >= essenService.MAX_STUECK ? "disabled" : ""}>+</button>
+              <button type="button" data-es-mehr="${escapeHtml(pos.lid)}" ${pos.anzahl >= essenService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(g ? g.name : "diesem Gericht")}">+</button>
             </div>
             <input type="text" class="eingabe es-wunsch" data-es-wunsch="${escapeHtml(pos.lid)}"
               maxlength="${essenService.MAX_SONDERWUNSCH}" autocomplete="off"
-              placeholder="Sonderwunsch, z. B. mit Spezialsoße" value="${escapeHtml(pos.sonderwunsch)}">
+              placeholder="Sonderwunsch, z. B. mit Spezialsoße" value="${escapeHtml(pos.sonderwunsch)}"
+              aria-label="Sonderwunsch zu ${escapeHtml(g ? g.name : "diesem Gericht")}">
           </div>
         </div>`;
       }).join("")}
@@ -1187,10 +1188,10 @@ function esRenderKarteVerwalten(z) {
             <div class="fr-pv-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}${g.kategorie ? " · " + escapeHtml(g.kategorie) : ""}${g.beschreibung ? " · " + escapeHtml(g.beschreibung) : ""}</div>
           </div>
           <div class="fr-pv-aktionen">
-            <button type="button" class="mini-btn" data-es-hoch="${escapeHtml(g.id)}" ${i === 0 ? "disabled" : ""}>▲</button>
-            <button type="button" class="mini-btn" data-es-runter="${escapeHtml(g.id)}" ${i === z.karte.length - 1 ? "disabled" : ""}>▼</button>
-            <button type="button" class="mini-btn" data-es-edit="${escapeHtml(g.id)}">✎</button>
-            <button type="button" class="mini-btn" data-es-loeschen="${escapeHtml(g.id)}">🗑</button>
+            <button type="button" class="mini-btn" data-es-hoch="${escapeHtml(g.id)}" ${i === 0 ? "disabled" : ""} title="Nach oben" aria-label="${escapeHtml(g.name)} nach oben">▲</button>
+            <button type="button" class="mini-btn" data-es-runter="${escapeHtml(g.id)}" ${i === z.karte.length - 1 ? "disabled" : ""} title="Nach unten" aria-label="${escapeHtml(g.name)} nach unten">▼</button>
+            <button type="button" class="mini-btn" data-es-edit="${escapeHtml(g.id)}" title="Bearbeiten" aria-label="${escapeHtml(g.name)} bearbeiten">✎</button>
+            <button type="button" class="mini-btn" data-es-loeschen="${escapeHtml(g.id)}" title="Löschen" aria-label="${escapeHtml(g.name)} löschen">🗑</button>
           </div>
         </div>`).join("")
     : `<p class="fr-leer-hinweis">Noch keine Gerichte.</p>`;

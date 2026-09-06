@@ -343,7 +343,8 @@
 
       <label class="feld-label" for="login-rating">Rating (500–3000)</label>
       <div class="rating-zeile">
-        <input type="range" id="login-rating-slider" min="500" max="3000" step="10" value="1500">
+        <input type="range" id="login-rating-slider" min="500" max="3000" step="10" value="1500"
+               aria-label="Rating als Regler (500 bis 3000)">
         <input type="number" id="login-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
       </div>
 
@@ -363,8 +364,10 @@
       <div id="lobby-eigen" class="karte-block" style="display:none">
         <p class="feld-label">Dein Rating anpassen</p>
         <div class="rating-zeile">
-          <input type="range" id="lobby-rating-slider" min="500" max="3000" step="10" value="1500">
-          <input type="number" id="lobby-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+          <input type="range" id="lobby-rating-slider" min="500" max="3000" step="10" value="1500"
+                 aria-label="Dein Rating als Regler (500 bis 3000)">
+          <input type="number" id="lobby-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500"
+                 aria-label="Dein Rating als Zahl (500 bis 3000)">
         </div>
         <button class="btn btn-secondary btn-grow" id="btn-lobby-rating-speichern">Speichern</button>
         <p class="hinweis-text" id="lobby-rating-hinweis"></p>
@@ -1174,13 +1177,13 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.5',
-    'app.js?v=3.31',
+    'app.js?v=3.32',
     'stream-service.js?v=1.5',
     'stream-app.js?v=1.7',
     'fruehstueck-service.js?v=1.4',
-    'fruehstueck-app.js?v=1.6',
+    'fruehstueck-app.js?v=1.7',
     'essen-service.js?v=2.1',
-    'essen-app.js?v=2.7'
+    'essen-app.js?v=2.8'
   ];
 
   var input = document.getElementById('pw-gate-input');

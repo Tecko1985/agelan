@@ -1305,6 +1305,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "5.9",
+    groups: [
+      { title: "Vorleseprogramm: die Symbol-Knoepfe sagen jetzt, wozu sie gehoeren", items: [
+          "24 Knoepfe trugen nur ein Zeichen – ▲ ▼ ✎ 🗑 − + – und sonst nichts. Ein Vorleseprogramm liest davon nur „Schaltflaeche“ vor; welches Gericht oder Paket gemeint ist, war nicht zu erfahren. Jetzt heisst es „Pizza Diavolo nach oben“, „Broetchen und Ei loeschen“, „Eins mehr von …“.",
+          "Ebenso das Sonderwunsch-Feld im Essenskorb (hatte nur einen Platzhalter, und der ist keine Beschriftung), die beiden Haekchen 🛠 und 🎥 in der Konten-Liste und der Loeschen-Knopf daneben – die nennen jetzt den Namen des Kontos.",
+          "Dazu die drei Rating-Felder in Lobby und Anmeldung: der Regler hing an keiner Beschriftung."
+      ]}
+    ]
+  },
+  {
     version: "5.8",
     groups: [
       { title: "Passwort-Fenster quer am Handy: Zurueck-Knopf und Fehlermeldung sind wieder da", items: [
@@ -2037,15 +2047,17 @@ async function ladeKonten() {
             <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
             ${k.discord ? "" : `<span class="konto-kein-discord" title="Keine Discord-ID hinterlegt – bekommt keine Nachricht, wenn das Essen bereitliegt">💬❌</span>`}
             <label class="konto-streamer" title="Gehört zur Organisation: hat alle Rechte und zahlt beim Essen nichts">
-              <input type="checkbox" data-konto-orga="${escapeHtml(k.nickname)}" ${k.orga || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}>
+              <input type="checkbox" data-konto-orga="${escapeHtml(k.nickname)}" ${k.orga || k.admin ? "checked" : ""} ${k.admin ? "disabled" : ""}
+                     aria-label="${escapeHtml(k.nickname)} gehört zur Organisation">
               🛠
             </label>
             <label class="konto-streamer" title="Darf sich in den Streamplan eintragen">
-              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin || k.orga ? "checked" : ""} ${k.admin || k.orga ? "disabled" : ""}>
+              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin || k.orga ? "checked" : ""} ${k.admin || k.orga ? "disabled" : ""}
+                     aria-label="${escapeHtml(k.nickname)} darf sich in den Streamplan eintragen">
               🎥
             </label>
             <span class="konto-datum">${kontenDatum(k.angelegtAm)}</span>
-            <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}">🗑</button>
+            <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}" title="Konto löschen" aria-label="Konto ${escapeHtml(k.nickname)} löschen">🗑</button>
           </div>`).join("")
       : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
 

@@ -149,9 +149,9 @@ function frRenderTagInhalt(z) {
             <div class="fr-paket-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}</div>
           </div>
           <div class="fr-stepper">
-            <button type="button" data-fr-weniger="${p.id}" ${!bearbeitbar || anzahl <= 0 ? "disabled" : ""}>−</button>
+            <button type="button" data-fr-weniger="${p.id}" ${!bearbeitbar || anzahl <= 0 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(p.name)}">−</button>
             <span class="fr-stepper-zahl">${anzahl}</span>
-            <button type="button" data-fr-mehr="${p.id}" ${!bearbeitbar || anzahl >= fruehstueckService.MAX_STUECK ? "disabled" : ""}>+</button>
+            <button type="button" data-fr-mehr="${p.id}" ${!bearbeitbar || anzahl >= fruehstueckService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(p.name)}">+</button>
           </div>
         </div>`;
       }).join("")
@@ -413,10 +413,10 @@ function frRenderPaketeVerwalten(z) {
             <div class="fr-pv-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}${p.beschreibung ? " · " + escapeHtml(p.beschreibung) : ""}</div>
           </div>
           <div class="fr-pv-aktionen">
-            <button type="button" class="mini-btn" data-fr-hoch="${p.id}" ${i === 0 ? "disabled" : ""}>▲</button>
-            <button type="button" class="mini-btn" data-fr-runter="${p.id}" ${i === z.pakete.length - 1 ? "disabled" : ""}>▼</button>
-            <button type="button" class="mini-btn" data-fr-bearbeiten="${p.id}">✎</button>
-            <button type="button" class="mini-btn" data-fr-loeschen="${p.id}">🗑</button>
+            <button type="button" class="mini-btn" data-fr-hoch="${p.id}" ${i === 0 ? "disabled" : ""} title="Nach oben" aria-label="${escapeHtml(p.name)} nach oben">▲</button>
+            <button type="button" class="mini-btn" data-fr-runter="${p.id}" ${i === z.pakete.length - 1 ? "disabled" : ""} title="Nach unten" aria-label="${escapeHtml(p.name)} nach unten">▼</button>
+            <button type="button" class="mini-btn" data-fr-bearbeiten="${p.id}" title="Bearbeiten" aria-label="${escapeHtml(p.name)} bearbeiten">✎</button>
+            <button type="button" class="mini-btn" data-fr-loeschen="${p.id}" title="Löschen" aria-label="${escapeHtml(p.name)} löschen">🗑</button>
           </div>
         </div>`).join("")
     : `<p class="fr-leer-hinweis">Noch keine Pakete.</p>`;
