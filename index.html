@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=4.3">
+<link rel="stylesheet" href="style.css?v=4.4">
 </head>
 <body>
 
@@ -58,6 +58,19 @@
       </span>
       <span class="hub-schloss" aria-hidden="true">🔒</span>
     </button>
+
+    <!-- Was die App kann. ⚠️ Diese App hat KEINEN Info-Reiter (seit 2026-09-03),
+         darum steht die Karte „Funktionen“ hier im Vorraum – über dem
+         Datenschutz, wie in der übrigen Flotte. Gefüllt wird sie von einem
+         eigenen Skriptblock am Ende dieser Datei und NICHT aus app.js: der
+         Vorraum ist vor der Anmeldung sichtbar, app.js wird erst nach der
+         Freigabe nachgeladen. Eine Liste aus app.js bliebe hier leer. -->
+    <details class="hub-ds hub-funktionen">
+      <summary>Funktionen</summary>
+      <div class="hub-ds-text">
+        <div id="funktionen-list"></div>
+      </div>
+    </details>
 
     <!-- ⚠️ Der Datenschutz-Hinweis stand bis 2026-09-03 im Info-Reiter. Der ist
          weg (Michel: die Änderungsliste braucht niemand), der Hinweis MUSS aber
@@ -1026,19 +1039,12 @@
      <p class="hinweis-text fehler" id="konten-leeren-fehler"></p>
    </div>
 
-   <!-- ⚠️ Die Änderungsliste stand bis 2026-09-03 im Info-Reiter. Der ist weg,
-        die Liste wurde aber weitergepflegt und war seitdem für niemanden
-        sichtbar. Sie steht jetzt hier – zugeklappt, damit der Löschen-Block
-        darüber nicht wegscrollt, aber im DOM, damit renderVersionInfo() sie
-        beim Start einmal füllen kann. -->
-   <div class="karte-block">
-     <h2>Was sich geändert hat <span class="version-badge" id="version-badge"></span></h2>
-     <p class="hinweis-text">Alle Umbauten an der App, neueste zuerst. Nur Veranstalter sehen diesen Reiter.</p>
-     <details class="changelog-box">
-       <summary>Liste aufklappen</summary>
-       <div id="changelog-list"></div>
-     </details>
-   </div>
+   <!-- ⚠️ Hier stand bis 2026-09-07 die Änderungsliste (davor im Info-Reiter,
+        den es seit 2026-09-03 nicht mehr gibt). Sie ist mit dem Flotten-Umbau
+        vom 07.09.2026 aus der Anzeige genommen: Karten dieser Art zeigen den
+        Zustand, nicht die Historie. APP_CHANGELOG bleibt in app.js stehen und
+        wird weitergepflegt. Was die App kann, steht jetzt im Vorraum unter
+        „Funktionen“ – dort sieht es jede:r, auch ohne Veranstalter-Konto. -->
  </div>
 
 </div>
@@ -1177,7 +1183,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.5',
-    'app.js?v=3.32',
+    'app.js?v=3.33',
     'stream-service.js?v=1.5',
     'stream-app.js?v=1.7',
     'fruehstueck-service.js?v=1.4',
@@ -1632,6 +1638,90 @@
       freigeben();
     });
   }
+})();
+</script>
+
+<script>
+// Die Karte „Funktionen“ im Vorraum: was die App kann, nach Themen geordnet.
+//
+// ⚠️ Sie steht bewusst HIER und nicht in app.js. Der Vorraum ist die einzige
+// Stelle, die jede:r VOR der Anmeldung sieht – app.js wird aber erst nach der
+// Freigabe nachgeladen. Eine Liste aus app.js bliebe im Vorraum leer.
+//
+// Hier steht der Zustand, nicht die Änderung: keine Versionsnummern, kein
+// „neu“, kein „jetzt“. Die Historie liegt in APP_CHANGELOG in app.js und wird
+// dort weitergepflegt; angezeigt wird sie seit 07.09.2026 nicht mehr.
+//
+// Gesetzt wird der Text mit textContent, nicht mit innerHTML: escapeHtml() aus
+// app.js steht an dieser Stelle noch nicht bereit.
+(function () {
+  var FUNKTIONEN = [
+    { title: "Was die AgeLan-Seite ist", items: [
+        "Alles zur LAN an einem Ort: Turniere, Sendeplan, Frühstück und warmes Essen.",
+        "Jede:r legt sich ein eigenes Konto mit Namen und Passwort an; ein gemeinsames Passwort gibt es nicht.",
+        "Der Vorraum mit den vier Kacheln ist die Übersicht — der Titel oben links führt jederzeit dorthin zurück."
+    ]},
+    { title: "Turnier", items: [
+        "Mehrere Turniere laufen nebeneinander; die Liste zeigt, was gerade offen ist.",
+        "Angelegt werden sie vom Veranstalter. Alle anderen schreiben sich ein, tragen ihr Rating ein und warten in der Lobby.",
+        "Ergebnisse meldet man selbst — Sätze eintippen, fertig. Tabelle und K.-o.-Baum rechnen sich daraus.",
+        "Wer nicht mitspielt, kann auch nur zuschauen."
+    ]},
+    { title: "Stream", items: [
+        "Ein Sendeplan über alle Tage der Veranstaltung: wer sendet wann vom Kanal.",
+        "Gesendet wird immer nur von einem gleichzeitig — die Zeiten im Plan sind deshalb verbindlich.",
+        "Eintragen darf, wer dafür freigeschaltet ist; alle anderen lesen den Plan.",
+        "Zeiten nach Mitternacht sind mit „(Nacht)“ gekennzeichnet und gehören noch zum Tag davor."
+    ]},
+    { title: "Frühstück", items: [
+        "Pakete für den nächsten Morgen, bestellt wird am Abend vorher.",
+        "Jeder Morgen hat einen Bestellschluss; danach wird eingekauft und es geht nichts mehr.",
+        "Bestellt wird für sich selbst — die Sammelliste sieht der Veranstalter."
+    ]},
+    { title: "Essen", items: [
+        "Warmes Essen vom Lieferanten: Karte ansehen, Essen zusammenstellen, vorne bezahlen, abholen.",
+        "Sonderwünsche lassen sich je Gericht mitgeben.",
+        "Aus allen Bestellungen wird eine Sammelbestellung an den Lieferanten."
+    ]},
+    { title: "Mein Konto", items: [
+        "Oben rechts steht der eigene Name; ein Tipp darauf öffnet „Mein Konto“.",
+        "Freiwillig ist die Discord-Benutzer-ID: mit ihr schickt der AgeLan-Bot eine Nachricht, sobald das Essen bereitliegt. Ohne ID fragt man selbst nach.",
+        "Ein gelber Punkt am Namen heißt: es ist noch keine Discord-ID hinterlegt.",
+        "Die ID lässt sich jederzeit wieder leeren; eintragen kann sie nur die Person selbst."
+    ]},
+    { title: "Für Veranstalter", items: [
+        "Der Reiter „Einstellungen“ ist nur für Veranstalter sichtbar und zeigt alle angemeldeten Konten.",
+        "Das Häkchen 🛠 nimmt jemanden in die Organisation auf — alle Rechte, und beim Essen zahlt die Person nichts. Das Häkchen 🎥 gibt den Streamplan zum Eintragen frei.",
+        "Nach der Veranstaltung löscht ein Knopf ALLE Konten, auch das eigene. Das ist nicht umkehrbar.",
+        "Der QR-Knopf in der Reiterleiste zeigt einen Code auf genau diese Seite — den darf jede:r herumzeigen."
+    ]},
+    { title: "Grenzen", items: [
+        "Die Seite gehört zu einer privaten Veranstaltung, nicht zum Verein.",
+        "Bestellungen und Pläne liegen in der Firebase-Datenbank und hängen nicht am Konto: „Konto löschen“ räumt sie nicht mit weg.",
+        "Wer die Adresse der Datenbank kennt, kann die Einträge technisch auch ohne Anmeldung lesen.",
+        "Nach dem Ende der Veranstaltung werden die Konten gelöscht; für die nächste AgeLan legt jede:r ein neues an."
+    ]}
+  ];
+
+  var ziel = document.getElementById("funktionen-list");
+  if (!ziel) return;
+  FUNKTIONEN.forEach(function (gruppe) {
+    var block = document.createElement("div");
+    block.className = "changelog-group";
+    var titel = document.createElement("div");
+    titel.className = "cg-title";
+    titel.textContent = gruppe.title;
+    block.appendChild(titel);
+    var liste = document.createElement("ul");
+    liste.className = "cg-items";
+    gruppe.items.forEach(function (punkt) {
+      var zeile = document.createElement("li");
+      zeile.textContent = punkt;
+      liste.appendChild(zeile);
+    });
+    block.appendChild(liste);
+    ziel.appendChild(block);
+  });
 })();
 </script>
 </body>

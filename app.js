@@ -1305,6 +1305,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.0",
+    groups: [
+      { title: "Im Vorraum steht jetzt, was die App kann", items: [
+          "Die Liste der Aenderungen und die Versionsnummer sind aus der Anzeige verschwunden – zuletzt standen sie zugeklappt im Reiter „Einstellungen“ und nur Veranstalter sahen sie.",
+          "Stattdessen steht im Vorraum ueber dem Datenschutz-Hinweis die Karte „Funktionen“: was die App kann, nach Themen geordnet. Die sieht jede:r, auch vor der Anmeldung.",
+          "Die Aenderungsliste selbst wird in app.js weitergepflegt – sie ist die Quelle fuer Anleitungen und Meldungen."
+      ]}
+    ]
+  },
+  {
     version: "5.9",
     groups: [
       { title: "Vorleseprogramm: die Symbol-Knoepfe sagen jetzt, wozu sie gehoeren", items: [
@@ -1975,8 +1985,15 @@ function activateTab(name) {
   } catch (e) { /* privater Modus: dann startet es eben wieder im Turnier */ }
 }
 
+// Die Änderungsliste steht seit 07.09.2026 NICHT mehr in der Anzeige — weder im
+// Info-Reiter (den gibt es seit 2026-09-03 nicht mehr) noch im Reiter
+// „Einstellungen“, wo sie zuletzt zugeklappt stand. Was die App kann, steht
+// stattdessen im Vorraum unter „Funktionen“. APP_CHANGELOG bleibt hier gepflegt
+// und wird weiter geschrieben. Diese Funktion steigt darum still aus, wenn es
+// das Ziel nicht gibt, statt beim Seitenstart mit einem Fehler abzubrechen.
+// Die Versionsplakette stand an derselben Überschrift und ist mit ihr weg; die
+// Kopfzeile der App trägt keine.
 function renderVersionInfo() {
-  document.querySelectorAll("#version-badge, #version-badge-2").forEach((el) => { if (el) el.textContent = "v" + APP_VERSION; });
   const box = document.getElementById("changelog-list");
   if (!box) return;
   box.innerHTML = APP_CHANGELOG.map((entry) => `

@@ -1437,3 +1437,14 @@ main#app.sk-breit { max-width: 980px; }
 }
 /* Null Euro sollen nicht wie ein vergessener Betrag aussehen. */
 .es-nix-zu-zahlen { color: var(--muted); font-weight: 400; }
+
+/* Die Karte „Funktionen“ im Vorraum teilt sich die Optik mit der frueheren
+   Aenderungsliste. font-size gehoert mit: die Schriftgroesse der Liste hing an
+   .changelog-entry, und genau diese Klasse hat die Funktionen-Karte nicht. */
+#funktionen-list { display: flex; flex-direction: column; gap: 18px; font-size: 13px; }
+/* Der Vorraum-Aufklapper traegt sonst das Schloss der Datenschutz-Box. ⚠️ Gleiche
+   Spezifitaet wie .hub-ds > summary::before – diese Regel MUSS danach stehen. */
+.hub-funktionen > summary::before { content: "ℹ️ "; }
+.changelog-group { display: flex; flex-direction: column; gap: 4px; }
+.changelog-group .cg-title { font-weight: 700; font-size: 14px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+.changelog-group .cg-items { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--text); line-height: 1.6; }
