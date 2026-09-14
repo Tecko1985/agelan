@@ -1490,7 +1490,7 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
-    version: "6.4",
+    version: "6.5",
     groups: [
       { title: "Turnier: Spiele bekommen einen Anstoß", items: [
           "Neuer Knopf „🕐 Zeitplan – Spiele terminieren“ für den Veranstalter, in der Gruppenphase und im K.-o.",
@@ -1505,7 +1505,7 @@ const APP_CHANGELOG = [
     ],
   },
   {
-    version: "6.3",
+    version: "6.4",
     groups: [
       { title: "Streamer-Haken 🎥 laesst sich wieder wegnehmen", items: [
           "Bei Veranstaltern ⭐ und Leuten aus der Organisation 🛠 war der Haken 🎥 fest gesetzt und grau – einmal drin, nie wieder raus.",
@@ -1517,13 +1517,18 @@ const APP_CHANGELOG = [
     ],
   },
   {
-    version: "6.2",
+    version: "6.3",
     groups: [
       { title: "Nach der Anmeldung: Erinnerung an die Discord-ID", items: [
           "Wer noch keine Discord-ID hinterlegt hat, bekommt nach dem Anmelden einmal „Mein Konto“ aufgemacht – mit dem Hinweis, wofuer die ID gut ist.",
           "Ohne ID sagt dir der Bot NICHT Bescheid, wenn dein Essen bereitliegt.",
           "Einmal je Name und Geraet – wer sie eintraegt oder wegklickt, wird nicht wieder gefragt. Ueber den eigenen Namen oben rechts kommst du jederzeit hin."
       ]},
+    ],
+  },
+  {
+    version: "6.2",
+    groups: [
       { title: "Erster Besuch: direkt zum Konto anlegen", items: [
           "Wer die Seite zum ersten Mal oeffnet, landet nach dem Klick auf eine Kachel sofort in der Maske „Konto anlegen“ statt im Anmeldeformular.",
           "Wer schon ein Konto auf diesem Geraet hat, kommt wie bisher direkt zum Anmelden – mit vorbelegtem Namen.",
