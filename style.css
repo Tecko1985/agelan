@@ -238,6 +238,38 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
 .match-aktionen { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .match-aktionen:empty { display: none; }
 
+/* ---------- Zeitplan ---------- */
+/* Der geplante Anstoß an der Spielzeile. Eigene Zeile im Flex-Fluss, damit er
+   bei langen Teamnamen nicht das Ergebnis nach unten drückt. */
+.spiel-zeit {
+  display: inline-block; margin-left: 8px; white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: var(--primary);
+}
+.match-zeit { margin-top: 6px; font-size: 12px; }
+
+/* Der Zeitplan-Dialog trägt sechs Felder und eine Liste – 380 px sind dafür
+   zu eng, auf dem Handy bleibt es bei voller Breite. */
+.modal.modal-breit { max-width: 560px; }
+
+.zp-felder {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin-bottom: 4px;
+}
+/* ⚠️ minmax(0, …) statt „auto": ohne das sprengt ein date-Feld mit seiner
+   Mindestbreite die Spalte und der Dialog scrollt seitwärts. */
+.zp-feld { min-width: 0; }
+.zp-feld .feld-label { margin: 0 0 4px; }
+
+.zp-zeile {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.zp-zeile:last-child { border-bottom: none; }
+.zp-zeile.fertig { opacity: 0.6; }
+.zp-teams { flex: 1 1 100%; font-size: 14px; }
+.zp-zeile .zp-zeit { flex: 1 1 180px; min-width: 0; }
+.zp-zeile .zp-dauer-feld { flex: 0 0 90px; }
+
 /* ---------- Sieger ---------- */
 .sieger-titel { font-size: clamp(24px, 7vw, 30px); }
 .sieger-name { font-size: 22px; font-weight: 700; color: var(--gold); margin-bottom: 24px; }

@@ -437,6 +437,10 @@ function baueBracket(teams, spiele, meta) {
     teamBName: s.teamB ? teamAnzeigename(s.teamB, teams) : (s.teamA ? "Freilos" : "\u2014"),
     saetzeA: s.saetzeA, saetzeB: s.saetzeB,
     status: s.status, gemeldetVon: s.gemeldetVon || null,
+    // ⚠️ Das Bracket baut seine Matches aus AUSGEWAEHLTEN Feldern, nicht per
+    // Spread. Ohne diese zwei Zeilen haette jedes K.-o.-Spiel in der Anzeige
+    // keine Zeit - obwohl sie in der Datenbank steht.
+    geplantAm: s.geplantAm || null, dauerMin: Number(s.dauerMin) || null,
     siegerTeamId: s.status === "bestaetigt" ? matchSieger(s) : null,
   });
 
@@ -523,6 +527,7 @@ function getZustand() {
     spieltage: !!meta.spieltage,
     bracketReset: !!meta.bracketReset,
     spieltagDaten: (vorhanden && letzterZustand.spieltagDaten) || {},
+    zeitplan: Object.assign({}, ZP_VORGABE, (meta && meta.zeitplan) || {}),
     punkteSieg: metaPunkteSieg(meta),
     schweizerRunden: Number(meta.schweizerRunden) || 0,
     schweizerGespielt: vorhanden && istSchweizer(meta) ? schweizerGespielteRunden(spiele) : 0,
@@ -1482,6 +1487,235 @@ async function setzeSpieltagDatum(spieltag, datum) {
   return { erfolg: true };
 }
 
+// ===========================================================================
+// Zeitplan: wann wird welches Spiel gespielt (seit 2026-09-14)
+// ===========================================================================
+// Michel: "die Spiele sollen terminiert werden um den Ablauf besser
+// gewaehrleisten zu koennen." Die Zeit haengt am SPIEL
+// (`spiele/$sid.geplantAm` + `dauerMin`), nicht an der Runde: bei zwei
+// Plaetzen laufen zwei Spiele derselben Runde nebeneinander, eine Zeit je
+// Runde koennte das gar nicht ausdruecken.
+//
+// ⚠️ `geplantAm` ist eine ORTSZEIT als Text ("2026-10-01T14:00"), kein
+// Zeitstempel. Ein Turnier findet an einem Ort statt; eine UTC-Zahl waere hier
+// nur eine Fehlerquelle (Sommerzeit, falsch gestelltes Geraet) und in der
+// Datenbank nicht lesbar.
+
+const ZP_VORGABE = {
+  startZeit: "10:00",
+  dauerMin: 60,      // Michel: ein Spiel dauert bis zu einer Stunde
+  pauseMin: 10,
+  gleichzeitig: 1,
+  tagesEnde: "22:00",
+};
+
+const ZP_MAX_FENSTER = 5000;   // Notbremse, damit keine Suche endlos laeuft
+
+function zpMinuten(hhmm) {
+  const m = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(hhmm || "").trim());
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+function zpZeitText(minuten) {
+  const m = Math.max(0, Math.round(minuten));
+  return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+}
+
+function zpDatumPlus(iso, tage) {
+  const t = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(iso || ""));
+  if (!t) return "";
+  const d = new Date(Number(t[1]), Number(t[2]) - 1, Number(t[3]));
+  d.setDate(d.getDate() + (Number(tage) || 0));
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+// ⚠️ Ein Freilos wird nicht gespielt. Bekaeme es eine Zeit, stuende im Ablauf
+// ein Termin, zu dem niemand antritt - und der Platz waere blockiert.
+function zpIstFreilos(s) {
+  return !s.teamA || !s.teamB || s.gemeldetVon === "freilos";
+}
+
+// Bloecke in Spielreihenfolge: erst die Gruppenphase nach Runde/Spieltag, dann
+// die K.-o.-Runden. ⚠️ Eine Runde faengt NIE an, bevor die vorige durch ist -
+// im K.o. stuende sonst ein Termin fuer ein Spiel, dessen Teilnehmer noch gar
+// nicht feststehen.
+function zpBloecke(spiele) {
+  const key = (s) => (s.phase === "ko" ? "1" : "0") + ":" + String(Number(s.runde) || 0).padStart(4, "0");
+  const map = {};
+  spiele.forEach((s) => {
+    (map[key(s)] = map[key(s)] || []).push(s);
+  });
+  return Object.keys(map).sort().map((k) => map[k].sort((a, b) =>
+    String(a.gruppe || "").localeCompare(String(b.gruppe || "")) ||
+    (Number(a.position) || 0) - (Number(b.position) || 0) ||
+    String(a.id).localeCompare(String(b.id))
+  ));
+}
+
+// Die reine Rechnung, ohne Datenbank: Spiele + Einstellungen -> Zeit je Spiel.
+// Bewusst getrennt gehalten, damit sie sich in Node gegenpruefen laesst.
+function berechneZeitplan(spiele, opt) {
+  const startMin = zpMinuten(opt.startZeit);
+  const endeMin = zpMinuten(opt.tagesEnde);
+  const dauer = Math.round(Number(opt.dauerMin));
+  const pause = Math.round(Number(opt.pauseMin) || 0);
+  const plaetze = Math.max(1, Math.round(Number(opt.gleichzeitig) || 1));
+  const schritt = dauer + pause;
+
+  // Wie viele Spielfenster passen in einen Tag? Das letzte Fenster braucht nur
+  // noch die Spieldauer, keine Pause dahinter.
+  const proTag = Math.max(1, Math.floor((endeMin - startMin - dauer) / schritt) + 1);
+  const fenster = (k) => {
+    const tag = Math.floor(k / proTag);
+    const pos = k % proTag;
+    return { datum: zpDatumPlus(opt.startDatum, tag), vonMin: startMin + pos * schritt };
+  };
+
+  const belegt = {};        // Fenster -> wie viele Plaetze schon weg
+  const teamsIm = {};       // Fenster -> { teamId: true }
+  const plan = {};
+  let abFenster = 0;
+
+  zpBloecke(spiele).forEach((block) => {
+    let hoechstes = abFenster - 1;
+    block.forEach((s) => {
+      let k = abFenster;
+      while (k < ZP_MAX_FENSTER) {
+        const voll = (belegt[k] || 0) >= plaetze;
+        const t = teamsIm[k] || {};
+        // ⚠️ Kein Team zweimal zur selben Zeit. Bei "jeder gegen jeden" am
+        // Stueck stehen ALLE Spiele in einer Runde - ohne diese Pruefung
+        // schickt der Plan dasselbe Team auf zwei Plaetze gleichzeitig.
+        const doppelt = t[s.teamA] || t[s.teamB];
+        if (!voll && !doppelt) break;
+        k++;
+      }
+      if (k >= ZP_MAX_FENSTER) return;
+      const f = fenster(k);
+      plan[s.id] = f.datum + "T" + zpZeitText(f.vonMin);
+      belegt[k] = (belegt[k] || 0) + 1;
+      teamsIm[k] = teamsIm[k] || {};
+      teamsIm[k][s.teamA] = true;
+      teamsIm[k][s.teamB] = true;
+      if (k > hoechstes) hoechstes = k;
+    });
+    abFenster = hoechstes + 1;
+  });
+  return plan;
+}
+
+function zpPruefeEinstellungen(opt) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(opt.startDatum || ""))) {
+    return "Bitte ein Startdatum wählen.";
+  }
+  const startMin = zpMinuten(opt.startZeit);
+  const endeMin = zpMinuten(opt.tagesEnde);
+  if (startMin === null) return "Bitte eine Startzeit im Format 14:00 angeben.";
+  if (endeMin === null) return "Bitte ein Tagesende im Format 22:00 angeben.";
+  const dauer = Math.round(Number(opt.dauerMin));
+  if (!Number.isFinite(dauer) || dauer < 5 || dauer > 600) {
+    return "Die Dauer je Spiel muss zwischen 5 und 600 Minuten liegen.";
+  }
+  // ⚠️ Hier NICHT `Number(x) || 0` bzw. `|| 1` schreiben. Das schluckt eine
+  // getippte 0 und macht stillschweigend etwas anderes als dort steht - beim
+  // Feld "gleichzeitig" waere aus einer 0 eine 1 geworden, ohne ein Wort.
+  // Leer heisst Vorgabe, eine Zahl heisst diese Zahl, Unsinn heisst Fehler.
+  const pauseRoh = String(opt.pauseMin === undefined || opt.pauseMin === null ? "" : opt.pauseMin).trim();
+  const pause = pauseRoh === "" ? 0 : Math.round(Number(pauseRoh));
+  if (!Number.isFinite(pause) || pause < 0 || pause > 240) {
+    return "Die Pause muss zwischen 0 und 240 Minuten liegen.";
+  }
+  const plaetzeRoh = String(opt.gleichzeitig === undefined || opt.gleichzeitig === null ? "" : opt.gleichzeitig).trim();
+  const plaetze = plaetzeRoh === "" ? 1 : Math.round(Number(plaetzeRoh));
+  if (!Number.isFinite(plaetze) || plaetze < 1 || plaetze > 8) {
+    return "Es können 1 bis 8 Spiele gleichzeitig laufen.";
+  }
+  // ⚠️ Ohne diese Pruefung liefe die Fensterrechnung auf ein Fenster je Tag
+  // und legte ein Drei-Stunden-Spiel in einen Tag, der nur zwei Stunden offen
+  // ist.
+  if (endeMin - startMin < dauer) {
+    return "Zwischen Startzeit und Tagesende passt kein einziges Spiel. Tagesende später setzen oder die Dauer kürzen.";
+  }
+  return "";
+}
+
+// Alle noch nicht bestätigten Spiele der Reihe nach terminieren.
+// ⚠️ Bestätigte Spiele bleiben unangetastet: der Knopf ist auch das Werkzeug
+// zum NACHplanen, wenn der Ablauf hinterherhinkt. Wer Gespieltes verschöbe,
+// machte aus dem Ablauf eine Fälschung.
+async function erzeugeZeitplan(optionen) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const opt = Object.assign({}, ZP_VORGABE, optionen || {});
+  const fehler = zpPruefeEinstellungen(opt);
+  if (fehler) return { erfolg: false, fehler };
+
+  const offen = spielListe().filter((s) => s.status !== "bestaetigt" && !zpIstFreilos(s));
+  if (!offen.length) return { erfolg: false, fehler: "Es gibt gerade kein Spiel, das terminiert werden könnte." };
+
+  const plan = berechneZeitplan(offen, opt);
+  const updates = {};
+  Object.keys(plan).forEach((sid) => {
+    updates["spiele/" + sid + "/geplantAm"] = plan[sid];
+    updates["spiele/" + sid + "/dauerMin"] = Math.round(Number(opt.dauerMin));
+  });
+  // Die Einstellungen merken, sonst tippt Michel sie beim Nachplanen neu.
+  updates["meta/zeitplan"] = {
+    startDatum: opt.startDatum, startZeit: opt.startZeit,
+    dauerMin: Math.round(Number(opt.dauerMin)), pauseMin: Math.round(Number(opt.pauseMin) || 0),
+    gleichzeitig: Math.round(Number(opt.gleichzeitig) || 1), tagesEnde: opt.tagesEnde,
+  };
+  await db.ref(turnierBasis()).update(updates);
+  return { erfolg: true, anzahl: Object.keys(plan).length };
+}
+
+// Ein einzelnes Spiel von Hand verschieben - oder die Zeit wieder wegnehmen.
+async function setzeSpielZeit(spielId, geplantAm, dauerMin) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const spiel = ((letzterZustand && letzterZustand.spiele) || {})[spielId];
+  if (!spiel) return { erfolg: false, fehler: "Dieses Spiel gibt es nicht mehr." };
+
+  const wert = String(geplantAm || "").trim();
+  if (wert && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(wert)) {
+    return { erfolg: false, fehler: "Bitte Datum und Uhrzeit vollständig angeben." };
+  }
+  const updates = {};
+  updates["spiele/" + spielId + "/geplantAm"] = wert || null;
+  if (dauerMin !== undefined && dauerMin !== null && String(dauerMin) !== "") {
+    const d = Math.round(Number(dauerMin));
+    if (!Number.isFinite(d) || d < 5 || d > 600) {
+      return { erfolg: false, fehler: "Die Dauer muss zwischen 5 und 600 Minuten liegen." };
+    }
+    updates["spiele/" + spielId + "/dauerMin"] = wert ? d : null;
+  } else if (!wert) {
+    // ⚠️ Ohne Zeit hat die Dauer keinen Sinn mehr. Bliebe sie stehen, zeigte
+    // die Liste "· 60 Min" hinter einem Spiel ganz ohne Termin.
+    updates["spiele/" + spielId + "/dauerMin"] = null;
+  }
+  await db.ref(turnierBasis()).update(updates);
+  return { erfolg: true };
+}
+
+// Alle Zeiten wieder wegnehmen.
+async function loescheZeitplan() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const updates = {};
+  spielListe().forEach((s) => {
+    updates["spiele/" + s.id + "/geplantAm"] = null;
+    updates["spiele/" + s.id + "/dauerMin"] = null;
+  });
+  if (!Object.keys(updates).length) return { erfolg: true };
+  updates["meta/zeitplan"] = null;
+  await db.ref(turnierBasis()).update(updates);
+  return { erfolg: true };
+}
+
 // Ablauf "jeder gegen jeden": kein K.-o., die Tabelle entscheidet.
 async function beendeNachGruppen() {
   await authBereit;
@@ -2092,6 +2326,10 @@ const turnierService = {
   vorschlagGruppen,
   beendeNachGruppen,
   setzeSpieltagDatum,
+  erzeugeZeitplan,
+  setzeSpielZeit,
+  loescheZeitplan,
+  berechneZeitplan,   // rein rechnend, fuer die Gegenprobe in Node
   meldeErgebnis,
   bestaetigeErgebnis,
   widersprichErgebnis,

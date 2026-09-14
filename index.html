@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=5.1">
+<link rel="stylesheet" href="style.css?v=5.2">
 </head>
 <body>
 
@@ -607,6 +607,7 @@
       </div>
 
       <div id="gruppen-admin" style="display:none">
+        <button class="btn btn-secondary btn-grow" id="btn-zeitplan-gruppen">🕐 Zeitplan – Spiele terminieren</button>
         <button class="btn btn-primary btn-grow" id="btn-ko-losen">K.o.-Auslosung starten →</button>
         <p class="hinweis-text" id="gruppen-admin-hinweis"></p>
         <button class="btn btn-secondary btn-grow" id="btn-sim-gruppen">🧪 Offene Spiele auswürfeln</button>
@@ -622,6 +623,7 @@
       <h2>K.-o.-Runde</h2>
       <div id="ko-container" class="bracket"></div>
       <div id="ko-admin" style="display:none">
+        <button class="btn btn-secondary btn-grow" id="btn-zeitplan-ko">🕐 Zeitplan – Spiele terminieren</button>
         <button class="btn btn-secondary btn-grow" id="btn-sim-ko">🧪 Offene Spiele auswürfeln</button>
         <p class="hinweis-text fehler" id="sim-ko-fehler"></p>
         <button class="btn btn-link" id="btn-ko-naechste">Nächste Runde manuell prüfen</button>
@@ -1121,6 +1123,56 @@
   </div>
 </div>
 
+<!-- ============ Modal: Zeitplan ============ -->
+<!-- ⚠️ EIN Dialog für Gruppenphase und K.-o. Zwei Karten in zwei Screens
+     waeren zwei Stellen, an denen dieselbe Aenderung nachzuziehen ist. -->
+<div class="modal-overlay" id="modal-zeitplan">
+  <div class="modal modal-breit">
+    <h3>Zeitplan</h3>
+    <p class="hinweis-text">Die App verteilt alle noch offenen Spiele der Reihe nach. Schon bestätigte Spiele bleiben stehen – so kannst du mittendrin nachplanen, wenn es hinterherhinkt.</p>
+
+    <div class="zp-felder">
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-start-datum">Erster Spieltag</label>
+        <input type="date" id="zp-start-datum" class="eingabe">
+      </div>
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-start-zeit">Beginn</label>
+        <input type="time" id="zp-start-zeit" class="eingabe">
+      </div>
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-tages-ende">Schluss für heute</label>
+        <input type="time" id="zp-tages-ende" class="eingabe">
+      </div>
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-dauer">Dauer je Spiel (Min)</label>
+        <input type="number" id="zp-dauer" class="eingabe" min="5" max="600" step="5">
+      </div>
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-pause">Pause dazwischen (Min)</label>
+        <input type="number" id="zp-pause" class="eingabe" min="0" max="240" step="5">
+      </div>
+      <div class="zp-feld">
+        <label class="feld-label" for="zp-gleichzeitig">Spiele gleichzeitig</label>
+        <input type="number" id="zp-gleichzeitig" class="eingabe" min="1" max="8" step="1">
+      </div>
+    </div>
+    <p class="hinweis-text">Ein Spiel bis zu 10 Stunden ist möglich. Passt ein Spiel nicht mehr vor den Schluss, geht es am nächsten Tag zur Beginnzeit weiter. Ein Team steht nie auf zwei Plätzen gleichzeitig, und eine Runde fängt erst an, wenn die vorige durch ist.</p>
+    <button class="btn btn-primary btn-grow" id="btn-zp-erzeugen">Zeitplan erzeugen</button>
+    <p class="hinweis-text fehler" id="zp-fehler"></p>
+    <p class="hinweis-text" id="zp-meldung"></p>
+
+    <div class="karte-block">
+      <p class="feld-label">Einzeln verschieben</p>
+      <p class="hinweis-text" id="zp-liste-hinweis"></p>
+      <div id="zp-liste"></div>
+    </div>
+
+    <button class="btn btn-secondary btn-grow" id="btn-zp-loeschen">Alle Zeiten löschen</button>
+    <button class="btn btn-link" id="btn-zp-schliessen">Schließen</button>
+  </div>
+</div>
+
 <!-- ============ Modal: Zeit belegen ============ -->
 <div class="modal-overlay" id="modal-stream">
   <div class="modal">
@@ -1215,8 +1267,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
-    'turnier-service.js?v=1.6',
-    'app.js?v=3.37',
+    'turnier-service.js?v=1.7',
+    'app.js?v=3.38',
     'stream-service.js?v=1.8',
     'stream-app.js?v=2.1',
     'fruehstueck-service.js?v=1.4',

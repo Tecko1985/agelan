@@ -24,7 +24,9 @@
           "$sid": {
             "saetzeA": { ".validate": "newData.isNumber() || newData.val() == null" },
             "saetzeB": { ".validate": "newData.isNumber() || newData.val() == null" },
-            "status":  { ".validate": "newData.isString()" }
+            "status":  { ".validate": "newData.isString()" },
+            "geplantAm": { ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/))" },
+            "dauerMin":  { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 5 && newData.val() <= 600)" }
           }
         }
       }

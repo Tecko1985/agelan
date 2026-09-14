@@ -113,6 +113,12 @@ function render(z) {
   // solange der Turnierteil ausgeblendet ist (es öffnet nur Turnier-Aktionen;
   // der Streamplan hat seinen eigenen Veranstalter-Bereich in seinem Tab).
   document.getElementById("btn-admin-oeffnen").style.display = TURNIER_SICHTBAR && z.vorhanden ? "" : "none";
+
+  // ⚠️ Steht der Zeitplan-Dialog offen, muss seine Liste mitwandern. Ohne das
+  // zeigt sie nach "Zeitplan erzeugen" weiter die leeren Felder von vorher -
+  // und wer dann ein Feld anfasst, schreibt den alten Stand zurück.
+  const zpOffen = document.getElementById("modal-zeitplan");
+  if (zpOffen && zpOffen.classList.contains("aktiv")) renderZeitplanListe(z);
 }
 
 // --- AUSWAHL: alle Turniere nebeneinander ----------------------------------
@@ -723,6 +729,7 @@ function bracketHtml(z) {
           return `<div class="match">
             <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
             <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
+            ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
             ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
           </div>`;
         })
@@ -763,6 +770,7 @@ function matchHtml(z, m) {
   return `<div class="match">
     <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
     <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
+    ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
     ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
   </div>`;
 }
@@ -784,7 +792,7 @@ function spielZeileHtml(z, s) {
   // Freilos: kein Gegner, aber ein gewerteter Sieg – "vs —" liest sich wie ein Fehler.
   const gegner = s.teamB ? escapeHtml(teamNameVon(z, s.teamB)) : "Freilos";
   return `<div class="spiel-zeile">
-    <div class="spiel-teams"><span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${gegner}</span></div>
+    <div class="spiel-teams"><span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${gegner}</span>${zeitMarkeHtml(s)}</div>
     <div class="spiel-rechts">${ergebnis}</div>
     <div class="spiel-aktionen">${spielAktionenHtml(z, s)}</div>
   </div>`;
@@ -886,6 +894,120 @@ function oeffneAdmin() {
 }
 function schliesseAdmin() {
   document.getElementById("modal-admin").classList.remove("aktiv");
+}
+
+
+// ===========================================================================
+// Zeitplan: Anzeige und Dialog
+// ===========================================================================
+const ZP_WOCHENTAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+// "2026-10-01T14:00" -> "Do 01.10., 14:00". ⚠️ Der Text wird NICHT aus einem
+// Date-Objekt gebaut: `new Date("2026-10-01T14:00")` ist zwar Ortszeit, aber
+// eine Zeile weiter ist man beim Zeitstempel - und dann verschiebt die
+// Sommerzeit den Anstoß. Nur der Wochentag braucht den Kalender.
+function zeitLesbar(geplantAm) {
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})$/.exec(String(geplantAm || ""));
+  if (!m) return "";
+  const tag = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay();
+  return ZP_WOCHENTAGE[tag] + " " + m[3] + "." + m[2] + "., " + m[4] + ":" + m[5];
+}
+
+// Dauer in Worten: 60 -> "1 h", 90 -> "1:30 h", 45 -> "45 Min".
+function dauerLesbar(min) {
+  const d = Math.round(Number(min) || 0);
+  if (!d) return "";
+  if (d < 60) return d + " Min";
+  const h = Math.floor(d / 60), rest = d % 60;
+  return rest ? h + ":" + String(rest).padStart(2, "0") + " h" : h + " h";
+}
+
+function zeitMarkeHtml(s) {
+  if (!s || !s.geplantAm) return "";
+  const dauer = dauerLesbar(s.dauerMin);
+  return `<span class="spiel-zeit" title="Geplanter Anstoß">🕐 ${escapeHtml(zeitLesbar(s.geplantAm))}${dauer ? " · " + escapeHtml(dauer) : ""}</span>`;
+}
+
+// --- Dialog ---------------------------------------------------------------
+
+function oeffneZeitplan() {
+  if (!zustand || !zustand.istAdmin) return;
+  const zp = zustand.zeitplan || {};
+  // ⚠️ Erst befuellen, dann zeigen. Andersherum blitzen fuer einen Moment die
+  // Werte des zuletzt geoeffneten Turniers auf.
+  const start = zp.startDatum || erstesGeplantesDatum(zustand) || heuteIso();
+  setzeWert("zp-start-datum", start);
+  setzeWert("zp-start-zeit", zp.startZeit || "10:00");
+  setzeWert("zp-tages-ende", zp.tagesEnde || "22:00");
+  setzeWert("zp-dauer", zp.dauerMin == null ? 60 : zp.dauerMin);
+  setzeWert("zp-pause", zp.pauseMin == null ? 10 : zp.pauseMin);
+  setzeWert("zp-gleichzeitig", zp.gleichzeitig == null ? 1 : zp.gleichzeitig);
+  zeigeFehler("zp-fehler", "");
+  zeigeFehler("zp-meldung", "");
+  renderZeitplanListe(zustand);
+  document.getElementById("modal-zeitplan").classList.add("aktiv");
+}
+
+function schliesseZeitplan() {
+  document.getElementById("modal-zeitplan").classList.remove("aktiv");
+}
+
+function setzeWert(id, wert) {
+  const el = document.getElementById(id);
+  if (el) el.value = wert == null ? "" : String(wert);
+}
+
+function heuteIso() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+// Ist schon einmal geplant worden, ist dessen erster Tag die bessere Vorgabe
+// als "heute" – sonst schlaegt der Dialog beim Nachplanen den falschen Tag vor.
+function erstesGeplantesDatum(z) {
+  const daten = (z.spiele || []).filter((s) => s.geplantAm).map((s) => s.geplantAm).sort();
+  return daten.length ? daten[0].slice(0, 10) : "";
+}
+
+// Die Liste zum Verschieben von Hand. Sortiert nach Zeit; was noch keine hat,
+// steht unten – dort fehlt ja gerade der Termin, den man sucht.
+function renderZeitplanListe(z) {
+  const box = document.getElementById("zp-liste");
+  const hinweis = document.getElementById("zp-liste-hinweis");
+  if (!box) return;
+  const spiele = (z.spiele || [])
+    .filter((s) => s.teamA && s.teamB && s.gemeldetVon !== "freilos")
+    .sort((a, b) =>
+      String(a.geplantAm || "￿").localeCompare(String(b.geplantAm || "￿")) ||
+      String(a.phase).localeCompare(String(b.phase)) ||
+      (Number(a.runde) || 0) - (Number(b.runde) || 0) ||
+      (Number(a.position) || 0) - (Number(b.position) || 0));
+
+  if (!spiele.length) {
+    box.innerHTML = "";
+    hinweis.textContent = "Sobald die Spiele ausgelost sind, stehen sie hier einzeln zum Verschieben.";
+    return;
+  }
+  const ohne = spiele.filter((s) => !s.geplantAm).length;
+  hinweis.textContent = ohne
+    ? ohne + " von " + spiele.length + " Spiel(en) hat noch keine Zeit."
+    : "Alle " + spiele.length + " Spiele sind terminiert.";
+
+  // ⚠️ Nicht unter den Fingern neu bauen. Jede Änderung schickt einen Schreib-
+  // vorgang los, der als Live-Änderung zurückkommt und diese Liste neu zeichnet
+  // – stünde der Cursor noch in einem Feld, wäre die halbfertige Eingabe weg.
+  // Der Hinweis oben wandert trotzdem mit, der kostet keine Eingabe.
+  if (box.contains(document.activeElement)) return;
+
+  box.innerHTML = spiele.map((s) => `<div class="zp-zeile${s.status === "bestaetigt" ? " fertig" : ""}">
+    <span class="zp-teams">${escapeHtml(teamNameVon(z, s.teamA))} <span class="vs">vs</span> ${escapeHtml(teamNameVon(z, s.teamB))}${s.status === "bestaetigt" ? ' <span class="spieler-badge">gespielt</span>' : ""}</span>
+    <input type="datetime-local" class="eingabe zp-zeit" data-zp-spiel="${escapeHtml(s.id)}" value="${escapeHtml(s.geplantAm || "")}"
+           aria-label="Anstoß ${escapeHtml(teamNameVon(z, s.teamA))} gegen ${escapeHtml(teamNameVon(z, s.teamB))}">
+    <input type="number" class="eingabe zp-dauer-feld" data-zp-dauer="${escapeHtml(s.id)}" value="${s.dauerMin ? escapeHtml(String(s.dauerMin)) : ""}"
+           min="5" max="600" step="5" placeholder="Min"
+           aria-label="Dauer in Minuten für ${escapeHtml(teamNameVon(z, s.teamA))} gegen ${escapeHtml(teamNameVon(z, s.teamB))}">
+  </div>`).join("");
 }
 
 // ===========================================================================
@@ -1168,6 +1290,69 @@ function wireEvents() {
     zeigeFehler("spieltag-fehler", res.erfolg ? "" : res.fehler);
   });
 
+
+  // --- Zeitplan -----------------------------------------------------------
+  // Zwei Knöpfe (Gruppenphase und K.-o.), ein Dialog.
+  ["btn-zeitplan-gruppen", "btn-zeitplan-ko"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", oeffneZeitplan);
+  });
+  document.getElementById("btn-zp-schliessen").addEventListener("click", schliesseZeitplan);
+  document.getElementById("modal-zeitplan").addEventListener("click", (e) => {
+    if (e.target.id === "modal-zeitplan") schliesseZeitplan();
+  });
+
+  document.getElementById("btn-zp-erzeugen").addEventListener("click", async () => {
+    zeigeFehler("zp-fehler", "");
+    zeigeFehler("zp-meldung", "");
+    const knopf = document.getElementById("btn-zp-erzeugen");
+    // ⚠️ Der Knopf wirft bestehende Zeiten weg. Ohne Rückfrage ist ein
+    // Fehlklick beim Nachplanen nicht mehr zurückzuholen.
+    const schonGeplant = (zustand.spiele || []).some((s) => s.geplantAm && s.status !== "bestaetigt");
+    if (schonGeplant && !confirm("Die bisherigen Zeiten der noch offenen Spiele werden überschrieben. Weitermachen?")) return;
+    knopf.disabled = true;
+    try {
+      const res = await turnierService.erzeugeZeitplan({
+        startDatum: document.getElementById("zp-start-datum").value,
+        startZeit: document.getElementById("zp-start-zeit").value,
+        tagesEnde: document.getElementById("zp-tages-ende").value,
+        dauerMin: document.getElementById("zp-dauer").value,
+        pauseMin: document.getElementById("zp-pause").value,
+        gleichzeitig: document.getElementById("zp-gleichzeitig").value,
+      });
+      zeigeFehler("zp-fehler", res.erfolg ? "" : res.fehler);
+      if (res.erfolg) {
+        zeigeFehler("zp-meldung", res.anzahl + " Spiel(e) terminiert.");
+      }
+    } finally {
+      // ⚠️ In den finally-Zweig: bleibt der Knopf nach einem Netzfehler
+      // gesperrt, hilft nur noch Neuladen.
+      knopf.disabled = false;
+    }
+  });
+
+  document.getElementById("btn-zp-loeschen").addEventListener("click", async () => {
+    if (!confirm("Alle geplanten Zeiten dieses Turniers entfernen?")) return;
+    zeigeFehler("zp-meldung", "");
+    const res = await turnierService.loescheZeitplan();
+    zeigeFehler("zp-fehler", res.erfolg ? "" : res.fehler);
+    if (res.erfolg) zeigeFehler("zp-meldung", "Alle Zeiten entfernt.");
+  });
+
+  // Einzeln verschieben. ⚠️ Die Dauer wird MITGESCHICKT, auch wenn nur die
+  // Zeit geändert wurde – sonst räumt der Service sie beim Speichern weg.
+  document.getElementById("zp-liste").addEventListener("change", async (e) => {
+    const feld = e.target.closest("[data-zp-spiel], [data-zp-dauer]");
+    if (!feld) return;
+    const sid = feld.dataset.zpSpiel || feld.dataset.zpDauer;
+    const zeile = feld.closest(".zp-zeile");
+    const zeitFeld = zeile.querySelector("[data-zp-spiel]");
+    const dauerFeld = zeile.querySelector("[data-zp-dauer]");
+    zeigeFehler("zp-meldung", "");
+    const res = await turnierService.setzeSpielZeit(sid, zeitFeld.value, dauerFeld.value);
+    zeigeFehler("zp-fehler", res.erfolg ? "" : res.fehler);
+  });
+
   document.getElementById("btn-setzliste-reset").addEventListener("click", async () => {
     const res = await turnierService.setzlisteZuruecksetzen();
     zeigeFehler("setzliste-fehler", res.erfolg ? "" : res.fehler);
@@ -1304,6 +1489,21 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "6.4",
+    groups: [
+      { title: "Turnier: Spiele bekommen einen Anstoß", items: [
+          "Neuer Knopf „🕐 Zeitplan – Spiele terminieren“ für den Veranstalter, in der Gruppenphase und im K.-o.",
+          "Du sagst einmal: erster Spieltag, Beginn, Schluss für den Tag, Dauer je Spiel, Pause dazwischen, wie viele Spiele gleichzeitig. Die App verteilt alle offenen Spiele.",
+          "Ein Spiel darf bis zu zehn Stunden dauern – passt es nicht mehr vor den Schluss, geht es am nächsten Tag zur Beginnzeit weiter.",
+          "Kein Team steht auf zwei Plätzen gleichzeitig, und eine Runde beginnt erst, wenn die vorige durch ist.",
+          "Der Anstoß steht danach an jedem Spiel, in der Gruppenliste und im Baum – für alle sichtbar, nicht nur für den Veranstalter.",
+          "Einzelne Spiele lassen sich im selben Fenster verschieben; Dauer je Spiel geht auch einzeln.",
+          "Schon bestätigte Spiele rührt der Automat nicht an. Damit ist derselbe Knopf auch das Werkzeug zum Nachplanen, wenn der Ablauf hinterherhinkt.",
+          "„Alle Zeiten löschen“ nimmt den ganzen Zeitplan wieder zurück."
+      ]},
+    ],
+  },
   {
     version: "6.3",
     groups: [
@@ -1990,6 +2190,13 @@ const APP_CHANGELOG = [
           "Zum Ausprobieren legt der Veranstalter in der Anmeldung Testspieler mit zufälligem Rating an und spielt den ganzen Ablauf allein durch; ein Klick entfernt sie wieder.",
           "Offene Spiele lassen sich auswürfeln – das stärkere Team gewinnt häufiger, aber nicht immer.",
           "Zurücksetzen verwirft Teams, Gruppen und Ergebnisse, alle Angemeldeten bleiben drin. Löschen entfernt das ganze Turnier. Beides steht als Veranstalter hinter dem Zahnrad oben rechts."
+      ]},
+      { title: "Zeitplan: Spiele terminieren", items: [
+          "Der Veranstalter sagt einmal, wann es losgeht, wie lange ein Spiel dauert, wie lang die Pause ist und wie viele Spiele gleichzeitig laufen – die App verteilt daraufhin alle offenen Spiele.",
+          "Ein Spiel darf bis zu zehn Stunden dauern. Passt es nicht mehr vor den Schluss des Tages, geht es am nächsten Tag zur Beginnzeit weiter.",
+          "Kein Team steht auf zwei Plätzen gleichzeitig, und eine Runde fängt erst an, wenn die vorige durch ist.",
+          "Der Anstoß steht danach an jedem Spiel – in der Gruppenliste und im K.-o.-Baum, für alle sichtbar.",
+          "Einzelne Spiele lassen sich im selben Fenster von Hand verschieben. Schon bestätigte Spiele rührt der Automat nicht an, man kann also mittendrin nachplanen."
       ]},
       { title: "Streamkalender", items: [
           "Der Reiter „Stream“ zeigt einen Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
