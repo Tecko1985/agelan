@@ -227,13 +227,30 @@ function kontoIstOrga() {
   }
 }
 
-// Darf diese Person im Streamplan eintragen? Veranstalter duerfen immer.
+// Darf diese Person im Streamplan eintragen?
+// ⚠️ Seit 2026-09-14 zaehlt NUR der Streamer-Haken - auch bei Orga und
+// Veranstalter. Vorher stand hier `|| k.admin || k.orga`, und die Folge war:
+// der Haken liess sich bei diesen Leuten nicht mehr wegnehmen (die Liste
+// zeigte ihn fest gesetzt und grau, weil ein Abwaehlen ohnehin nichts
+// geaendert haette). Wer das Eintragen erlauben will, setzt den Haken - wer es
+// nehmen will, nimmt ihn raus. Ein Recht, eine Stelle.
 // ⚠️ Wie alles hier eine BEDIEN-Sperre: die Firebase-Regeln lassen weiterhin
 // jeden anonymen Client schreiben.
 function kontoDarfStreamen() {
   try {
     const k = window.__AGELAN_KONTO__;
-    return !!(k && (k.streamer || k.admin || k.orga));
+    return !!(k && k.streamer);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Ist ueberhaupt ein Konto angemeldet? Nur dann ist der Streamer-Haken die
+// zustaendige Auskunft; ohne Konto entscheidet weiter der PIN-Weg im Plan.
+function kontoAngemeldet() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return !!(k && k.nickname);
   } catch (e) {
     return false;
   }

@@ -152,8 +152,20 @@ function skIstAdmin() {
 // oder hostId den Knopf an und der Schreibweg schickte ihn danach mit
 // „Melde dich bei Michel" zu sich selbst.
 function skDarfEintragen() {
-  if (skIstAdmin()) return true;
-  return typeof kontoDarfStreamen !== "function" || kontoDarfStreamen();
+  // ⚠️ Ist ein Konto angemeldet, entscheidet allein dessen Streamer-Haken -
+  // auch bei Orga und Veranstalter. Bis 2026-09-14 stand hier vorneweg
+  // `if (skIstAdmin()) return true;`, und skIstAdmin ist fuer jedes
+  // Veranstalter- und Orga-Konto wahr. Das Wegnehmen des Hakens hatte damit
+  // KEINE Wirkung - deshalb war er in der Kontenliste grau und fest.
+  // Wer den Plan verwaltet (Programm anlegen, loeschen), haengt weiter an
+  // skIstAdmin; nur das Eintragen haengt am Haken.
+  if (typeof kontoAngemeldet === "function" && kontoAngemeldet()) {
+    return typeof kontoDarfStreamen === "function" && kontoDarfStreamen();
+  }
+  // Ohne Konto bleibt der alte Weg: wer den Plan angelegt hat oder den PIN
+  // kennt, darf eintragen. Sonst koennte auf einem Geraet ohne Anmeldung
+  // niemand mehr etwas belegen.
+  return skIstAdmin();
 }
 
 // PIN des laufenden Turniers, falls es eines gibt und wir dort Veranstalter

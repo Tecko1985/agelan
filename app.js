@@ -1305,6 +1305,18 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.3",
+    groups: [
+      { title: "Streamer-Haken 🎥 laesst sich wieder wegnehmen", items: [
+          "Bei Veranstaltern ⭐ und Leuten aus der Organisation 🛠 war der Haken 🎥 fest gesetzt und grau – einmal drin, nie wieder raus.",
+          "Der Grund: diese beiden Gruppen durften ohnehin immer eintragen, ein Abwaehlen haette also nichts bewirkt. Statt einer wirkungslosen Schaltflaeche stand dort eine gesperrte.",
+          "Jetzt entscheidet der Haken allein – fuer jeden. Wer eintragen soll, bekommt ihn; wer nicht mehr soll, verliert ihn. Auch bei ⭐ und 🛠.",
+          "Den Streamplan verwalten – Programm anlegen, Bloecke loeschen, Plan leeren – duerfen Veranstalter und Organisation weiterhin ohne den Haken.",
+          "⚠️ Nach dieser Aenderung hat zunaechst NUR noch der den Haken, bei dem er wirklich gesetzt ist. Wer bisher ueber ⭐ oder 🛠 eingetragen hat, braucht ihn einmal ausdruecklich."
+      ]},
+    ],
+  },
+  {
     version: "6.2",
     groups: [
       { title: "Nach der Anmeldung: Erinnerung an die Discord-ID", items: [
@@ -2121,8 +2133,8 @@ async function ladeKonten() {
                      aria-label="${escapeHtml(k.nickname)} gehört zur Organisation">
               🛠
             </label>
-            <label class="konto-streamer" title="Darf sich in den Streamplan eintragen">
-              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer || k.admin || k.orga ? "checked" : ""} ${k.admin || k.orga ? "disabled" : ""}
+            <label class="konto-streamer" title="Darf sich in den Streamplan eintragen. Gilt auch für Orga und Veranstalter – ohne diesen Haken trägt sich niemand ein.">
+              <input type="checkbox" data-konto-streamer="${escapeHtml(k.nickname)}" ${k.streamer ? "checked" : ""}
                      aria-label="${escapeHtml(k.nickname)} darf sich in den Streamplan eintragen">
               🎥
             </label>
@@ -2131,10 +2143,11 @@ async function ladeKonten() {
           </div>`).join("")
       : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
 
-    // ⚠️ Nach dem Umstellen die ganze Liste neu holen, nicht nur den einen
-    // Haken stehen lassen: „Orga" schaltet auch das Streamer-Haekchen fest und
-    // aendert das Symbol vor dem Namen. Ohne Neuladen behauptet die Zeile
-    // daneben etwas, das nicht mehr stimmt.
+    // ⚠️ Nach dem Umstellen die ganze Liste neu holen: „Orga" aendert das
+    // Symbol vor dem Namen und die Rechte in der ganzen App. Ohne Neuladen
+    // behauptet die Zeile daneben etwas, das nicht mehr stimmt.
+    // ⚠️ Den Streamer-Haken fasst „Orga" seit 2026-09-14 NICHT mehr an: der
+    // steht fuer sich und bleibt jederzeit abwaehlbar (siehe kontoDarfStreamen).
     box.querySelectorAll("[data-konto-orga]").forEach((cb) => {
       cb.addEventListener("change", async () => {
         try {
