@@ -423,7 +423,7 @@
         <div class="karte-block">
           <p class="feld-label">🧪 Zum Ausprobieren</p>
           <div class="feld-zeile">
-            <input type="number" id="test-anzahl" class="eingabe" min="1" max="64" value="8" style="flex:0 0 90px">
+            <input type="number" id="test-anzahl" aria-label="Anzahl Testspieler" class="eingabe" min="1" max="64" value="8" style="flex:0 0 90px">
             <button class="btn btn-secondary" id="btn-test-spieler" style="flex:1">Testspieler anlegen</button>
           </div>
           <p class="hinweis-text">Erfindet Spieler mit zufälligem Rating, damit du den Ablauf allein durchspielen kannst.</p>
@@ -454,8 +454,8 @@
           <div class="karte-block">
             <p class="feld-label">Zwei Spieler tauschen</p>
             <div class="feld-zeile">
-              <select id="tausch-a" class="eingabe"></select>
-              <select id="tausch-b" class="eingabe"></select>
+              <select id="tausch-a" aria-label="Erster Spieler zum Tauschen" class="eingabe"></select>
+              <select id="tausch-b" aria-label="Zweiter Spieler zum Tauschen" class="eingabe"></select>
             </div>
             <button class="btn btn-secondary btn-grow" id="btn-tauschen">Tauschen</button>
           </div>
@@ -681,7 +681,7 @@
       <p class="feld-label">Veranstalter</p>
       <div class="feld-zeile">
         <div>
-          <input type="text" id="sk-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+          <input type="text" aria-label="Admin-PIN" id="sk-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
         </div>
         <div style="flex:0 0 auto">
           <button class="btn btn-secondary" id="sk-btn-admin-anmelden">Anmelden</button>
@@ -761,7 +761,7 @@
       <p class="feld-label">Veranstalter</p>
       <div class="feld-zeile">
         <div>
-          <input type="text" id="fr-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+          <input type="text" aria-label="Admin-PIN" id="fr-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
         </div>
         <div style="flex:0 0 auto">
           <button class="btn btn-secondary" id="fr-btn-admin-anmelden">Anmelden</button>
@@ -776,8 +776,8 @@
 
       <label class="feld-label" for="fr-pak-name">Neues Paket</label>
       <input type="text" id="fr-pak-name" class="eingabe" placeholder="Name, z. B. Klassisch" maxlength="60" autocomplete="off">
-      <input type="text" id="fr-pak-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
-      <input type="text" id="fr-pak-preis" class="eingabe" placeholder="Preis in €, z. B. 2,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
+      <input type="text" aria-label="Beschreibung des Pakets" id="fr-pak-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
+      <input type="text" aria-label="Preis des Pakets in Euro" id="fr-pak-preis" class="eingabe" placeholder="Preis in €, z. B. 2,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
       <button class="btn btn-secondary btn-grow" id="fr-btn-pak-anlegen">Paket hinzufügen</button>
       <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
 
@@ -874,7 +874,7 @@
       <p class="feld-label">Veranstalter</p>
       <div class="feld-zeile">
         <div>
-          <input type="text" id="es-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
+          <input type="text" aria-label="Admin-PIN" id="es-admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
         </div>
         <div style="flex:0 0 auto">
           <button class="btn btn-secondary" id="es-btn-admin-anmelden">Anmelden</button>
@@ -906,10 +906,10 @@
 
         <label class="feld-label" for="es-ger-nummer">Neues Gericht</label>
         <input type="text" id="es-ger-nummer" class="eingabe" placeholder="Bestellnummer, z. B. 12 (freiwillig)" maxlength="10" autocomplete="off">
-        <input type="text" id="es-ger-name" class="eingabe" placeholder="Name, z. B. Pizza Salami" maxlength="80" autocomplete="off" style="margin-top:8px">
-        <input type="text" id="es-ger-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
-        <input type="text" id="es-ger-kategorie" class="eingabe" placeholder="Kategorie, z. B. Pizza (freiwillig)" maxlength="40" autocomplete="off" style="margin-top:8px">
-        <input type="text" id="es-ger-preis" class="eingabe" placeholder="Preis in €, z. B. 9,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
+        <input type="text" aria-label="Name des Gerichts" id="es-ger-name" class="eingabe" placeholder="Name, z. B. Pizza Salami" maxlength="80" autocomplete="off" style="margin-top:8px">
+        <input type="text" aria-label="Beschreibung des Gerichts" id="es-ger-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
+        <input type="text" aria-label="Kategorie des Gerichts" id="es-ger-kategorie" class="eingabe" placeholder="Kategorie, z. B. Pizza (freiwillig)" maxlength="40" autocomplete="off" style="margin-top:8px">
+        <input type="text" aria-label="Preis des Gerichts in Euro" id="es-ger-preis" class="eingabe" placeholder="Preis in €, z. B. 9,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
         <button class="btn btn-secondary btn-grow" id="es-btn-ger-anlegen">Gericht hinzufügen</button>
         <p class="hinweis-text fehler" id="es-gericht-fehler"></p>
         </details>
@@ -924,7 +924,7 @@
         <summary><span class="es-klapp-titel">Speisekarte importieren</span></summary>
         <p class="hinweis-text">Ein Gericht je Zeile. Felder mit <b>|</b> trennen: <i>Nummer | Name | Beschreibung | Preis</i>. Eine Zeile mit <b>#</b> davor beginnt eine Kategorie. Nummer, Beschreibung und Preis darf man weglassen.</p>
         <p class="hinweis-text">Die <b>Bestellnummer</b> wird nur erkannt, wenn sie ganz vorn steht und aus Ziffern besteht (auch „12a“ oder „A3“). Ein Gericht, das mit einer Zahl anfängt – „4 Käse Pizza“ – bleibt dadurch ein Name und wird nicht zur Nummer.</p>
-        <textarea id="es-import-text" class="eingabe es-import-feld" rows="8" spellcheck="false" placeholder="# Pizza&#10;12 | Margherita | Tomate, Käse | 8,50&#10;13 | Salami | Tomate, Käse, Salami | 9,50&#10;&#10;# Beilagen&#10;40 | Pommes | 3,00"></textarea>
+        <textarea aria-label="Speisekarte zum Einlesen" id="es-import-text" class="eingabe es-import-feld" rows="8" spellcheck="false" placeholder="# Pizza&#10;12 | Margherita | Tomate, Käse | 8,50&#10;13 | Salami | Tomate, Käse, Salami | 9,50&#10;&#10;# Beilagen&#10;40 | Pommes | 3,00"></textarea>
         <button class="btn btn-secondary btn-grow" id="es-btn-import-pruefen">Vorschau anzeigen</button>
         <div id="es-import-vorschau"></div>
         <p class="hinweis-text fehler" id="es-import-fehler"></p>
@@ -1057,12 +1057,12 @@
     <div class="melden-teams">
       <div class="melden-team">
         <span class="melden-teamname" id="melden-name-a">Team A</span>
-        <input type="number" id="melden-saetze-a" class="eingabe saetze-input" min="0" value="0">
+        <input type="number" id="melden-saetze-a" aria-label="Gewonnene Sätze, erstes Team" class="eingabe saetze-input" min="0" value="0">
       </div>
       <span class="melden-doppelpunkt">:</span>
       <div class="melden-team">
         <span class="melden-teamname" id="melden-name-b">Team B</span>
-        <input type="number" id="melden-saetze-b" class="eingabe saetze-input" min="0" value="0">
+        <input type="number" id="melden-saetze-b" aria-label="Gewonnene Sätze, zweites Team" class="eingabe saetze-input" min="0" value="0">
       </div>
     </div>
     <p class="hinweis-text" id="melden-hinweis"></p>
