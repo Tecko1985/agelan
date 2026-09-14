@@ -77,6 +77,11 @@ function skRender(z) {
 }
 
 function skRenderKeinPlan(z) {
+  // ⚠️ Lehnt die Datenbank schon das LESEN ab, sieht diese Ansicht aus wie
+  // "noch kein Plan angelegt" – und das Anlegen scheitert danach genauso.
+  // Der Grund gehoert deshalb sofort sichtbar ueber das Formular, nicht erst
+  // nach einem Klick.
+  skZeigeFehler("sk-neu-fehler", z.lesefehler || "");
   const pinFeld = skEl("sk-neu-pin");
   const pinHinweis = skEl("sk-neu-pin-hinweis");
   // Läuft schon ein Turnier und wir sind dort Veranstalter, übernimmt der

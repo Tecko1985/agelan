@@ -43,6 +43,7 @@ const SK_TAG_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 let skEigeneUid = null;
 let skRoh = null;             // roher { meta, tage, slots }-Snapshot
 let skListener = null;
+let skLeseFehler = "";        // gesetzt, wenn der Listener abgelehnt wurde
 
 const skAuthBereit = new Promise((resolve) => {
   auth.onAuthStateChanged((user) => {
@@ -105,6 +106,25 @@ function skZahl(wert, ersatz) {
 
 function skText(wert, maxLaenge) {
   return String(wert == null ? "" : wert).trim().slice(0, maxLaenge);
+}
+
+// ⚠️ JEDER Schreibweg laeuft hierdurch. Ohne das bleibt ein abgelehnter
+// Schreibvorgang eine verschluckte Promise-Ablehnung: der Knopf tut nichts,
+// es erscheint keine Meldung, und niemand sieht, dass die Datenbankregeln
+// (oder das Netz) den Vorgang geblockt haben. Genau so lief das Anlegen des
+// Streamplans ins Leere.
+async function skSchreib(aktion) {
+  try {
+    await aktion();
+    return { erfolg: true };
+  } catch (e) {
+    console.error("[Streamplan] Schreiben fehlgeschlagen:", e);
+    const kennung = String((e && (e.code || e.message)) || "");
+    if (/permission|denied/i.test(kennung)) {
+      return { erfolg: false, fehler: "Die Datenbank hat das Speichern abgelehnt. Die Sicherheitsregeln der AgeLan-Datenbank muessen in der Firebase-Konsole neu veroeffentlicht werden." };
+    }
+    return { erfolg: false, fehler: "Das Speichern hat nicht geklappt. Pruefe die Internetverbindung und versuch es noch einmal." };
+  }
 }
 
 // --- Admin-Status ----------------------------------------------------------
@@ -249,6 +269,7 @@ function skGetZustand() {
       istAdmin: false,
       eigeneUid: skEigeneUid,
       turnierPin: skTurnierPin(),
+      lesefehler: skLeseFehler,
     };
   }
   const tage = skTageListe(meta, skRoh.tage);
@@ -268,6 +289,7 @@ function skGetZustand() {
     darfEintragen: skDarfEintragen(),
     eigeneUid: skEigeneUid,
     turnierPin: skTurnierPin(),
+    lesefehler: skLeseFehler,
     achseVon: Math.min.apply(null, tage.map((t) => t.von)),
     achseBis: Math.max.apply(null, tage.map((t) => t.bis)),
   };
@@ -296,7 +318,17 @@ function skOnZustandsAenderung(cb) {
 skAuthBereit.then(() => {
   if (skListener) return;
   skListener = db.ref(SK_BASIS).on("value", (snap) => {
+    skLeseFehler = "";
     skRoh = snap.val() || {};
+    skMelde();
+  }, (fehler) => {
+    // ⚠️ OHNE diesen Rueckruf scheitert das Lesen lautlos: skRoh bliebe null,
+    // die Oberflaeche saehe aus wie "noch kein Plan angelegt" und der Knopf
+    // "Streamplan anlegen" liefe danach in denselben stillen Fehler.
+    // Gleiches Netz wie #es-regelwarnung beim Essen.
+    console.error("[Streamplan] Lesen fehlgeschlagen:", fehler);
+    skLeseFehler = "Die Datenbank laesst das Lesen des Streamplans nicht zu. Die Sicherheitsregeln der AgeLan-Datenbank muessen in der Firebase-Konsole neu veroeffentlicht werden.";
+    skRoh = {};
     skMelde();
   });
 });
@@ -340,7 +372,7 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
   const pin = skText(adminPin, 20);
   if (!pin) return { erfolg: false, fehler: "Bitte lege einen Veranstalter-PIN fest." };
 
-  await db.ref(SK_BASIS).update({
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS).update({
     meta: {
       titel: t,
       hostId: skEigeneUid,
@@ -351,7 +383,8 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
       standardVon: v,
       standardBis: b,
     },
-  });
+  }));
+  if (!geschrieben.erfolg) return geschrieben;
   try {
     localStorage.setItem(SK_PIN_KEY, pin);
   } catch (e) { /* privater Modus: dann zählt nur hostId */ }
@@ -427,7 +460,8 @@ async function skSetzeTagesfenster(liste) {
 
   const updates = {};
   neu.forEach((t) => { updates[t.datum] = { von: t.von, bis: t.bis }; });
-  await db.ref(SK_BASIS + "/tage").update(updates);
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/tage").update(updates));
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
@@ -445,12 +479,13 @@ async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
   if (!geprueft.erfolg) return geprueft;
 
   const id = skNeueId("slot");
-  await db.ref(SK_BASIS + "/slots/" + id).update(
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/slots/" + id).update(
     Object.assign({}, geprueft.werte, {
       uid: skEigeneUid,
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     })
-  );
+  ));
+  if (!geschrieben.erfolg) return geschrieben;
   try {
     localStorage.setItem(SK_NAME_KEY, geprueft.werte.streamer);
   } catch (e) { /* egal */ }
@@ -473,7 +508,8 @@ async function skAendereSlot(id, { datum, von, bis, streamer, titel, notiz }) {
   const geprueft = skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, id);
   if (!geprueft.erfolg) return geprueft;
 
-  await db.ref(SK_BASIS + "/slots/" + id).update(geprueft.werte);
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/slots/" + id).update(geprueft.werte));
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
@@ -544,9 +580,10 @@ async function skLegeProgrammAn({ datum, von, bis, titel, notiz }) {
   if (!geprueft.erfolg) return geprueft;
 
   const id = skNeueId("prg");
-  await db.ref(SK_BASIS + "/programm/" + id).update(
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/programm/" + id).update(
     Object.assign({}, geprueft.werte, { erstelltAm: firebase.database.ServerValue.TIMESTAMP })
-  );
+  ));
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true, id };
 }
 
@@ -559,7 +596,8 @@ async function skAendereProgramm(id, { datum, von, bis, titel, notiz }) {
   const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz });
   if (!geprueft.erfolg) return geprueft;
 
-  await db.ref(SK_BASIS + "/programm/" + id).update(geprueft.werte);
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/programm/" + id).update(geprueft.werte));
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
@@ -569,7 +607,8 @@ async function skLoescheProgramm(id) {
   if (!skGetZustand().programm.some((p) => p.id === id)) {
     return { erfolg: false, fehler: "Diesen Programmpunkt gibt es nicht mehr." };
   }
-  await db.ref(SK_BASIS + "/programm/" + id).remove();
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/programm/" + id).remove());
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
@@ -584,7 +623,8 @@ async function skLoescheSlot(id) {
   const slot = z.slots.find((s) => s.id === id);
   if (!slot) return { erfolg: false, fehler: "Diese Belegung gibt es nicht mehr." };
   if (!slot.darfBearbeiten) return { erfolg: false, fehler: "Das ist der Eintrag von jemand anderem." };
-  await db.ref(SK_BASIS + "/slots/" + id).remove();
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/slots/" + id).remove());
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
@@ -595,14 +635,16 @@ async function skLeereBelegungen() {
   if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const anzahl = skGetZustand().slots.length;
   if (!anzahl) return { erfolg: false, fehler: "Es ist nichts belegt." };
-  await db.ref(SK_BASIS + "/slots").remove();
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/slots").remove());
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true, anzahl };
 }
 
 async function skLoeschePlan() {
   await skAuthBereit;
   if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(SK_BASIS).remove();
+  const geschrieben = await skSchreib(() => db.ref(SK_BASIS).remove());
+  if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
 }
 
