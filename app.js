@@ -1307,6 +1307,11 @@ const APP_CHANGELOG = [
   {
     version: "6.2",
     groups: [
+      { title: "Nach der Anmeldung: Erinnerung an die Discord-ID", items: [
+          "Wer noch keine Discord-ID hinterlegt hat, bekommt nach dem Anmelden einmal „Mein Konto“ aufgemacht – mit dem Hinweis, wofuer die ID gut ist.",
+          "Ohne ID sagt dir der Bot NICHT Bescheid, wenn dein Essen bereitliegt.",
+          "Einmal je Name und Geraet – wer sie eintraegt oder wegklickt, wird nicht wieder gefragt. Ueber den eigenen Namen oben rechts kommst du jederzeit hin."
+      ]},
       { title: "Erster Besuch: direkt zum Konto anlegen", items: [
           "Wer die Seite zum ersten Mal oeffnet, landet nach dem Klick auf eine Kachel sofort in der Maske „Konto anlegen“ statt im Anmeldeformular.",
           "Wer schon ein Konto auf diesem Geraet hat, kommt wie bisher direkt zum Anmelden – mit vorbelegtem Namen.",

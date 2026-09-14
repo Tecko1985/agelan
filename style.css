@@ -1004,6 +1004,31 @@ main#app.ub-breit { max-width: 980px; }
 .konto-box .pw-icon,
 .konto-box .pw-titel,
 .konto-box .pw-text { text-align: center; }
+/* Die Aufforderung nach der Anmeldung. Bewusst auffaellig und NICHT in
+   `--muted` wie `.konto-hinweis`: sie ist der Grund, warum der Dialog gerade
+   von selbst aufgegangen ist - ein grauer Absatz wuerde mit weggeklickt.
+   ⚠️ `[hidden]` braucht die eigene Regel, sonst schlaegt jede Klasse mit
+   `display:` das User-Agent-`hidden` (dieselbe Falle wie bei `.pw-overlay`). */
+.konto-erinnerung[hidden] { display: none; }
+.konto-erinnerung {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #f0c36d;
+  background: #fdf6e3;
+  color: #7a5c00;
+  font-size: 13px;
+  line-height: 1.5;
+}
+/* ⚠️ Im Dunkelmodus stuende sonst ein hellgelber Kasten im dunklen Dialog -
+   lesbar, aber er brennt. Gedaempfter Grund, heller Text, gleicher Sinn. */
+@media (prefers-color-scheme: dark) {
+  .konto-erinnerung {
+    border-color: #6b5410;
+    background: #2e2712;
+    color: #f0c46b;
+  }
+}
 .konto-hinweis[hidden] { display: none; }
 .konto-hinweis {
   margin: 8px 0 0;

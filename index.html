@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=5.0">
+<link rel="stylesheet" href="style.css?v=5.1">
 </head>
 <body>
 
@@ -175,6 +175,15 @@
     <div class="pw-icon">👤</div>
     <h2 class="pw-titel">Mein Konto</h2>
     <p class="pw-text" id="konto-wer"></p>
+
+    <!-- Nur sichtbar, wenn dieser Dialog NACH der Anmeldung von selbst aufgeht,
+         weil noch keine Discord-ID hinterlegt ist. Er erklärt, warum er da ist –
+         ein Dialog, der ungefragt aufspringt und nichts sagt, wird weggeklickt. -->
+    <p class="konto-erinnerung" id="konto-erinnerung" hidden>
+      <b>Noch ein Schritt:</b> Trag hier deine Discord-ID ein – ohne sie sagt dir
+      niemand Bescheid, wenn dein Essen bereitliegt. Geht auch später: über
+      deinen Namen oben rechts.
+    </p>
 
     <label class="pw-label" for="konto-discord">Deine Discord-ID <span class="pw-freiwillig">(freiwillig)</span></label>
     <!-- inputmode="numeric" holt am Handy die Zifferntastatur.
@@ -1207,7 +1216,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.5',
-    'app.js?v=3.35',
+    'app.js?v=3.36',
     'stream-service.js?v=1.7',
     'stream-app.js?v=2.1',
     'fruehstueck-service.js?v=1.4',
@@ -1302,7 +1311,9 @@
   function zeigeHub() { if (hub) hub.hidden = false; }
   function versteckeHub() { if (hub) hub.hidden = true; }
 
-  function freigeben() {
+  // `danach` laeuft ERST, wenn die Skripte da sind und das Gate zu ist -
+  // ein Dialog, der vorher aufgeht, stuende unter dem Anmeldefenster.
+  function freigeben(danach) {
     // Das Ziel muss VOR dem Laden stehen: app.js wertet es beim Start aus.
     if (zielTab) { window.__AGELAN_START_TAB__ = zielTab; }
     else {
@@ -1319,6 +1330,7 @@
     ladeSkripte(function () {
       if (gate) gate.hidden = true;
       versteckeHub();
+      if (typeof danach === 'function') danach();
     });
   }
 
@@ -1414,7 +1426,7 @@
           kontoAnzeigen(konto);
           msg.style.color = '#5a6b82';
           msg.textContent = 'Einen Moment …';
-          freigeben();
+          freigeben(function () { discordErinnern(konto); });
           return;
         }
         // Die Meldung des Workers ist die genauere – eine eigene nur, wenn keine da ist.
@@ -1461,15 +1473,38 @@
     kdTestText.hidden = !gespeichert;
   }
 
-  function oeffneKonto() {
+  function oeffneKonto(alsErinnerung) {
     var k = kontoLesen();
     if (!k || !k.nickname) return;
     document.getElementById('konto-wer').textContent = 'Angemeldet als ' + k.nickname;
     kdFeld.value = k.discordId || '';
     kdMelden('', false);
     kdTestZeigen(k.discordId);
+    // Der Kasten gehoert zum EINEN Aufruf, nicht zum Dialog: wer den Dialog
+    // danach selbst oeffnet, soll nicht wieder angetextet werden.
+    var erKasten = document.getElementById('konto-erinnerung');
+    if (erKasten) erKasten.hidden = !alsErinnerung;
     kontoGate.hidden = false;
     kdFeld.focus();
+  }
+
+  // --- Nach der Anmeldung an die Discord-ID erinnern ------------------------
+  // ⚠️ Die ID ist freiwillig, aber ohne sie bekommt niemand die Nachricht
+  // „dein Essen liegt bereit" - und das faellt erst auf, wenn das Essen kalt
+  // ist. Der gelbe Punkt am Namen war bisher der einzige Hinweis: er erklaert
+  // nichts und wird uebersehen. Also geht der Konto-Dialog nach der Anmeldung
+  // einmal von selbst auf.
+  var ERINNERT_KEY = 'agelan_discord_erinnert';
+  function discordErinnern(konto) {
+    if (!konto || konto.discordId) return;   // hat schon eine ID
+    // ⚠️ Der Merker haengt am NAMEN, nicht nur am Browser. Auf einer LAN teilen
+    // sich mehrere Leute denselben Rechner - ein reiner Browser-Merker haette
+    // allen nach dem Ersten die Erinnerung verschluckt.
+    try {
+      if (localStorage.getItem(ERINNERT_KEY) === konto.nickname) return;
+      localStorage.setItem(ERINNERT_KEY, konto.nickname);
+    } catch (e) { /* privater Modus: dann eben bei jeder Anmeldung */ }
+    oeffneKonto(true);
   }
 
   function schliesseKonto() { kontoGate.hidden = true; }
@@ -1510,6 +1545,10 @@
       kontoAnzeigen(k);
       kdFeld.value = k.discordId;
       kdTestZeigen(k.discordId);
+      // Erledigt: die Aufforderung hat sich mit dem Speichern erledigt und
+      // stuende sonst weiter ueber einem gefuellten Feld.
+      var erKasten = document.getElementById('konto-erinnerung');
+      if (erKasten && k.discordId) erKasten.hidden = true;
       kdMelden(k.discordId
         ? 'Gespeichert. Schick dir jetzt eine Testnachricht – erst dann weißt du sicher, dass die ID stimmt.'
         : 'Gespeichert. Du hast jetzt keine Discord-ID hinterlegt und bekommst keine Nachricht.', false);
@@ -1529,7 +1568,10 @@
   kontoGate.addEventListener('click', function (e) { if (e.target === kontoGate) schliesseKonto(); });
   kdFeld.addEventListener('keydown', function (e) { if (e.key === 'Enter') kdSpeichernTun(); });
   var kopfKonto = document.getElementById('kopf-konto');
-  if (kopfKonto) kopfKonto.addEventListener('click', oeffneKonto);
+  // ⚠️ Nicht `addEventListener('click', oeffneKonto)`: dann waere das
+  // MouseEvent das Argument `alsErinnerung` - und immer truthy. Der
+  // Erinnerungskasten stuende bei jedem Klick auf den Namen mit da.
+  if (kopfKonto) kopfKonto.addEventListener('click', function () { oeffneKonto(false); });
 
   // --- QR zum Herumzeigen ---------------------------------------------------
   var qrGate    = document.getElementById('qr-gate');
