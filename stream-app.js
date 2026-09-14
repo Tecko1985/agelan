@@ -14,7 +14,13 @@
 // app.js, bevor sie per innerHTML in den Kalender kommen.
 // ===========================================================================
 
-const SK_STUNDE_PX = 48;      // Höhe einer Stunde im Raster; einzige Quelle für Höhe und Stundenlinien
+// Höhe einer Stunde im Raster; einzige Quelle für Blockhöhe, Stundenlinien und
+// das Umrechnen beim Ziehen.
+// ⚠️ 48 px waren zu eng: ein Programmpunkt über eine Stunde hat 42 px Innenraum,
+// und sobald der Titel zweizeilig umbrach ("Turnier Ankündigung"), fiel die
+// Streamer-Marke aus dem Block. Michel im Bild: "immer noch recht eng".
+// Bei 72 px bleiben 66 px – Zeit, zwei Titelzeilen und die Marke passen zusammen.
+const SK_STUNDE_PX = 72;
 const SK_SCHRITT_UI = 15;
 
 let skZustand = null;
@@ -249,15 +255,28 @@ function skStreamBlock(s, achseVon) {
     "</button>";
 }
 
+// Ab dieser Dauer hat der Block Platz fuer eine eigene Marken-Zeile unter dem
+// Titel. ⚠️ Gemessen bei SK_STUNDE_PX = 72: 45 Min = 54 px, die Marke endet bei
+// 51 px. Darunter wuerde `overflow: hidden` sie abschneiden – der rote Rahmen
+// bliebe, der Grund dafuer waere aber unsichtbar.
+const SK_MARKE_AB_MIN = 45;
+
 function skProgrammBlock(p, achseVon) {
   // Im Block ist wenig Platz: nur der Fehlt-Fall bekommt ein Zeichen, und zwar
   // ein auffaelliges. "Alles in Ordnung" braucht am Kalender keine Marke.
-  const marke = p.streamerFehlt
+  const kurz = p.bis - p.von < SK_MARKE_AB_MIN;
+  // ⚠️ Im kurzen Block wandert das Zeichen in die ZEIT-Zeile statt zu
+  // verschwinden: eine eigene Zeile gibt es dort nicht, und ein roter Rahmen
+  // ohne erkennbaren Grund laesst jeden raten.
+  const marke = p.streamerFehlt && !kurz
     ? '<span class="sk-block-warnung" title="Hier fehlt noch ein Streamer">⚠ Streamer</span>'
+    : "";
+  const zeichen = p.streamerFehlt && kurz
+    ? ' <span class="sk-zeit-warnung" title="Hier fehlt noch ein Streamer">⚠</span>'
     : "";
   return '<button type="button" class="sk-slot programm' + (p.kettenZweiter ? " kette" : "") +
     (p.streamerFehlt ? " streamer-fehlt" : "") + '" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
-    '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + "</span>" +
+    '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + zeichen + "</span>" +
     '<span class="sk-slot-name">' + escapeHtml(p.titel) + "</span>" +
     marke +
     "</button>";

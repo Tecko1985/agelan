@@ -436,15 +436,15 @@ main#app.sk-breit { max-width: 980px; }
   position: absolute; overflow: hidden;
   display: flex; flex-direction: column; gap: 1px;
   background: var(--primary); color: #fff;
-  border: none; border-radius: 6px; padding: 3px 6px;
-  font-family: inherit; text-align: left; line-height: 1.25; cursor: pointer;
+  border: none; border-radius: 6px; padding: 5px 8px;
+  font-family: inherit; text-align: left; line-height: 1.3; cursor: pointer;
 }
 .sk-slot.eigen { background: var(--success); }
 /* Programm optisch klar abgesetzt: es ist Vorgabe, keine Buchung. */
 .sk-slot.programm { background: var(--gold); }
-.sk-slot-zeit { font-size: 10px; opacity: 0.85; }
-.sk-slot-name { font-size: 12px; font-weight: 700; }
-.sk-slot-titel { font-size: 11px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-slot-zeit { font-size: 11px; opacity: 0.85; }
+.sk-slot-name { font-size: 13px; font-weight: 700; }
+.sk-slot-titel { font-size: 12px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sk-marke {
   flex: 0 0 auto; font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -476,6 +476,11 @@ main#app.sk-breit { max-width: 980px; }
    einen roten Rahmen nach innen – ein Rahmen aussen wuerde die Breite der
    Spur aendern und die Blockberechnung verschieben. */
 .sk-slot.programm.streamer-fehlt { box-shadow: inset 0 0 0 2px #b42318; }
+/* Der Notnagel fuer kurze Bloecke: kein Platz fuer eine eigene Zeile, also
+   haengt das Zeichen an der Uhrzeit. Volle Deckkraft, damit es die 0.85 der
+   Zeit-Zeile nicht mitmacht und untergeht. */
+.sk-zeit-warnung { opacity: 1; font-weight: 700; }
+
 .sk-block-warnung {
   align-self: flex-start; margin-top: 1px;
   background: #b42318; color: #fff; border-radius: 4px;
