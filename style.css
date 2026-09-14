@@ -453,6 +453,64 @@ main#app.sk-breit { max-width: 980px; }
 .sk-marke.programm { background: var(--gold); }
 .sk-marke.stream { background: var(--primary); }
 
+/* Streamer-Bedarf am Programmpunkt.
+   ⚠️ Alle drei tragen weisse Schrift auf farbigem Grund und funktionieren
+   deshalb in hell UND dunkel ohne eigene Umkehrung – gemessen gegen #fff:
+   Rot 6,40 · Gruen 4,92 · Grau 4,63. Das Rot ist NICHT var(--gold) mit
+   Filter: der Fehlt-Fall muss sich von der Programmfarbe unterscheiden. */
+/* ⚠️ Ohne nowrap zerreisst "Streamer fehlt - 4:00 h offen" auf 375 px mitten
+   in der Pille: die zweite Haelfte steht als eigener roter Fetzen in der
+   naechsten Zeile. Gemessen am 14.09.2026. Die Marke darf als GANZES umbrechen
+   (die Zeile ist flex-wrap), nur nicht in sich selbst.
+   Aus demselben Grund keine Grossbuchstaben: gleicher Text, mehr Breite. */
+.sk-marke.streamer-fehlt,
+.sk-marke.streamer-da,
+.sk-marke.kein-streamer {
+  white-space: nowrap; text-transform: none; letter-spacing: 0; font-size: 11px;
+}
+.sk-marke.streamer-fehlt { background: #b42318; }
+.sk-marke.streamer-da { background: var(--success); }
+.sk-marke.kein-streamer { background: var(--muted); }
+
+/* Im Kalender bleibt der Block gold (Programm ist Programm), bekommt aber
+   einen roten Rahmen nach innen – ein Rahmen aussen wuerde die Breite der
+   Spur aendern und die Blockberechnung verschieben. */
+.sk-slot.programm.streamer-fehlt { box-shadow: inset 0 0 0 2px #b42318; }
+.sk-block-warnung {
+  align-self: flex-start; margin-top: 1px;
+  background: #b42318; color: #fff; border-radius: 4px;
+  font-size: 9px; font-weight: 700; padding: 0 4px; white-space: nowrap;
+}
+
+/* Tipp am Mauszeiger. Kurze Bloecke (30 Min) schneiden ihren Inhalt ab –
+   ⚠️ `overflow: hidden` auf .sk-slot ist Absicht, sonst laegen die Texte
+   uebereinander. Der Tipp ist der Weg an den vollen Inhalt, ohne den Block
+   anzuklicken.
+   ⚠️ `pointer-events: none` ist Pflicht: sonst faengt der Tipp selbst die Maus,
+   der Block verliert den Hover und beides flackert im Wechsel. */
+#sk-tipp {
+  position: fixed; z-index: 90; pointer-events: none;
+  max-width: 260px;
+  background: #111827; color: #f8fafc;
+  border-radius: 8px; padding: 8px 10px;
+  font-size: 12px; line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+}
+#sk-tipp .t-zeit { display: block; font-size: 11px; opacity: 0.75; }
+#sk-tipp .t-name { display: block; font-weight: 700; font-size: 13px; margin-top: 1px; }
+#sk-tipp .t-zusatz { display: block; margin-top: 3px; opacity: 0.9; }
+#sk-tipp .t-status { display: block; margin-top: 5px; font-weight: 700; }
+#sk-tipp .t-status.fehlt { color: #fca5a5; }
+#sk-tipp .t-status.da { color: #86efac; }
+#sk-tipp .t-status.keiner { color: #cbd5e1; font-weight: 400; }
+
+/* ⚠️ Nur an Geraeten mit echtem Zeiger. Auf einem Handy gibt es kein Hovern:
+   Chrome feuert beim Antippen trotzdem ein mouseover, und der Tipp bliebe
+   danach stehen, bis irgendwo anders hingetippt wird. */
+@media (hover: none) {
+  #sk-tipp { display: none !important; }
+}
+
 .sk-zeile {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: var(--card-bg); border: 1px solid var(--border);

@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=4.4">
+<link rel="stylesheet" href="style.css?v=4.7">
 </head>
 <body>
 
@@ -673,6 +673,9 @@
 
     <div class="sk-tagchips" id="sk-tagchips"></div>
     <div id="sk-kalender"></div>
+    <!-- ⚠️ Liegt am body-Ende, nicht im Kalender: der Kalender scrollt in sich
+         und wuerde den Tipp am eigenen Rand abschneiden. -->
+    <div id="sk-tipp" hidden></div>
 
     <h3>Alle Einträge</h3>
     <div id="sk-liste"></div>
@@ -1156,6 +1159,12 @@
     <label class="feld-label" for="sk-prg-notiz">Notiz (freiwillig)</label>
     <input type="text" id="sk-prg-notiz" class="eingabe" maxlength="200" autocomplete="off">
 
+    <label class="es-schalter" id="sk-prg-streamer-zeile">
+      <input type="checkbox" id="sk-prg-streamer" checked>
+      <span>Dafür wird ein Streamer gebraucht</span>
+    </label>
+    <p class="hinweis-text" id="sk-prg-streamer-hinweis"></p>
+
     <p class="hinweis-text" id="sk-prg-hinweis"></p>
     <p class="hinweis-text fehler" id="sk-prg-fehler"></p>
 
@@ -1184,8 +1193,8 @@
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.5',
     'app.js?v=3.33',
-    'stream-service.js?v=1.6',
-    'stream-app.js?v=1.8',
+    'stream-service.js?v=1.7',
+    'stream-app.js?v=2.0',
     'fruehstueck-service.js?v=1.4',
     'fruehstueck-app.js?v=1.7',
     'essen-service.js?v=2.1',

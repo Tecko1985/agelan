@@ -106,9 +106,15 @@ function skRenderPlan(z) {
     : streamService.datumLabel(ersterTag.datum, true);
   const belegt = z.slots.length;
   const prg = z.programm.length;
+  // ⚠️ Die offenen Punkte gehoeren in die Kopfzeile, nicht nur an den einzelnen
+  // Block: wer den Plan aufmacht, soll ohne Scrollen sehen, dass noch etwas
+  // fehlt. Bei null offenen steht nichts – eine dauerhafte "0 offen" liest sich
+  // nach einer Weile als Deko und wird uebersehen.
+  const offen = z.programm.filter((p) => p.streamerFehlt).length;
   skEl("sk-zeitraum").textContent = spanne + " · " +
     (belegt === 1 ? "1 Stream" : belegt + " Streams") + " · " +
-    (prg === 1 ? "1 Programmpunkt" : prg + " Programmpunkte");
+    (prg === 1 ? "1 Programmpunkt" : prg + " Programmpunkte") +
+    (offen ? " · " + (offen === 1 ? "1 ohne Streamer" : offen + " ohne Streamer") : "");
 
   // Das Programm gibt die Veranstaltung vor – anlegen darf es nur der Veranstalter.
   skEl("sk-btn-programm").style.display = z.istAdmin ? "" : "none";
@@ -120,6 +126,9 @@ function skRenderPlan(z) {
   skRenderChips(z);
   skRenderKalender(z);
   skZiehAnbinden();
+  // ⚠️ Nach dem Neuzeichnen zeigt der Tipp auf ein Element, das es nicht mehr
+  // gibt – und bliebe stehen, bis die Maus sich bewegt.
+  skTippVerstecken();
   skRenderListe(z);
   skRenderAdmin(z);
 }
@@ -241,10 +250,42 @@ function skStreamBlock(s, achseVon) {
 }
 
 function skProgrammBlock(p, achseVon) {
-  return '<button type="button" class="sk-slot programm' + (p.kettenZweiter ? " kette" : "") + '" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
+  // Im Block ist wenig Platz: nur der Fehlt-Fall bekommt ein Zeichen, und zwar
+  // ein auffaelliges. "Alles in Ordnung" braucht am Kalender keine Marke.
+  const marke = p.streamerFehlt
+    ? '<span class="sk-block-warnung" title="Hier fehlt noch ein Streamer">⚠ Streamer</span>'
+    : "";
+  return '<button type="button" class="sk-slot programm' + (p.kettenZweiter ? " kette" : "") +
+    (p.streamerFehlt ? " streamer-fehlt" : "") + '" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
     '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + "</span>" +
     '<span class="sk-slot-name">' + escapeHtml(p.titel) + "</span>" +
+    marke +
     "</button>";
+}
+
+// "1:45 h" statt "105 Minuten" – gelesen wird das an einem Kalender.
+function skDauerLabel(minuten) {
+  const m = Math.max(0, Math.round(minuten));
+  const std = Math.floor(m / 60);
+  const rest = m % 60;
+  if (!std) return rest + " Min";
+  return std + ":" + String(rest).padStart(2, "0") + " h";
+}
+
+// Das Abzeichen am Programmpunkt. Drei Faelle, drei Aussagen:
+// gar keiner gebraucht / einer gebraucht und da / einer gebraucht und fehlt.
+// ⚠️ Der Fehlt-Fall MUSS die offene Zeit nennen – "Streamer fehlt" an einem
+// Punkt, der zu drei Vierteln abgedeckt ist, schickt sonst jemanden auf die
+// Suche nach einer Luecke, die er nicht sieht.
+function skStreamerMarke(p, lang) {
+  if (!p.streamerNoetig) {
+    return '<span class="sk-marke kein-streamer" title="Dafuer wird kein Streamer gebraucht">kein Streamer</span>';
+  }
+  if (p.streamerFehlt) {
+    return '<span class="sk-marke streamer-fehlt">Streamer fehlt' +
+      (lang ? " · " + skDauerLabel(p.offeneMinuten) + " offen" : "") + "</span>";
+  }
+  return '<span class="sk-marke streamer-da">Streamer da</span>';
 }
 
 function skPx(minuten) {
@@ -292,7 +333,7 @@ function skRenderListe(z) {
         ? '<span class="sk-marke programm">Programm</span>'
         : '<span class="sk-marke stream">Stream</span>';
       const wer = istProgramm
-        ? escapeHtml(e.titel)
+        ? escapeHtml(e.titel) + " " + skStreamerMarke(e, true)
         : escapeHtml(e.streamer) + (e.istEigener ? ' <span class="spieler-badge">(du)</span>' : "") +
           (e.titel ? ' <span class="sk-zeile-titel">' + escapeHtml(e.titel) + "</span>" : "");
       const knopf = e.darfBearbeiten
@@ -446,8 +487,12 @@ function skOeffneProgrammDialog(programmId, vorbelegung) {
 
   skEl("sk-prg-was").value = punkt ? punkt.titel : "";
   skEl("sk-prg-notiz").value = punkt ? punkt.notiz : "";
+  // ⚠️ Neue Punkte starten mit gesetztem Haken. Der Normalfall ist, dass die
+  // Veranstaltung gestreamt werden soll; die Ausnahme klickt man weg.
+  skEl("sk-prg-streamer").checked = punkt ? !!punkt.streamerNoetig : true;
+  skEl("sk-prg-streamer-hinweis").textContent = skProgrammStreamerHinweis(punkt);
 
-  ["sk-prg-tag", "sk-prg-von", "sk-prg-bis", "sk-prg-was", "sk-prg-notiz"].forEach((id) => {
+  ["sk-prg-tag", "sk-prg-von", "sk-prg-bis", "sk-prg-was", "sk-prg-notiz", "sk-prg-streamer"].forEach((id) => {
     skEl(id).disabled = skProgrammNurLesen;
   });
   skEl("sk-prg-speichern").style.display = skProgrammNurLesen ? "none" : "";
@@ -459,6 +504,17 @@ function skOeffneProgrammDialog(programmId, vorbelegung) {
     : "Steht links neben den Streams. Programmpunkte dürfen sich überschneiden und blockieren keine Streamzeit.";
 
   skEl("modal-programm").classList.add("aktiv");
+}
+
+// Steht der Haken, sagt der Satz darunter, ob schon jemand sendet. Ohne das
+// waere der Haken eine Zusage ohne Kontrolle – man setzt ihn und weiss weiter
+// nicht, ob die Zeit belegt ist.
+function skProgrammStreamerHinweis(punkt) {
+  if (!punkt || !punkt.streamerNoetig) {
+    return "Ohne Haken erscheint der Punkt als „kein Streamer“ und wird nicht angemahnt.";
+  }
+  if (!punkt.streamerFehlt) return "Für diese Zeit hat sich schon jemand eingetragen.";
+  return "Noch " + skDauerLabel(punkt.offeneMinuten) + " ohne Stream – der Punkt steht als offen im Plan.";
 }
 
 function skFuelleProgrammZeiten(tag, von, bis) {
@@ -617,6 +673,97 @@ function skZiehAnbinden() {
   });
 }
 
+// ===========================================================================
+// Tipp am Mauszeiger
+// ---------------------------------------------------------------------------
+// Ein 30-Minuten-Block ist 15 px hoch; Zeit, Titel und Notiz passen da nicht
+// hinein und werden abgeschnitten. Der Tipp zeigt sie, ohne dass man den Block
+// anklicken und den Dialog wieder schliessen muss.
+// ===========================================================================
+const SK_TIPP_ABSTAND = 14;   // Luft zwischen Zeiger und Kasten
+
+function skTippInhalt(el) {
+  const z = skZustand;
+  if (!z || !z.vorhanden) return "";
+  const prgId = el.getAttribute("data-programm");
+  const e = prgId
+    ? z.programm.find((p) => p.id === prgId)
+    : z.slots.find((x) => x.id === el.getAttribute("data-slot"));
+  if (!e) return "";
+
+  const kopf = '<span class="t-zeit">' +
+    escapeHtml(streamService.datumLabel(e.datum, false)) + " " +
+    streamService.zeitLabel(e.von) + "–" + streamService.zeitLabel(e.bis) + "</span>";
+
+  if (prgId) {
+    // ⚠️ Der Streamer-Stand gehoert in den Tipp: am Block steht er nur im
+    // Fehlt-Fall und auch dann abgeschnitten, sobald der Block kurz ist.
+    const status = !e.streamerNoetig
+      ? '<span class="t-status keiner">Kein Streamer nötig</span>'
+      : e.streamerFehlt
+        ? '<span class="t-status fehlt">Streamer fehlt – ' + skDauerLabel(e.offeneMinuten) + " offen</span>"
+        : '<span class="t-status da">Streamer ist eingetragen</span>';
+    return kopf +
+      '<span class="t-name">' + escapeHtml(e.titel) + "</span>" +
+      (e.notiz ? '<span class="t-zusatz">' + escapeHtml(e.notiz) + "</span>" : "") +
+      status;
+  }
+
+  return kopf +
+    '<span class="t-name">' + escapeHtml(e.streamer) + (e.istEigener ? " (du)" : "") + "</span>" +
+    (e.titel ? '<span class="t-zusatz">' + escapeHtml(e.titel) + "</span>" : "") +
+    (e.notiz ? '<span class="t-zusatz">' + escapeHtml(e.notiz) + "</span>" : "");
+}
+
+function skTippVerstecken() {
+  const t = skEl("sk-tipp");
+  if (t) t.hidden = true;
+}
+
+// ⚠️ Erst einblenden, DANN messen und setzen: an einem versteckten Element
+// liefert getBoundingClientRect() eine Groesse von 0 und der Kasten landet
+// beim ersten Erscheinen immer unten rechts, egal wo der Zeiger steht.
+function skTippSetzen(x, y) {
+  const t = skEl("sk-tipp");
+  if (!t || t.hidden) return;
+  const kasten = t.getBoundingClientRect();
+  let links = x + SK_TIPP_ABSTAND;
+  let oben = y + SK_TIPP_ABSTAND;
+  if (links + kasten.width > window.innerWidth - 8) links = x - SK_TIPP_ABSTAND - kasten.width;
+  if (oben + kasten.height > window.innerHeight - 8) oben = y - SK_TIPP_ABSTAND - kasten.height;
+  t.style.left = Math.max(8, links) + "px";
+  t.style.top = Math.max(8, oben) + "px";
+}
+
+function skTippAnbinden() {
+  const kal = skEl("sk-kalender");
+  const tipp = skEl("sk-tipp");
+  if (!kal || !tipp) return;
+  let aktiv = null;
+
+  kal.addEventListener("mousemove", (e) => {
+    // ⚠️ Waehrend eines Zuges bleibt der Tipp weg: er haengt sonst als Fahne am
+    // Zeiger und verdeckt genau die Zeile, auf die gezogen wird.
+    if (document.querySelector(".sk-slot.zieht")) { aktiv = null; skTippVerstecken(); return; }
+    const block = e.target.closest(".sk-slot");
+    if (!block) { aktiv = null; skTippVerstecken(); return; }
+    if (block !== aktiv) {
+      const inhalt = skTippInhalt(block);
+      if (!inhalt) { aktiv = null; skTippVerstecken(); return; }
+      aktiv = block;
+      tipp.innerHTML = inhalt;
+      tipp.hidden = false;
+    }
+    skTippSetzen(e.clientX, e.clientY);
+  });
+
+  // ⚠️ Zwei Ausstiege: die Maus kann den Kalender verlassen, und der Kalender
+  // kann unter der stehenden Maus weggescrollt werden.
+  kal.addEventListener("mouseleave", () => { aktiv = null; skTippVerstecken(); });
+  kal.addEventListener("scroll", () => { aktiv = null; skTippVerstecken(); }, true);
+  window.addEventListener("blur", () => { aktiv = null; skTippVerstecken(); });
+}
+
 function skWireEvents() {
   // Plan anlegen
   skEl("sk-btn-erstellen").addEventListener("click", async () => {
@@ -700,6 +847,7 @@ function skWireEvents() {
       bis: skEl("sk-prg-bis").value,
       titel: skEl("sk-prg-was").value,
       notiz: skEl("sk-prg-notiz").value,
+      streamerNoetig: skEl("sk-prg-streamer").checked,
     };
     const res = skProgrammDialogId
       ? await streamService.aendereProgramm(skProgrammDialogId, werte)
@@ -807,6 +955,7 @@ function skWireEvents() {
 // --- Start ------------------------------------------------------------------
 (function skInit() {
   skWireEvents();
+  skTippAnbinden();
   // Ist der Stream-Tab schon beim Laden aktiv (Turnierteil ausgeblendet), muss
   // die Breite gleich stimmen – sonst käme sie erst beim ersten Tabklick.
   document.getElementById("app").classList.toggle(

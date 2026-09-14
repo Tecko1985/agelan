@@ -58,7 +58,8 @@
             "von":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1800" },
             "bis":   { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" },
             "titel": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
-            "notiz": { ".validate": "newData.isString() && newData.val().length <= 200" }
+            "notiz": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "streamerNoetig": { ".validate": "newData.isBoolean()" }
           }
         },
 

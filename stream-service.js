@@ -11,7 +11,7 @@
 //                    anzahlTage, standardVon, standardBis }
 //   tage/$datum  : { von, bis }        // abweichendes Zeitfenster für einen Tag
 //   slots/$sid   : { datum, von, bis, streamer, uid, titel, notiz, erstelltAm }
-//   programm/$id : { datum, von, bis, titel, notiz, erstelltAm }
+//   programm/$id : { datum, von, bis, titel, notiz, streamerNoetig, erstelltAm }
 //
 // slots = was die Streamer für sich buchen, programm = was die Veranstaltung
 // selbst vorgibt (Turniere usw.). Zwei getrennte Spuren, die sich absichtlich
@@ -250,11 +250,35 @@ function skProgrammListe(programmRoh, tage) {
         absBis: tagIndex * 1440 + bis,
         titel: p.titel || "",
         notiz: p.notiz || "",
+        // ⚠️ Altbestand hat das Feld nicht. Fehlt es, gilt "Streamer noetig" –
+        // lieber einmal zu viel nachfragen als eine Luecke im Plan uebersehen.
+        streamerNoetig: p.streamerNoetig !== false,
         erstelltAm: p.erstelltAm || 0,
       };
     })
     .filter(Boolean)
     .sort((a, b) => a.absVon - b.absVon || a.absBis - b.absBis);
+}
+
+// Wieviel eines Programmpunktes ist durch Streams abgedeckt?
+// ⚠️ Gerechnet wird ueber MEHRERE Slots hinweg, nicht gegen einen einzelnen:
+// zwei Streamer, die sich um 13 Uhr abloesen, decken 11–15 Uhr gemeinsam ab.
+// Alles in absoluten Minuten seit Plan-Start, sonst faellt eine Ablösung ueber
+// Mitternacht auseinander.
+function skLueckenMinuten(absVon, absBis, slots) {
+  const treffer = slots
+    .filter((s) => s.absBis > absVon && s.absVon < absBis)
+    .map((s) => [Math.max(s.absVon, absVon), Math.min(s.absBis, absBis)])
+    .sort((a, b) => a[0] - b[0]);
+
+  let luecke = 0;
+  let stand = absVon;
+  treffer.forEach(([von, bis]) => {
+    if (von > stand) luecke += von - stand;
+    if (bis > stand) stand = bis;
+  });
+  if (stand < absBis) luecke += absBis - stand;
+  return luecke;
 }
 
 function skGetZustand() {
@@ -277,7 +301,11 @@ function skGetZustand() {
   const programm = skProgrammListe(skRoh.programm, tage);
   const admin = skIstAdmin();
   slots.forEach((s) => { s.darfBearbeiten = admin || s.istEigener; });
-  programm.forEach((p) => { p.darfBearbeiten = admin; });
+  programm.forEach((p) => {
+    p.darfBearbeiten = admin;
+    p.offeneMinuten = p.streamerNoetig ? skLueckenMinuten(p.absVon, p.absBis, slots) : 0;
+    p.streamerFehlt = p.streamerNoetig && p.offeneMinuten > 0;
+  });
 
   return {
     vorhanden: true,
@@ -552,7 +580,7 @@ function skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, ausser
 // Anders als bei den Streams wird hier NICHT auf Überschneidung geprüft: zwei
 // Turniere können parallel laufen, und das Programm konkurriert ohnehin nicht
 // um den einen Kanal. Überlappende Punkte stellt die Oberfläche nebeneinander.
-function skPruefeProgramm(z, { datum, von, bis, titel, notiz }) {
+function skPruefeProgramm(z, { datum, von, bis, titel, notiz, streamerNoetig }) {
   const tag = z.tage.find((t) => t.datum === datum);
   if (!tag) return { erfolg: false, fehler: "Bitte wähle einen Tag aus dem Plan." };
 
@@ -567,16 +595,16 @@ function skPruefeProgramm(z, { datum, von, bis, titel, notiz }) {
   const t = skText(titel, 60);
   if (!t) return { erfolg: false, fehler: "Bitte gib dem Programmpunkt einen Namen." };
 
-  return { erfolg: true, werte: { datum, von: v, bis: b, titel: t, notiz: skText(notiz, 200) } };
+  return { erfolg: true, werte: { datum, von: v, bis: b, titel: t, notiz: skText(notiz, 200), streamerNoetig: streamerNoetig !== false } };
 }
 
-async function skLegeProgrammAn({ datum, von, bis, titel, notiz }) {
+async function skLegeProgrammAn({ datum, von, bis, titel, notiz, streamerNoetig }) {
   await skAuthBereit;
   if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const z = skGetZustand();
   if (!z.vorhanden) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
 
-  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz });
+  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz, streamerNoetig });
   if (!geprueft.erfolg) return geprueft;
 
   const id = skNeueId("prg");
@@ -587,13 +615,13 @@ async function skLegeProgrammAn({ datum, von, bis, titel, notiz }) {
   return { erfolg: true, id };
 }
 
-async function skAendereProgramm(id, { datum, von, bis, titel, notiz }) {
+async function skAendereProgramm(id, { datum, von, bis, titel, notiz, streamerNoetig }) {
   await skAuthBereit;
   if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const z = skGetZustand();
   if (!z.programm.some((p) => p.id === id)) return { erfolg: false, fehler: "Diesen Programmpunkt gibt es nicht mehr." };
 
-  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz });
+  const geprueft = skPruefeProgramm(z, { datum, von, bis, titel, notiz, streamerNoetig });
   if (!geprueft.erfolg) return geprueft;
 
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/programm/" + id).update(geprueft.werte));
