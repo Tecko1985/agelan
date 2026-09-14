@@ -1305,6 +1305,29 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.1",
+    groups: [
+      { title: "Neuer Reiter „Uebersicht“: alles Wichtige auf einem Blatt", items: [
+          "Ganz vorn steht jetzt eine Uebersicht: wer gerade sendet und wie lange noch, wer danach dran ist, welcher Programmpunkt laeuft.",
+          "Dein Essen steht dort mit Stand – „Liegt bereit – abholen!“, sobald die Lieferung da ist und Bescheid gegeben wurde.",
+          "Dazu Bestellschluss des Fruehstuecks und die laufenden Turniere.",
+          "Veranstalter und Orga sehen zusaetzlich, wer sein Essen noch nicht geholt hat, wie viel noch zu kassieren ist und wie viele Bestellungen im Stapel warten. Fuer alle anderen wird dieser Kasten gar nicht erst gebaut – dort stehen fremde Namen und Betraege.",
+          "Die Uebersicht aendert nichts: jeder Kasten fuehrt per Knopf in den Bereich, der die Sache wirklich kann."
+      ]},
+      { title: "Programmpunkt: Haken „Dafuer wird ein Streamer gebraucht“", items: [
+          "Am Programmpunkt steht ein Haken, ob dafuer jemand senden soll. Bei neuen Punkten ist er gesetzt.",
+          "Im Kalender, in der Liste und in der Kopfzeile ist danach zu sehen, wo noch ein Streamer fehlt – samt der Zeit, die offen ist.",
+          "Loesen sich zwei Streamer mitten im Programmpunkt ab, gilt er als abgedeckt.",
+          "Das Abzeichen sehen alle, setzen darf den Haken nur der Veranstalter."
+      ]},
+      { title: "Streamkalender: mehr Luft und ein Tipp an der Maus", items: [
+          "Eine Stunde ist im Kalender jetzt deutlich hoeher – kurze Eintraege schneiden ihren Text nicht mehr ab.",
+          "Beim Fahren mit der Maus ueber einen Eintrag erscheint der volle Inhalt am Zeiger: Zeit, Titel, Notiz und der Streamer-Stand.",
+          "Laesst die Datenbank einen Vorgang nicht zu, sagt der Streamplan das jetzt im Klartext, statt still nichts zu tun."
+      ]}
+    ]
+  },
+  {
     version: "6.0",
     groups: [
       { title: "Im Vorraum steht jetzt, was die App kann", items: [
