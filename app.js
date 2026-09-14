@@ -1305,6 +1305,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.2",
+    groups: [
+      { title: "Erster Besuch: direkt zum Konto anlegen", items: [
+          "Wer die Seite zum ersten Mal oeffnet, landet nach dem Klick auf eine Kachel sofort in der Maske „Konto anlegen“ statt im Anmeldeformular.",
+          "Wer schon ein Konto auf diesem Geraet hat, kommt wie bisher direkt zum Anmelden – mit vorbelegtem Namen.",
+          "Konto auf einem anderen Geraet? Der Knopf „Ich habe schon ein Konto“ schaltet mit einem Klick um."
+      ]},
+    ],
+  },
+  {
     version: "6.1",
     groups: [
       { title: "Neuer Reiter „Uebersicht“: alles Wichtige auf einem Blatt", items: [

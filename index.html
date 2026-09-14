@@ -1207,7 +1207,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=1.5',
-    'app.js?v=3.34',
+    'app.js?v=3.35',
     'stream-service.js?v=1.7',
     'stream-app.js?v=2.1',
     'fruehstueck-service.js?v=1.4',
@@ -1335,6 +1335,12 @@
   function modusSetzen(neu) {
     modusNeu = !!neu;
     box.classList.toggle('modus-neu', modusNeu);
+    // ⚠️ Die Überschrift gehört zum Modus, nicht zum Ziel: im Anlegen-Modus
+    // stünde über der Maske sonst „Turnier öffnen“, während darunter nach dem
+    // Passwort der Veranstaltung gefragt wird – zwei verschiedene Dinge.
+    gateTitel.textContent = modusNeu
+      ? 'Konto anlegen'
+      : (ZIEL_NAMEN[zielTab] || 'AgeLan') + ' öffnen';
     btn.textContent = modusNeu ? 'Konto anlegen' : 'Anmelden';
     wechsel.textContent = modusNeu ? '← Ich habe schon ein Konto' : 'Noch kein Konto? Hier anlegen';
     input.setAttribute('autocomplete', modusNeu ? 'new-password' : 'current-password');
@@ -1344,7 +1350,6 @@
 
   function oeffneGate(ziel) {
     zielTab = ziel;
-    gateTitel.textContent = (ZIEL_NAMEN[ziel] || 'AgeLan') + ' öffnen';
     msg.textContent = '';
     btn.disabled = false;
     gate.hidden = false;
@@ -1354,8 +1359,15 @@
     input.value = '';
     lanFeld.value = '';
     veranstalterFeld.value = '';
-    modusSetzen(false);
-    (nickFeld.value ? input : nickFeld).focus();
+    // ⚠️ Wer noch kein Konto im Browser liegen hat, ist beim ersten Mal hier –
+    // und braucht als Erstes ein Konto, kein Anmeldeformular. Also startet die
+    // Maske dann direkt im Anlegen-Modus. Anmelden bleibt genau einen Klick
+    // entfernt (Wechsel-Knopf), fuer alle mit Konto auf einem anderen Geraet
+    // oder nach geleertem Browserspeicher.
+    var ersterBesuch = !(bekannt && bekannt.nickname);
+    modusSetzen(ersterBesuch);
+    // Im Anlegen-Modus ist das Veranstaltungs-Passwort das erste leere Feld.
+    (ersterBesuch ? lanFeld : (nickFeld.value ? input : nickFeld)).focus();
   }
 
   function schliesseGate() {
