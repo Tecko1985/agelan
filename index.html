@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=4.8">
+<link rel="stylesheet" href="style.css?v=5.0">
 </head>
 <body>
 
@@ -256,6 +256,9 @@
 </header>
 
 <nav class="tabs">
+  <!-- ⚠️ Steht VOR dem Turnier: das Dashboard ist die Startseite der
+       Veranstaltung, nicht eine Ansicht unter anderen. -->
+  <button data-tab="uebersicht">Übersicht</button>
   <button data-tab="turnier" class="active">Turnier</button>
   <button data-tab="stream">Stream</button>
   <button data-tab="fruehstueck">Frühstück</button>
@@ -273,6 +276,18 @@
 </nav>
 
 <main id="app">
+
+ <!-- =================== ÜBERSICHT / DASHBOARD =================== -->
+ <div class="tab-section" id="tab-uebersicht">
+  <div class="ub-kopf">
+    <h1 class="ub-titel" id="ub-titel">Übersicht</h1>
+    <p class="ub-untertitel" id="ub-untertitel"></p>
+  </div>
+  <!-- Die Kacheln entstehen in uebersicht-app.js. Ein leeres Ziel hier, damit
+       ein Renderfehler nicht die ganze Seite zerlegt. -->
+  <div id="ub-kacheln"></div>
+ </div>
+
  <div class="tab-section active" id="tab-turnier">
 
   <!-- Rückweg aus einem geöffneten Turnier in die Turnierliste -->
@@ -1198,7 +1213,8 @@
     'fruehstueck-service.js?v=1.4',
     'fruehstueck-app.js?v=1.7',
     'essen-service.js?v=2.1',
-    'essen-app.js?v=2.8'
+    'essen-app.js?v=2.8',
+    'uebersicht-app.js?v=1.0'
   ];
 
   var input = document.getElementById('pw-gate-input');

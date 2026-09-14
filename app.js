@@ -1980,6 +1980,21 @@ function activateTab(name) {
   // dem Rechteverlust am Turnier-Reiter fest.
   const app = document.getElementById("app");
   if (app) app.classList.toggle("sk-breit", name === "stream");
+  // Das Dashboard stellt seine Kacheln ab 700 px zweispaltig – in den 560 px
+  // der Turnier-Screens waere davon nichts zu sehen.
+  if (app) app.classList.toggle("ub-breit", name === "uebersicht");
+  // ⚠️ Das Dashboard zeichnet nur, solange sein Reiter offen ist – sonst
+  // rechnete es bei jeder fremden Bestellung im Hintergrund mit. Beim
+  // Hereinwechseln muss es deshalb HIER angestossen werden. Aus demselben
+  // Grund wie die sk-breit-Zeile darueber steht das in activateTab und nicht
+  // am Klickhorcher: es gibt drei Wege in einen Reiter.
+  if (name === "uebersicht" && typeof ubRender === "function") {
+    try {
+      ubRender();
+    } catch (e) {
+      console.error("[Übersicht] Zeichnen fehlgeschlagen:", e);
+    }
+  }
   try {
     localStorage.setItem(AGELAN_TAB_KEY, name);
   } catch (e) { /* privater Modus: dann startet es eben wieder im Turnier */ }
@@ -2175,6 +2190,11 @@ function setupInfoTab() {
   const startTab = window.__AGELAN_START_TAB__;
   if (startTab && document.getElementById("tab-" + startTab)) {
     if (startTab !== "turnier" || TURNIER_SICHTBAR) activateTab(startTab);
+  } else if (document.getElementById("tab-uebersicht")) {
+    // ⚠️ Nur wenn NICHTS gemerkt ist. Der gemerkte Reiter schlaegt die
+    // Uebersicht – wer zuletzt Essen abgerechnet hat, will dort weitermachen
+    // und nicht jedes Mal einen Klick weiter weg starten.
+    activateTab("uebersicht");
   }
   zeigeEinstellungenTab();
   renderVersionInfo();

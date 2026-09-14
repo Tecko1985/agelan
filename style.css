@@ -358,7 +358,12 @@ nav.tabs button#nav-qr:hover { color: var(--primary); }
 /* Der Kalender braucht mehr Breite als die 560px der Turnier-Screens. Die Klasse
    setzt stream-app.js beim Tabwechsel – bewusst nicht per :has(), das auf
    älteren iPhones fehlt und die Regel dort komplett verschlucken würde. */
-main#app.sk-breit { max-width: 980px; }
+/* ⚠️ Zwei Klassen, eine Regel. Der Streamkalender und das Dashboard brauchen
+   beide mehr als die 560 px der Turnier-Screens, sind aber verschiedene
+   Bereiche – eine gemeinsame Klasse hiesse, dass ein spaeterer Eingriff am
+   Kalender still das Dashboard mitaendert. */
+main#app.sk-breit,
+main#app.ub-breit { max-width: 980px; }
 
 .sk-view { display: none; }
 .sk-view.aktiv { display: block; }
@@ -450,7 +455,11 @@ main#app.sk-breit { max-width: 980px; }
   flex: 0 0 auto; font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.04em; color: #fff; border-radius: 999px; padding: 2px 8px;
 }
-.sk-marke.programm { background: var(--gold); }
+/* ⚠️ Dunkler Text auf Gold, nicht weisser: #c9941f mit #fff misst 2,71 und
+   faellt in beiden Modi durch. Mit #111827 sind es 6,08. Am 14.09.2026 beim
+   Bau des Dashboards nachgemessen – der Fehler ist aelter, die Marke war beim
+   Kontrast-Durchgang uebersehen worden. */
+.sk-marke.programm { background: var(--gold); color: #111827; }
 .sk-marke.stream { background: var(--primary); }
 
 /* Streamer-Bedarf am Programmpunkt.
@@ -470,7 +479,10 @@ main#app.sk-breit { max-width: 980px; }
 }
 .sk-marke.streamer-fehlt { background: #b42318; }
 .sk-marke.streamer-da { background: var(--success); }
-.sk-marke.kein-streamer { background: var(--muted); }
+/* ⚠️ FESTES Grau, nicht var(--muted): das ist im Dunkelmodus #94a3b8, und
+   weisse Schrift darauf misst 2,56. #4b5563 haelt in beiden Modi (7,69) und
+   braucht keinen Sonderfall je Modus. */
+.sk-marke.kein-streamer { background: #4b5563; }
 
 /* Im Kalender bleibt der Block gold (Programm ist Programm), bekommt aber
    einen roten Rahmen nach innen – ein Rahmen aussen wuerde die Breite der
@@ -1511,3 +1523,70 @@ main#app.sk-breit { max-width: 980px; }
 .changelog-group { display: flex; flex-direction: column; gap: 4px; }
 .changelog-group .cg-title { font-weight: 700; font-size: 14px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
 .changelog-group .cg-items { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--text); line-height: 1.6; }
+
+/* =========================================================================
+   Übersicht / Dashboard (uebersicht-app.js)
+   ⚠️ Rein lesend. Jede Kachel führt per Knopf in den Bereich, der die Sache
+   wirklich kann – hier wird nichts geändert.
+   ========================================================================= */
+.ub-kopf { margin-bottom: 14px; }
+.ub-titel { font-size: 24px; font-weight: 800; margin: 0; color: var(--text); }
+.ub-untertitel { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+
+/* Eine Spalte am Handy, zwei ab Tablet. ⚠️ minmax(0, 1fr), nicht 1fr: eine
+   lange Zeile in einer Kachel sprengt sonst die Spalte statt umzubrechen. */
+#ub-kacheln {
+  display: grid; gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 700px) {
+  #ub-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.ub-kachel {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px;
+  display: flex; flex-direction: column;
+}
+.ub-kachel-titel {
+  margin: 0 0 10px; font-size: 15px; font-weight: 800;
+  color: var(--text); letter-spacing: 0.01em;
+}
+
+.ub-zeile {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  padding: 7px 0; border-top: 1px solid var(--border);
+}
+.ub-zeile:first-of-type { border-top: none; padding-top: 0; }
+.ub-zeile-kopf { font-weight: 700; font-size: 14px; color: var(--text); }
+.ub-zeile-dazu { font-size: 13px; color: var(--muted); }
+
+.ub-marke {
+  flex: 0 0 auto; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: #fff; background: #4b5563;
+  border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+}
+/* ⚠️ Die Farbe sitzt an der ZEILE, nicht an der Marke: so färbt eine Zeile
+   auch dann ein, wenn sie gar keine Marke trägt. */
+.ub-zeile.ub-live .ub-marke { background: var(--success); }
+.ub-zeile.ub-warn .ub-marke { background: #b42318; }
+.ub-zeile.ub-still .ub-zeile-kopf { color: var(--muted); font-weight: 400; }
+
+.ub-block { margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--border); }
+.ub-block-titel { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: var(--text); }
+.ub-block-warn .ub-block-titel { color: #b42318; }
+
+.ub-leer { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+
+/* ⚠️ auto-Margin oben drückt den Knopf an den unteren Rand, damit die Knöpfe
+   zweier nebeneinanderstehender Kacheln auf einer Linie liegen. Er steht an
+   JEDER Kachel, deshalb ist das hier ungefährlich – an einem optionalen
+   Element wäre es eine Falle. */
+.ub-weiter { margin-top: auto; padding-top: 10px; align-self: flex-start; }
+
+@media (prefers-color-scheme: dark) {
+  /* #b42318 liegt auf dem dunklen Kartengrund bei 2,6 und ist als TEXT nicht
+     lesbar. Als Grund einer Pille mit weißer Schrift bleibt er (6,40 gegen
+     #fff) – nur die Textfassung muss aufgehellt werden. */
+  .ub-block-warn .ub-block-titel { color: #fca5a5; }
+}
