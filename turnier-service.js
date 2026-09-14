@@ -1680,7 +1680,12 @@ async function setzeSpielZeit(spielId, geplantAm, dauerMin) {
   const spiel = ((letzterZustand && letzterZustand.spiele) || {})[spielId];
   if (!spiel) return { erfolg: false, fehler: "Dieses Spiel gibt es nicht mehr." };
 
-  const wert = String(geplantAm || "").trim();
+  // ⚠️ Sekunden abschneiden statt abweisen. `datetime-local` liefert je nach
+  // Browser und Schrittweite "…T14:00" ODER "…T14:00:00" - die Regel in
+  // database.rules.json nimmt nur die kurze Form. Ohne diese Zeile bekaeme
+  // Michel bei einer voellig richtigen Eingabe "Bitte Datum und Uhrzeit
+  // vollständig angeben" zu lesen.
+  const wert = String(geplantAm || "").trim().replace(/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}):[0-9]{2}(\.[0-9]+)?$/, "$1");
   if (wert && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(wert)) {
     return { erfolg: false, fehler: "Bitte Datum und Uhrzeit vollständig angeben." };
   }

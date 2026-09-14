@@ -136,5 +136,95 @@ if (durchgerutscht.length !== ohneAnmeldung.length) {
   console.log("  FEHL  Der Pruefstand merkt den Unterschied nicht - er ist tot.");
 }
 
-console.log("\n" + (fehler ? fehler + " FEHLER" : "alle " + faelle.length + " Zusagen erfuellt"));
+
+// --- Wert-Regeln (".validate") ---------------------------------------------
+// ⚠️ `darf()` oben prueft nur ".read"/".write". Eine kaputte ".validate" faellt
+// dort NICHT auf - sie laesst das Schreiben weiter zu und weist erst den WERT
+// ab. Genau das ist die gefaehrliche Sorte: die App meldet "gespeichert", die
+// Datenbank nimmt es nicht, und niemand sieht es, bis am Turniertag die Zeiten
+// fehlen. Deshalb hier ein eigener Pruefer.
+//
+// Anders als ".read"/".write" kaskadiert ".validate" NICHT nach oben: es gilt
+// genau die Regel am Knoten selbst.
+function findeValidate(regeln, pfadTeile) {
+  let knoten = regeln;
+  for (const teil of pfadTeile) {
+    if (knoten && knoten[teil] !== undefined) { knoten = knoten[teil]; continue; }
+    const platzhalter = knoten ? Object.keys(knoten).find((k) => k.startsWith("$")) : null;
+    if (!platzhalter) return undefined;
+    knoten = knoten[platzhalter];
+  }
+  return knoten ? knoten[".validate"] : undefined;
+}
+
+// Firebase kennt `.matches(/regex/)` auf Strings. In Node gibt es das nicht -
+// hier fuer die Dauer des Pruefstands nachgereicht.
+if (!String.prototype.matches) {
+  Object.defineProperty(String.prototype, "matches", {
+    value: function (re) { return re.test(this.valueOf()); },
+    enumerable: false,
+  });
+}
+
+// wert === undefined bedeutet: der Knoten wird geloescht.
+function gueltig(regeln, pfad, wert) {
+  const ausdruck = findeValidate(regeln, pfad.split("/"));
+  if (ausdruck === undefined) return true;   // keine Regel = alles erlaubt
+  const newData = {
+    exists: () => wert !== undefined && wert !== null,
+    isString: () => typeof wert === "string",
+    isNumber: () => typeof wert === "number",
+    isBoolean: () => typeof wert === "boolean",
+    val: () => (wert === undefined ? null : wert),
+    hasChildren: (liste) => !!wert && typeof wert === "object" && liste.every((k) => wert[k] !== undefined),
+  };
+  try { return !!eval(String(ausdruck)); } catch (e) { return false; }
+}
+
+const WERT_FAELLE = [
+  // [Beschreibung, Pfad, Wert, erwartet]
+  ["MUSS: Anstoss im richtigen Format", "turniere/T1/spiele/s1/geplantAm", "2026-10-01T14:00", true],
+  ["MUSS: Anstoss darf wieder weg", "turniere/T1/spiele/s1/geplantAm", undefined, true],
+  ["DARF NICHT: Anstoss nur als Datum", "turniere/T1/spiele/s1/geplantAm", "2026-10-01", false],
+  ["DARF NICHT: Anstoss mit Sekunden", "turniere/T1/spiele/s1/geplantAm", "2026-10-01T14:00:00", false],
+  ["DARF NICHT: Anstoss als Wort", "turniere/T1/spiele/s1/geplantAm", "morgen frueh", false],
+  ["DARF NICHT: Anstoss als Zahl", "turniere/T1/spiele/s1/geplantAm", 1790000000, false],
+
+  ["MUSS: Dauer 60 Minuten", "turniere/T1/spiele/s1/dauerMin", 60, true],
+  ["MUSS: Dauer 600 Minuten (Obergrenze)", "turniere/T1/spiele/s1/dauerMin", 600, true],
+  ["MUSS: Dauer 5 Minuten (Untergrenze)", "turniere/T1/spiele/s1/dauerMin", 5, true],
+  ["MUSS: Dauer darf wieder weg", "turniere/T1/spiele/s1/dauerMin", undefined, true],
+  ["DARF NICHT: Dauer 601 Minuten", "turniere/T1/spiele/s1/dauerMin", 601, false],
+  ["DARF NICHT: Dauer 4 Minuten", "turniere/T1/spiele/s1/dauerMin", 4, false],
+  ["DARF NICHT: Dauer als Text", "turniere/T1/spiele/s1/dauerMin", "60", false],
+
+  // Die alten Felder als Gegenprobe, dass der Pruefer ueberhaupt greift.
+  ["MUSS: Saetze als Zahl", "turniere/T1/spiele/s1/saetzeA", 2, true],
+  ["DARF NICHT: Saetze als Text", "turniere/T1/spiele/s1/saetzeA", "zwei", false],
+];
+
+console.log("\nWert-Regeln (.validate):");
+for (const [text, pfad, wert, erwartet] of WERT_FAELLE) {
+  const ist = gueltig(REGELN, pfad, wert);
+  const ok = ist === erwartet;
+  if (!ok) fehler++;
+  console.log((ok ? "  OK   " : "  FEHL ") + text + "   (erwartet " + erwartet + ", ist " + ist + ")");
+}
+
+// ⚠️ Mutationsprobe fuer die Wert-Regeln: ohne die beiden neuen Eintraege
+// muessten die "DARF NICHT"-Faelle durchrutschen. Tun sie das nicht, prueft
+// dieser Abschnitt nichts und die Zusage darueber ist wertlos.
+const ohneNeue = JSON.parse(JSON.stringify(REGELN));
+delete ohneNeue.turniere.$tid.spiele.$sid.geplantAm;
+delete ohneNeue.turniere.$tid.spiele.$sid.dauerMin;
+const sollenScheitern = WERT_FAELLE.filter((f) => f[3] === false && /geplantAm|dauerMin/.test(f[1]));
+const rutschenDurch = sollenScheitern.filter((f) => gueltig(ohneNeue, f[1], f[2]) === true);
+console.log("\nMutationsprobe (ohne die neuen Wert-Regeln):");
+console.log("  " + rutschenDurch.length + " von " + sollenScheitern.length + " falschen Werten waeren durchgegangen");
+if (rutschenDurch.length !== sollenScheitern.length) {
+  fehler++;
+  console.log("  FEHL  Der Pruefer merkt den Unterschied nicht - er ist tot.");
+}
+
+console.log("\n" + (fehler ? fehler + " FEHLER" : "alle " + (faelle.length + WERT_FAELLE.length) + " Zusagen erfuellt"));
 process.exit(fehler ? 1 : 0);
