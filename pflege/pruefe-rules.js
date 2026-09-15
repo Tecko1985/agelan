@@ -30,13 +30,33 @@ const REGELN = JSON.parse(fs.readFileSync(DATEI, "utf8")).rules;
 
 // Der Weltzustand, gegen den geprueft wird: ein laufendes Turnier, ein
 // Streamplan und ein Essensplan unter essen/aktuell (ES_BASIS).
+const HASH_T1 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+const HASH_ANDERS = "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752";
+
 const WELT = {
   turniere: { T1: { meta: { name: "AgeLan" } } },
+  // Der Admin-PIN des Turniers liegt NEBEN dem Turnierbaum, nicht darin:
+  // turniere/$tid traegt ".read": true, und ein Leserecht laesst sich in
+  // Firebase weiter unten nicht wieder wegnehmen. T1 ist eingerichtet, T2
+  // ist frisch (noch kein Hash hinterlegt).
+  turnierGeheim: { T1: { adminPinHash: HASH_T1 } },
+  turnierPinProbe: { T1: { "gast-1": HASH_T1 } },
   essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } } }
 };
 
 function wert(pfad) {
   return pfad.split("/").reduce((o, t) => (o == null ? null : o[t]), WELT) ?? null;
+}
+
+// Firebase erlaubt root.child("a/b") genauso wie root.child("a").child("b").
+// Die PIN-Regeln benutzen die zweite Form - der Pruefstand muss sie kennen,
+// sonst wirft er und meldet jede Regel als "verboten".
+function kindKette(pfad) {
+  return {
+    child: (weiter) => kindKette(pfad + "/" + weiter),
+    val: () => wert(pfad),
+    exists: () => wert(pfad) !== null,
+  };
 }
 
 // Sucht die tiefste Regel des gegebenen Typs entlang des Pfades und sammelt
@@ -68,7 +88,12 @@ function darf(regeln, pfad, typ, uid) {
     if (ausdruck === true) return true;
     if (ausdruck === false) continue;
     const auth = uid ? { uid } : null;
-    const root = { child: (p) => ({ val: () => wert(p) }) };
+    const root = { child: (p) => kindKette(p) };
+    // ⚠️ `data` ist der Wert, der JETZT an der Stelle steht - die Regel fuer
+    // den PIN-Hash unterscheidet damit "noch keiner da" von "wird ersetzt".
+    // Ohne dieses Objekt wirft eval() und `darf()` meldet stumpf false: alles
+    // sieht sicher aus, und geprueft ist nichts.
+    const data = { exists: () => wert(pfad) !== null, val: () => wert(pfad) };
     let code = String(ausdruck);
     for (const [name, w] of Object.entries(vars)) {
       code = code.split(name).join(JSON.stringify(w));
@@ -107,7 +132,33 @@ const faelle = [
   ["MUSS: Turnier bleibt oeffentlich lesbar", "turniere/T1/meta", "read", null, true],
   ["MUSS: Streamplan bleibt oeffentlich lesbar", "streamplan/P1/meta", "read", null, true],
   ["MUSS: angemeldet ins Turnier schreiben", "turniere/T1/spiele/s1", "write", "gast-1", true],
-  ["DARF NICHT: Turnier schreiben OHNE Anmeldung", "turniere/T1/spiele/s1", "write", null, false]
+  ["DARF NICHT: Turnier schreiben OHNE Anmeldung", "turniere/T1/spiele/s1", "write", null, false],
+
+  // --- Der Admin-PIN des Turniers ---------------------------------------
+  // Der Anlass (15.09.2026): der PIN stand im Klartext in turniere/$tid/meta,
+  // und dort gilt ".read": true. Ein blanker Aufruf von
+  //   .../turniere/<id>/meta.json
+  // gab ihn heraus - ohne Browser, ohne Konto, ohne Turnier zu kennen ausser
+  // der Id aus dem oeffentlichen Index. Jetzt liegt nur noch ein Hash da, und
+  // zwar in einem Knoten ganz ohne Leserecht.
+  ["DARF NICHT: PIN-Hash lesen OHNE Anmeldung", "turnierGeheim/T1/adminPinHash", "read", null, false],
+  ["DARF NICHT: PIN-Hash lesen MIT Anmeldung", "turnierGeheim/T1/adminPinHash", "read", "gast-1", false],
+  ["DARF NICHT: ganzen Geheim-Knoten lesen", "turnierGeheim/T1", "read", "gast-1", false],
+  ["DARF NICHT: Beweisablage lesen", "turnierPinProbe/T1/gast-1", "read", "gast-1", false],
+
+  // Der Beweisweg: schreiben darf jeder Angemeldete, aber NUR unter der
+  // eigenen Kennung - und nur den richtigen Wert (siehe Wert-Regeln unten).
+  ["MUSS: eigenen Beweis ablegen", "turnierPinProbe/T1/gast-1", "write", "gast-1", true],
+  ["DARF NICHT: Beweis unter fremder Kennung", "turnierPinProbe/T1/gast-1", "write", "fremd-1", false],
+  ["DARF NICHT: Beweis ablegen OHNE Anmeldung", "turnierPinProbe/T1/gast-1", "write", null, false],
+
+  // Den Hash anlegen darf, wer ein neues Turnier macht (T2: noch nichts da).
+  // Einen VORHANDENEN ersetzen darf nur, wer den alten PIN bewiesen hat -
+  // sonst koennte jeder Zuschauer ein laufendes Turnier uebernehmen.
+  ["MUSS: PIN beim neuen Turnier hinterlegen", "turnierGeheim/T2/adminPinHash", "write", "gast-1", true],
+  ["MUSS: PIN wechseln mit gueltigem Beweis", "turnierGeheim/T1/adminPinHash", "write", "gast-1", true],
+  ["DARF NICHT: fremden PIN ohne Beweis ueberschreiben", "turnierGeheim/T1/adminPinHash", "write", "fremd-1", false],
+  ["DARF NICHT: PIN hinterlegen OHNE Anmeldung", "turnierGeheim/T2/adminPinHash", "write", null, false]
 ];
 
 let fehler = 0;
@@ -136,6 +187,24 @@ if (durchgerutscht.length !== ohneAnmeldung.length) {
   console.log("  FEHL  Der Pruefstand merkt den Unterschied nicht - er ist tot.");
 }
 
+// --- Mutationsprobe: der Admin-PIN an seinem alten Platz -------------------
+// ⚠️ Der Fix VERSCHIEBT den PIN, er verschaerft keine Leseregel - an den
+// Regeln allein ist davon nichts zu sehen. Deshalb hier der direkte Vergleich:
+// der PIN einmal dort, wo er bis 15.09.2026 lag (turniere/$tid/meta, ".read":
+// true), und einmal dort, wo er jetzt liegt. Zeigt dieser Abschnitt keinen
+// Unterschied mehr, ist der Umzug rueckgaengig gemacht worden.
+WELT.turniere.T1.meta.adminPin = "geheim123";
+const alsKlartext = darf(REGELN, "turniere/T1/meta/adminPin", "read", null);
+delete WELT.turniere.T1.meta.adminPin;
+const alsHash = darf(REGELN, "turnierGeheim/T1/adminPinHash", "read", null);
+console.log("\nMutationsprobe (PIN am alten Platz in meta):");
+console.log("  Klartext unter turniere/T1/meta   - ohne Anmeldung lesbar: " + alsKlartext);
+console.log("  Hash unter turnierGeheim/T1       - ohne Anmeldung lesbar: " + alsHash);
+if (!alsKlartext || alsHash) {
+  fehler++;
+  console.log("  FEHL  Der Vergleich zeigt keinen Unterschied - er ist tot.");
+}
+
 
 // --- Wert-Regeln (".validate") ---------------------------------------------
 // ⚠️ `darf()` oben prueft nur ".read"/".write". Eine kaputte ".validate" faellt
@@ -146,15 +215,21 @@ if (durchgerutscht.length !== ohneAnmeldung.length) {
 //
 // Anders als ".read"/".write" kaskadiert ".validate" NICHT nach oben: es gilt
 // genau die Regel am Knoten selbst.
+// ⚠️ Die $-Platzhalter muessen mit heraus. Die Beweis-Regel baut ihren
+// Vergleichspfad aus $tid zusammen; bleibt der Name unersetzt im Ausdruck
+// stehen, wirft eval() und JEDER Wert gilt als ungueltig - der Pruefstand
+// meldet dann rote Faelle, die in Wahrheit gruen sind.
 function findeValidate(regeln, pfadTeile) {
   let knoten = regeln;
+  const vars = {};
   for (const teil of pfadTeile) {
     if (knoten && knoten[teil] !== undefined) { knoten = knoten[teil]; continue; }
     const platzhalter = knoten ? Object.keys(knoten).find((k) => k.startsWith("$")) : null;
-    if (!platzhalter) return undefined;
+    if (!platzhalter) return { ausdruck: undefined, vars };
+    vars[platzhalter] = teil;
     knoten = knoten[platzhalter];
   }
-  return knoten ? knoten[".validate"] : undefined;
+  return { ausdruck: knoten ? knoten[".validate"] : undefined, vars };
 }
 
 // Firebase kennt `.matches(/regex/)` auf Strings. In Node gibt es das nicht -
@@ -167,8 +242,13 @@ if (!String.prototype.matches) {
 }
 
 // wert === undefined bedeutet: der Knoten wird geloescht.
+// ⚠️ Firebase wertet ".validate" beim LOESCHEN gar nicht erst aus - sonst
+// liesse sich ein Feld mit strenger Regel nie wieder entfernen. Genau davon
+// haengt hier der Umzug des Altbestands ab: meta/adminPin traegt ".validate":
+// false und muss sich trotzdem loeschen lassen.
 function gueltig(regeln, pfad, wert) {
-  const ausdruck = findeValidate(regeln, pfad.split("/"));
+  const { ausdruck, vars } = findeValidate(regeln, pfad.split("/"));
+  if (wert === undefined || wert === null) return true;   // Loeschen wird nicht geprueft
   if (ausdruck === undefined) return true;   // keine Regel = alles erlaubt
   const newData = {
     exists: () => wert !== undefined && wert !== null,
@@ -178,7 +258,15 @@ function gueltig(regeln, pfad, wert) {
     val: () => (wert === undefined ? null : wert),
     hasChildren: (liste) => !!wert && typeof wert === "object" && liste.every((k) => wert[k] !== undefined),
   };
-  try { return !!eval(String(ausdruck)); } catch (e) { return false; }
+  // ⚠️ Die Beweis-Regel vergleicht gegen root.child(...) - ohne `root` wirft
+  // eval() und jeder Beweis gaelte als ungueltig. Das saehe sicher aus und
+  // wuerde in Wahrheit nichts pruefen.
+  const root = { child: (p) => kindKette(p) };
+  let code = String(ausdruck);
+  for (const [name, w] of Object.entries(vars)) {
+    code = code.split(name).join(JSON.stringify(w));
+  }
+  try { return !!eval(code); } catch (e) { return false; }
 }
 
 const WERT_FAELLE = [
@@ -197,6 +285,26 @@ const WERT_FAELLE = [
   ["DARF NICHT: Dauer 601 Minuten", "turniere/T1/spiele/s1/dauerMin", 601, false],
   ["DARF NICHT: Dauer 4 Minuten", "turniere/T1/spiele/s1/dauerMin", 4, false],
   ["DARF NICHT: Dauer als Text", "turniere/T1/spiele/s1/dauerMin", "60", false],
+
+  // Der PIN darf im oeffentlich lesbaren meta nicht wieder auftauchen - auch
+  // nicht durch eine alte, im Browser haengengebliebene Fassung der App.
+  // Weggeloescht werden muss er dagegen duerfen: genau so zieht der Altbestand um.
+  ["DARF NICHT: PIN im Klartext in meta", "turniere/T1/meta/adminPin", "geheim123", false],
+  ["DARF NICHT: PIN als Zahl in meta", "turniere/T1/meta/adminPin", 4711, false],
+  ["MUSS: alter Klartext-PIN darf weg", "turniere/T1/meta/adminPin", undefined, true],
+
+  ["MUSS: Hash als 64 Hex-Zeichen", "turnierGeheim/T1/adminPinHash", HASH_ANDERS, true],
+  ["MUSS: Hash darf beim Loeschen weg", "turnierGeheim/T1/adminPinHash", undefined, true],
+  ["DARF NICHT: Klartext statt Hash", "turnierGeheim/T1/adminPinHash", "geheim123", false],
+  ["DARF NICHT: Hash zu kurz", "turnierGeheim/T1/adminPinHash", "9f86d081", false],
+  ["DARF NICHT: Hash mit Grossbuchstaben", "turnierGeheim/T1/adminPinHash", HASH_T1.toUpperCase(), false],
+  ["DARF NICHT: fremdes Feld im Geheim-Knoten", "turnierGeheim/T1/adminPin", "geheim123", false],
+
+  // Das Herzstueck: die Ablage nimmt NUR den Wert an, der schon hinterlegt
+  // ist. Geht der Schreibvorgang durch, kannte der Schreiber den PIN.
+  ["MUSS: Beweis gleicht dem hinterlegten Hash", "turnierPinProbe/T1/gast-1", HASH_T1, true],
+  ["DARF NICHT: Beweis mit falschem Hash", "turnierPinProbe/T1/gast-1", HASH_ANDERS, false],
+  ["DARF NICHT: Beweis fuer Turnier ohne Hash", "turnierPinProbe/T2/gast-1", HASH_T1, false],
 
   // Die alten Felder als Gegenprobe, dass der Pruefer ueberhaupt greift.
   ["MUSS: Saetze als Zahl", "turniere/T1/spiele/s1/saetzeA", 2, true],

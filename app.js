@@ -1403,8 +1403,10 @@ function wireEvents() {
   // Admin-Dialog
   document.getElementById("btn-admin-oeffnen").addEventListener("click", oeffneAdmin);
   document.getElementById("btn-admin-schliessen").addEventListener("click", schliesseAdmin);
-  document.getElementById("btn-admin-anmelden").addEventListener("click", () => {
-    const res = turnierService.authentifiziereAlsAdmin(document.getElementById("admin-pin").value);
+  // ⚠️ await: die Pruefung laeuft seit 2026-09-15 ueber den Server. Ohne await
+  // waere res ein Promise – und `res.erfolg` damit immer undefined.
+  document.getElementById("btn-admin-anmelden").addEventListener("click", async () => {
+    const res = await turnierService.authentifiziereAlsAdmin(document.getElementById("admin-pin").value);
     if (res.erfolg) oeffneAdmin();
     else zeigeFehler("admin-fehler", res.fehler);
   });
@@ -1489,6 +1491,18 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "6.7",
+    groups: [
+      { title: "Turnier: der Admin-PIN steht nicht mehr offen im Netz", items: [
+          "Der PIN eines Turniers lag im Klartext im selben Datensatz wie Name und Phase – und der ist fuer jeden lesbar, damit das Board an der Wand ohne Anmeldung laufen kann. Wer die Adresse der Datenbank kannte, bekam den PIN mit einem einzigen Aufruf heraus.",
+          "Der PIN wird jetzt nirgends mehr gespeichert, nur noch seine Pruefsumme – und die liegt in einem Knoten, den niemand lesen darf.",
+          "Geprueft wird ab jetzt auf dem Server statt im Browser: dein Geraet legt die Pruefsumme in einer Ablage ab, und die Datenbank nimmt sie nur an, wenn sie zur hinterlegten passt. Stimmt der PIN nicht, geht der Schreibvorgang gar nicht erst durch.",
+          "Einen laufenden PIN kann nur noch wechseln, wer den alten kennt.",
+          "Bestehende Turniere ziehen beim naechsten Oeffnen von selbst um – wer den PIN gemerkt hat, bleibt Veranstalter und merkt nichts davon."
+      ]},
+    ],
+  },
   {
     version: "6.6",
     groups: [

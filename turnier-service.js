@@ -7,8 +7,14 @@
 // meldet jede Live-Änderung.
 //
 // Datenmodell (Realtime Database, je Turnier ein Knoten unter turniere/<id>):
-//   meta    : { name, erstelltAm, hostId, adminPin, phase, bestOf,
+//   meta    : { name, erstelltAm, hostId, phase, bestOf,
 //               anzahlGruppen, weiterProGruppe, punkteSieg, siegerTeamId }
+//
+// ⚠️ Der Admin-PIN steht NICHT in meta. turniere/<id> ist fuer jeden lesbar
+// (".read": true), also lag der PIN dort bis 2026-09-15 im Klartext offen im
+// Netz. Er liegt jetzt als SHA-256-Hash unter turnierGeheim/<id>/adminPinHash
+// in einem Knoten ohne jedes Leserecht. Geprueft wird ueber den Beweis-Weg in
+// beweisePin() – siehe dort.
 //   spieler/$uid  : { name, rating, beigetretenAm }
 //   teams/$teamId : { name, ratingSchnitt, mitglieder:{uid:true}, gruppe }
 //   gruppen/$gid  : { name, teamIds:{teamId:true} }
@@ -37,6 +43,11 @@ const RATING_MAX = 3000;
 const RATING_DEFAULT = 1500;
 
 const ADMIN_PIN_KEY = "agelan_admin_pin";
+// Zwei Knoten AUSSERHALB von turniere/: dort haengt ".read": true am ganzen
+// Turnierbaum, und ein Leserecht laesst sich in Firebase weiter unten nicht
+// wieder wegnehmen. Deshalb liegt das Geheimnis daneben statt darunter.
+const GEHEIM_PFAD = "turnierGeheim";    // <id>/adminPinHash – kein Leserecht
+const PROBE_PFAD  = "turnierPinProbe";  // <id>/<uid> – Beweisablage, kein Leserecht
 const NAME_KEY = "agelan_spieler_name";
 
 const SPIELER_FARBEN = ["#1a56a0", "#057a55", "#c9941f", "#9333ea", "#dc2626", "#0891b2", "#db2777", "#ea580c"];
@@ -203,6 +214,106 @@ function gespeichertePins(id) {
   return out;
 }
 
+// --- PIN-Beweis ------------------------------------------------------------
+// Merker je Turnier: steht hier true, ist der gemerkte PIN serverseitig
+// bestaetigt. istVeranstalterVon() ist synchron und kann selbst nicht fragen.
+let pinOk = {};
+let pinLaeuft = {};
+
+function istMockModus() {
+  try { return !!window.__AGELAN_MOCK__; } catch (e) { return false; }
+}
+
+// SHA-256 ueber "<turnierId>:<pin>". Die Turnier-Id salzt mit: derselbe PIN in
+// zwei Turnieren ergibt zwei verschiedene Hashes.
+// ⚠️ crypto.subtle gibt es nur im sicheren Kontext (https oder localhost).
+// Live und im Dev-Server ist das erfuellt; ueber eine nackte LAN-IP per http
+// nicht – dort scheitert der PIN-Weg mit einer klaren Meldung statt still.
+async function pinHash(id, pin) {
+  const roh = new TextEncoder().encode(String(id) + ":" + String(pin));
+  const buf = await crypto.subtle.digest("SHA-256", roh);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function pinHashMoeglich() {
+  try { return !!(window.crypto && window.crypto.subtle && window.crypto.subtle.digest); }
+  catch (e) { return false; }
+}
+
+const PIN_UNSICHER = "Dieses Geraet kann den PIN nicht pruefen: die Seite laeuft ohne https. Bitte ueber https://tecko1985.github.io/agelan/ oeffnen.";
+
+// Beweist dem SERVER, dass wir den PIN kennen – ohne dass PIN oder Hash
+// irgendwo lesbar waeren. Der Hash unter turnierGeheim/<id> hat kein Leserecht;
+// die Regel fuer turnierPinProbe/<id>/<uid> laesst das Schreiben nur zu, wenn
+// der geschriebene Wert genau dem hinterlegten Hash gleicht. Geht der Schreib-
+// vorgang durch, war der PIN richtig – geht er nicht durch, war er falsch.
+// Nebenwirkung mit Absicht: die Ablage ist zugleich der Nachweis, den die Regel
+// spaeter beim PIN-Wechsel und beim Loeschen verlangt.
+async function beweisePin(id, pin) {
+  if (!id || !pin) return false;
+  if (!pinHashMoeglich()) return false;
+  let h;
+  try { h = await pinHash(id, pin); } catch (e) { return false; }
+  // Ohne Firebase gibt es keine Regeln, die den Beweis pruefen koennten – im
+  // Test-Modus wird deshalb direkt verglichen.
+  if (istMockModus()) {
+    try {
+      const snap = await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").once("value");
+      return snap.val() === h;
+    } catch (e) { return false; }
+  }
+  try {
+    await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(h);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Altbestand: Turniere aus der Zeit, als der PIN im Klartext in meta stand.
+// Wer den PIN noch gemerkt hat, zieht sie beim Oeffnen selbst um – Hash in den
+// geschuetzten Knoten, Klartext raus. Danach laeuft alles ueber beweisePin().
+async function heileAltenPin(id, pins) {
+  const baum = uebersicht[id] || (id === turnierId ? letzterZustand : null);
+  const alt = baum && baum.meta && baum.meta.adminPin;
+  if (!alt || pins.indexOf(alt) === -1) return false;
+  if (!pinHashMoeglich()) return false;
+  try {
+    const h = await pinHash(id, alt);
+    await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(h);
+    await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(h);
+    await db.ref("turniere/" + id + "/meta/adminPin").remove();
+    pinOk[id] = true;
+    benachrichtige();
+    return true;
+  } catch (e) {
+    console.error("PIN-Umzug fehlgeschlagen:", e);
+    return false;
+  }
+}
+
+// Laeuft einmal je Turnier, sobald dessen Baum da ist: gemerkte PINs gegen den
+// Server halten. Erst danach zeigt die Oberflaeche die Veranstalter-Knoepfe –
+// deshalb am Ende benachrichtige().
+async function pruefeGemerktePins(id) {
+  if (!id || pinOk[id] || pinLaeuft[id]) return;
+  const pins = gespeichertePins(id);
+  if (!pins.length) return;
+  pinLaeuft[id] = true;
+  try {
+    for (let i = 0; i < pins.length; i++) {
+      if (await beweisePin(id, pins[i])) {
+        pinOk[id] = true;
+        benachrichtige();
+        return;
+      }
+    }
+    await heileAltenPin(id, pins);
+  } finally {
+    pinLaeuft[id] = false;
+  }
+}
+
 // Veranstalter EINES bestimmten Turniers – auch für Turniere, die gerade nicht
 // geöffnet sind (Löschknopf auf der Kachel).
 // Ist das angemeldete Konto als Veranstalter hinterlegt? Das Merkmal steht im
@@ -267,8 +378,9 @@ function istVeranstalterVon(id, meta) {
   if (!meta) return false;
   if (kontoIstVeranstalter()) return true;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
-  if (!meta.adminPin) return false;
-  return gespeichertePins(id).indexOf(meta.adminPin) !== -1;
+  // Der PIN-Weg laeuft ueber den Server und laesst sich hier nicht synchron
+  // nachschlagen. Was zaehlt, ist das Ergebnis von pruefeGemerktePins().
+  return !!pinOk[id || turnierId];
 }
 
 function istAdmin() {
@@ -605,6 +717,9 @@ function synchronisiereUebersicht() {
     const ref = db.ref("turniere/" + id);
     const cb = ref.on("value", (snap) => {
       uebersicht[id] = snap.val();
+      // Erst jetzt steht der Baum – und erst jetzt laesst sich ein gemerkter
+      // PIN gegen den Server halten. Laeuft je Turnier nur einmal.
+      pruefeGemerktePins(id);
       benachrichtige();
     });
     uebersichtRefs[id] = { ref, cb };
@@ -654,6 +769,7 @@ function waehleTurnier(id) {
     turnierRef = db.ref(turnierBasis());
     turnierCb = turnierRef.on("value", (snap) => {
       letzterZustand = snap.val();
+      pruefeGemerktePins(turnierId);
       benachrichtige();
     });
   }
@@ -700,7 +816,12 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Turniernamen eingeben." };
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
   const pin = String(adminPin).trim();
+  if (!pinHashMoeglich()) return { erfolg: false, fehler: PIN_UNSICHER };
   const id = neueTurnierId();
+  // Hash VOR dem Anlegen bilden: scheitert er, gibt es kein halbes Turnier.
+  let pinH;
+  try { pinH = await pinHash(id, pin); }
+  catch (e) { return { erfolg: false, fehler: PIN_UNSICHER }; }
   // Kein Ablauf übergeben = das Format wird erst später festgelegt. Das ist
   // der Normalfall: erst am Veranstaltungstag steht fest, wie viele kommen.
   // teamGroesse/ablauf tragen solange die alten Standardwerte als Platzhalter,
@@ -713,7 +834,6 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     hostId: eigeneUid,
-    adminPin: pin,
     phase: "anmeldung",
     teamGroesse: metaTeamGroesse({ teamGroesse }),
     ablauf: metaAblauf({ ablauf }),
@@ -729,6 +849,12 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
   });
+  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
+  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
+  // verlangt sie spaeter beim PIN-Wechsel und beim Loeschen.
+  await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(pinH);
+  await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(pinH);
+  pinOk[id] = true;
   merkeAdminPin(id, pin);
   waehleTurnier(id);
   return { erfolg: true, id };
@@ -757,12 +883,25 @@ async function setzeTurnierform({ teamGroesse, ablauf, koTyp }) {
 }
 
 // --- als Admin auf einem weiteren Gerät anmelden --------------------------
-function authentifiziereAlsAdmin(pin) {
-  if (!letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
-  if (String(pin).trim() !== letzterZustand.meta.adminPin) {
-    return { erfolg: false, fehler: "Falscher PIN." };
+// ⚠️ Seit 2026-09-15 ASYNCHRON: geprueft wird gegen den Server (beweisePin),
+// nicht mehr gegen einen mitgelieferten Klartext-PIN. Jeder Aufrufer muss
+// await setzen – ohne await ist das Ergebnis ein Promise und damit immer wahr.
+async function authentifiziereAlsAdmin(pin) {
+  await authBereit;
+  const id = turnierId;
+  if (!id || !letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
+  const eingabe = String(pin == null ? "" : pin).trim();
+  if (!eingabe) return { erfolg: false, fehler: "Bitte den PIN eingeben." };
+  if (!pinHashMoeglich()) return { erfolg: false, fehler: PIN_UNSICHER };
+  if (!(await beweisePin(id, eingabe))) {
+    // Altbestand ohne hinterlegten Hash: dort entscheidet noch der Klartext –
+    // einmalig, denn heileAltenPin() raeumt ihn gleich danach weg.
+    const alt = letzterZustand.meta && letzterZustand.meta.adminPin;
+    if (!alt || eingabe !== alt) return { erfolg: false, fehler: "Falscher PIN." };
   }
-  merkeAdminPin(turnierId, String(pin).trim());
+  merkeAdminPin(id, eingabe);
+  pinOk[id] = true;
+  await heileAltenPin(id, [eingabe]);
   benachrichtige();
   return { erfolg: true };
 }
@@ -2120,6 +2259,11 @@ async function loescheTurnierMitId(id) {
   // Erst der Baum, dann der Index-Eintrag: bleibt der Eintrag zurück, zeigt
   // getListe() ihn ohnehin nicht mehr an (Baum weg = keine Kachel).
   await db.ref("turniere/" + id).remove();
+  // Geheimnis zuerst, Beweisablage danach: die Regel laesst das Loeschen des
+  // Hashes nur zu, solange der Beweis noch daneben liegt.
+  try { await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").remove(); } catch (e) {}
+  try { await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).remove(); } catch (e) {}
+  delete pinOk[id];
   await db.ref(INDEX_PFAD + "/" + id).remove();
   try { localStorage.removeItem(adminPinKey(id)); } catch (e) {}
   if (turnierId === id) waehleTurnier(null);

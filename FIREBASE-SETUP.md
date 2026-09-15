@@ -33,6 +33,15 @@ ein Firebase-Projekt anlegen:
 ## Sicherheits-Hinweis (ehrlich)
 Anonyme Anmeldung heißt: **jede:r** mit dem Link bekommt eine gültige (anonyme) Kennung und darf
 schreiben. Die Regeln verhindern kaputte Datenstruktur und beschränken das Rating auf 500–3000, aber
-sie sind **keine** echte Zugriffskontrolle. Der Admin-PIN steckt im öffentlich lesbaren Datensatz und
-schützt nur vor versehentlichem Zugriff. Das ist für ein Vereins-/Fun-Event völlig ok – es ist aber
+sie sind **keine** echte Zugriffskontrolle. Das ist für ein Vereins-/Fun-Event völlig ok – es ist aber
 **kein** abgesichertes System, und so sollte es auch nicht verkauft werden.
+
+⚠️ **Der Turnier-Admin-PIN ist davon ausgenommen (seit 15.09.2026).** Er lag bis dahin im
+Klartext im öffentlich lesbaren `turniere/$tid/meta` – ein einzelner Aufruf der DB-Adresse gab
+ihn heraus. Jetzt steht nur noch sein SHA-256 unter `turnierGeheim/$tid/adminPinHash`, in einem
+Knoten ohne jedes Leserecht, und geprüft wird serverseitig über die Regel für
+`turnierPinProbe/$tid/$uid`. Details in `CLAUDE.md` unter „Admin-PIN".
+
+⚠️ **Nach jeder Änderung an `database.rules.json`:** Realtime Database → Tab **Regeln** →
+Inhalt der Datei einfügen → **Veröffentlichen**. Ohne diesen Schritt gilt weiter die alte
+Fassung – im Repo stehende Regeln sind nicht automatisch die laufenden.

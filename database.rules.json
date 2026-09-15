@@ -9,7 +9,9 @@
           ".validate": "newData.hasChildren(['name', 'phase'])",
           "name":  { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
           "phase": { ".validate": "newData.isString()" },
-          "bestOf": { ".validate": "newData.isNumber()" }
+          "bestOf": { ".validate": "newData.isNumber()" },
+
+          "adminPin": { ".validate": false }
         },
 
         "spieler": {
@@ -28,6 +30,25 @@
             "geplantAm": { ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/))" },
             "dauerMin":  { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 5 && newData.val() <= 600)" }
           }
+        }
+      }
+    },
+
+    "turnierGeheim": {
+      "$tid": {
+        "adminPinHash": {
+          ".write": "auth != null && (!data.exists() || data.val() === root.child('turnierPinProbe').child($tid).child(auth.uid).val())",
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+        },
+        "$sonst": { ".validate": false }
+      }
+    },
+
+    "turnierPinProbe": {
+      "$tid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isString() && newData.val() === root.child('turnierGeheim').child($tid).child('adminPinHash').val()"
         }
       }
     },
