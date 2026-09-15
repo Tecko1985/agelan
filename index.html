@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=5.3">
+<link rel="stylesheet" href="style.css?v=5.4">
 </head>
 <body>
 
@@ -380,16 +380,22 @@
   <section class="screen" id="screen-login">
     <div class="screen-inhalt zentriert">
       <h2>Anmeldung</h2>
-      <p class="untertitel">Trage deinen Namen und dein Rating ein.</p>
+      <p class="untertitel">Trage deinen Namen und dein 1vs1-Elo ein.</p>
       <label class="feld-label" for="login-name">Name</label>
       <input type="text" id="login-name" class="eingabe" placeholder="Dein Name" maxlength="24" autocomplete="off">
 
-      <label class="feld-label" for="login-rating">Rating (500–3000)</label>
+      <!-- ⚠️ Gemeint ist immer das 1vs1-Elo, auch wenn das Turnier 2vs2 ist. Steht das
+           nicht dran, tragen die Leute bei einem 2vs2-Turnier ihr Team-Elo ein – und die
+           App verteilt die Teams nach zwei verschiedenen Maßstäben. Der Satz steht
+           deshalb an beiden Eingabestellen (hier und in der Lobby), nicht nur hier. -->
+      <label class="feld-label" for="login-rating">1vs1-Elo (500–3000)</label>
       <div class="rating-zeile">
         <input type="range" id="login-rating-slider" min="500" max="3000" step="10" value="1500"
-               aria-label="Rating als Regler (500 bis 3000)">
-        <input type="number" id="login-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500">
+               aria-label="1vs1-Elo als Regler (500 bis 3000)">
+        <input type="number" id="login-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500"
+               aria-label="1vs1-Elo als Zahl (500 bis 3000)">
       </div>
+      <p class="feld-hinweis">Trag dein <strong>1vs1-Elo</strong> ein — auch bei einem 2vs2-Turnier, nicht das Team-Elo.</p>
 
       <button class="btn btn-primary btn-grow" id="btn-login-bestaetigen">Anmelden</button>
       <p class="hinweis-text" id="login-fehler"></p>
@@ -405,12 +411,13 @@
       <ul class="spieler-liste" id="lobby-spielerliste"></ul>
 
       <div id="lobby-eigen" class="karte-block" style="display:none">
-        <p class="feld-label">Dein Rating anpassen</p>
+        <p class="feld-label">Dein 1vs1-Elo anpassen</p>
+        <p class="feld-hinweis">Steht ein falscher Wert drin, kannst du ihn hier jederzeit richtigstellen. Gemeint ist dein <strong>1vs1-Elo</strong>, nicht das Team-Elo.</p>
         <div class="rating-zeile">
           <input type="range" id="lobby-rating-slider" min="500" max="3000" step="10" value="1500"
-                 aria-label="Dein Rating als Regler (500 bis 3000)">
+                 aria-label="Dein 1vs1-Elo als Regler (500 bis 3000)">
           <input type="number" id="lobby-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500"
-                 aria-label="Dein Rating als Zahl (500 bis 3000)">
+                 aria-label="Dein 1vs1-Elo als Zahl (500 bis 3000)">
         </div>
         <button class="btn btn-secondary btn-grow" id="btn-lobby-rating-speichern">Speichern</button>
         <p class="hinweis-text" id="lobby-rating-hinweis"></p>
@@ -470,6 +477,24 @@
     <div class="screen-inhalt">
       <h2 id="teams-titel">Teams</h2>
       <div class="team-liste" id="teams-liste"></div>
+
+      <!-- ⚠️ Derselbe Kasten wie in der Lobby, nur eine Phase spaeter. Nach dem
+           Team-Bilden sieht niemand mehr die Lobby – ohne diesen Block waere das
+           Elo ab hier eingefroren, obwohl der Veranstalter die Teams noch neu
+           bilden kann. Aendert sich einer der beiden Kaesten, gehoert der andere
+           mitgezogen; die Regel dazu steht in aktualisiereRating(). -->
+      <div id="teams-eigen" class="karte-block" style="display:none">
+        <p class="feld-label">Dein 1vs1-Elo anpassen</p>
+        <p class="feld-hinweis">Stimmt dein Wert nicht, stell ihn hier richtig. Gemeint ist dein <strong>1vs1-Elo</strong>, nicht das Team-Elo. Die Mannschaften sind schon gebildet — damit sich die Korrektur auswirkt, muss der Veranstalter sie noch einmal neu vorschlagen lassen.</p>
+        <div class="rating-zeile">
+          <input type="range" id="teams-rating-slider" min="500" max="3000" step="10" value="1500"
+                 aria-label="Dein 1vs1-Elo als Regler (500 bis 3000)">
+          <input type="number" id="teams-rating" class="eingabe rating-zahl" min="500" max="3000" step="10" value="1500"
+                 aria-label="Dein 1vs1-Elo als Zahl (500 bis 3000)">
+        </div>
+        <button class="btn btn-secondary btn-grow" id="btn-teams-rating-speichern">Speichern</button>
+        <p class="hinweis-text" id="teams-rating-hinweis"></p>
+      </div>
 
       <div id="teams-admin" style="display:none">
         <div class="karte-block" id="setzliste-block">
@@ -1286,8 +1311,8 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
-    'turnier-service.js?v=2.2',
-    'app.js?v=3.47',
+    'turnier-service.js?v=2.3',
+    'app.js?v=3.48',
     'stream-service.js?v=2.1',
     'stream-app.js?v=2.3',
     'fruehstueck-service.js?v=1.7',
@@ -1813,7 +1838,7 @@
     ]},
     { title: "Turnier", items: [
         "Mehrere Turniere laufen nebeneinander; die Liste zeigt, was gerade offen ist.",
-        "Angelegt werden sie vom Veranstalter. Alle anderen schreiben sich ein, tragen ihr Rating ein und warten in der Lobby.",
+        "Angelegt werden sie vom Veranstalter. Alle anderen schreiben sich ein, tragen ihr 1vs1-Elo ein und warten in der Lobby.",
         "Ergebnisse meldet man selbst — Sätze eintippen, fertig. Tabelle und K.-o.-Baum rechnen sich daraus.",
         "Wer nicht mitspielt, kann auch nur zuschauen."
     ]},

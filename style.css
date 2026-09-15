@@ -126,6 +126,9 @@ h3 { margin: 18px 0 8px; }
 }
 .feld-label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
 .karte-block .feld-label:first-child, .karte-block h2 { margin-top: 0; }
+/* Erklaerung direkt am Feld. Anders als .hinweis-text ohne min-height: der Satz
+   steht hier immer, er ist kein Platzhalter fuer eine spaetere Meldung. */
+.feld-hinweis { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 4px 0 8px; }
 .feld-zeile { display: flex; gap: 12px; }
 .feld-zeile > div { flex: 1; }
 

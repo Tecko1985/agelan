@@ -1020,7 +1020,7 @@ async function tritBei({ name, rating }) {
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Namen eingeben." };
   const r = Math.round(Number(rating));
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
-    return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
+    return { erfolg: false, fehler: `Das 1vs1-Elo muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
   await db.ref(turnierBasis() + "/spieler/" + eigeneUid).set({
     name: name.trim(),
@@ -1031,9 +1031,16 @@ async function tritBei({ name, rating }) {
   return { erfolg: true };
 }
 
+// ⚠️ Seit 2026-09-15 auch in der Phase "teams" erlaubt. Michel: "die ratings
+// muessen auch von den spielern noch aenderbar werden - da stehen naemlich schon
+// werte drin die nicht stimmen". Solange nicht ausgelost ist, kann der
+// Veranstalter die Teams neu bilden – eine Korrektur wirkt sich also noch aus.
+// Ab "gruppen"/"ko" bleibt es zu: dort haengen Auslosung und Setzliste daran,
+// und ein nachtraeglich geaendertes Rating wuerde eine schon gespielte Runde
+// anders begruenden, als sie zustande kam.
 async function aktualisiereRating(rating) {
   await authBereit;
-  if (!letzterZustand || !letzterZustand.meta || letzterZustand.meta.phase !== "anmeldung") {
+  if (!letzterZustand || !letzterZustand.meta || !["anmeldung", "teams"].includes(letzterZustand.meta.phase)) {
     return { erfolg: false, fehler: "Änderung nicht mehr möglich." };
   }
   if (!letzterZustand.spieler || !letzterZustand.spieler[eigeneUid]) {
@@ -1041,9 +1048,24 @@ async function aktualisiereRating(rating) {
   }
   const r = Math.round(Number(rating));
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
-    return { erfolg: false, fehler: `Rating muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
+    return { erfolg: false, fehler: `Das 1vs1-Elo muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
   }
-  await db.ref(turnierBasis() + "/spieler/" + eigeneUid + "/rating").set(r);
+
+  const eintraege = { [`spieler/${eigeneUid}/rating`]: r };
+  // ⚠️ In der Phase "teams" liegt der Schnitt schon als eigener Wert in der
+  // Mannschaft (bildeTeams hat ihn eingefroren). Ohne dieses Nachziehen wuerde
+  // die Team-Karte weiter das alte Ø zeigen – die Korrektur waere gespeichert
+  // und trotzdem unsichtbar, und der Veranstalter wuerde nach einer falschen
+  // Zahl entscheiden.
+  if (letzterZustand.meta.phase === "teams") {
+    const meinTeam = teamListe().find((t) => (t.mitglieder || {})[eigeneUid]);
+    if (meinTeam && meinTeam.mitgliederUids.length) {
+      const wert = (uid) => (uid === eigeneUid ? r : Number((letzterZustand.spieler[uid] || {}).rating) || 0);
+      const summe = meinTeam.mitgliederUids.reduce((s, uid) => s + wert(uid), 0);
+      eintraege[`teams/${meinTeam.id}/ratingSchnitt`] = Math.round(summe / meinTeam.mitgliederUids.length);
+    }
+  }
+  await db.ref(turnierBasis()).update(eintraege);
   return { erfolg: true };
 }
 

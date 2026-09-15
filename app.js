@@ -169,12 +169,14 @@ const ABLAUF_TITEL = {
 // bei jeder neuen Anmeldung (Live-Update) auf den gespeicherten Stand zurück.
 let formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
 
-// Hat jemand seinen Rating-Regler in der Lobby angefasst, ohne zu speichern?
+// Hat jemand seinen Elo-Regler angefasst, ohne zu speichern? Ein Merker je
+// Kasten – „lobby" und „teams" stehen beide im DOM und dürfen sich nicht
+// gegenseitig zurücksetzen.
 // ⚠️ Aus demselben Grund wie formatEntwurf: renderLobby läuft bei JEDER
 // fremden An- und Abmeldung. Ohne diesen Merker sprang der Regler auf den
 // gespeicherten Wert zurück, und „Speichern" – das das Feld erst beim Klick
 // liest – schrieb genau den alten Wert wieder in die Datenbank.
-let lobbyRatingBeruehrt = false;
+const ratingBeruehrt = { lobby: false, teams: false };
 
 function formatEntwurfAus(z) {
   if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
@@ -336,14 +338,8 @@ function renderLobby(z) {
     })
     .join("");
 
-  // eigenes Rating anpassen
-  const eigen = document.getElementById("lobby-eigen");
-  if (z.eigenerSpieler) {
-    eigen.style.display = "";
-    if (!lobbyRatingBeruehrt) setRating("lobby-rating-slider", "lobby-rating", z.eigenerSpieler.rating);
-  } else {
-    eigen.style.display = "none";
-  }
+  // eigenes Elo anpassen
+  renderRatingBlock("lobby", z);
 
   document.getElementById("btn-lobby-selbst-anmelden").style.display = z.eigenerSpieler ? "none" : "";
   document.getElementById("lobby-admin").style.display = z.istAdmin ? "" : "none";
@@ -404,6 +400,9 @@ function renderTeams(z) {
   const einzel = z.teamGroesse === 1;
   const wort = einheitWort(z.teamGroesse);
   document.getElementById("teams-titel").textContent = wort;
+
+  // Ab hier sieht niemand mehr die Lobby – der Elo-Kasten muss also mitkommen.
+  renderRatingBlock("teams", z);
 
   const adminBlock = document.getElementById("teams-admin");
   adminBlock.style.display = z.istAdmin ? "" : "none";
@@ -844,6 +843,52 @@ function koppleRating(sliderId, numberId) {
   nu.addEventListener("input", () => (sl.value = nu.value));
 }
 
+// Derselbe Elo-Kasten steht zweimal in der Seite: in der Lobby („lobby") und
+// nach dem Team-Bilden auf dem Teams-Bildschirm („teams"). Beide schreiben in
+// dasselbe Feld, also hängen sie an EINER Funktion – sonst driften sie
+// auseinander, sobald sich an einer Stelle etwas ändert.
+// ⚠️ Die Ids müssen dem Muster folgen: <praefix>-eigen, <praefix>-rating,
+// <praefix>-rating-slider, <praefix>-rating-hinweis,
+// btn-<praefix>-rating-speichern.
+function wireRatingBlock(praefix) {
+  koppleRating(praefix + "-rating-slider", praefix + "-rating");
+
+  // Ab der ersten Bewegung gehört der Regler dem Spieler, nicht mehr dem
+  // Live-Update (siehe ratingBeruehrt).
+  [praefix + "-rating-slider", praefix + "-rating"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", () => {
+      ratingBeruehrt[praefix] = true;
+      zeigeFehler(praefix + "-rating-hinweis", "");
+    });
+  });
+
+  const btn = document.getElementById("btn-" + praefix + "-rating-speichern");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const res = await turnierService.aktualisiereRating(document.getElementById(praefix + "-rating").value);
+    // Erst wenn es wirklich drin steht, darf das nächste Update den Regler
+    // wieder nachziehen. Bei einem Fehler bleibt der eingestellte Wert stehen.
+    if (res && res.erfolg) ratingBeruehrt[praefix] = false;
+    const hinweis = document.getElementById(praefix + "-rating-hinweis");
+    if (hinweis) hinweis.classList.toggle("fehler", !(res && res.erfolg));
+    zeigeFehler(praefix + "-rating-hinweis", res && res.erfolg ? "Gespeichert ✓" : (res && res.fehler) || "");
+  });
+}
+
+// Zeigt den Kasten nur, wenn man selbst mitspielt, und zieht den Regler auf den
+// gespeicherten Wert nach – solange ihn niemand angefasst hat.
+function renderRatingBlock(praefix, z) {
+  const block = document.getElementById(praefix + "-eigen");
+  if (!block) return;
+  if (!z.eigenerSpieler) {
+    block.style.display = "none";
+    return;
+  }
+  block.style.display = "";
+  if (!ratingBeruehrt[praefix]) setRating(praefix + "-rating-slider", praefix + "-rating", z.eigenerSpieler.rating);
+}
+
 // ===========================================================================
 // Melde-Dialog
 // ===========================================================================
@@ -1023,17 +1068,8 @@ function zeigeFehler(id, text) {
 // ===========================================================================
 function wireEvents() {
   koppleRating("login-rating-slider", "login-rating");
-  koppleRating("lobby-rating-slider", "lobby-rating");
-
-  // Ab der ersten Bewegung gehört der Regler dem Spieler, nicht mehr dem
-  // Live-Update (siehe lobbyRatingBeruehrt).
-  ["lobby-rating-slider", "lobby-rating"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", () => {
-      lobbyRatingBeruehrt = true;
-      zeigeFehler("lobby-rating-hinweis", "");
-    });
-  });
+  wireRatingBlock("lobby");
+  wireRatingBlock("teams");
 
   // Turnier erstellen (legt immer ein zusätzliches an)
   document.getElementById("btn-turnier-erstellen").addEventListener("click", async () => {
@@ -1180,17 +1216,6 @@ function wireEvents() {
     });
     if (res.erfolg) willMitmachen = false;
     zeigeFehler("login-fehler", res.erfolg ? "" : res.fehler);
-  });
-
-  // Lobby: Rating speichern
-  document.getElementById("btn-lobby-rating-speichern").addEventListener("click", async () => {
-    const res = await turnierService.aktualisiereRating(document.getElementById("lobby-rating").value);
-    // Erst wenn es wirklich drin steht, darf das nächste Update den Regler
-    // wieder nachziehen. Bei einem Fehler bleibt der eingestellte Wert stehen.
-    if (res && res.erfolg) lobbyRatingBeruehrt = false;
-    const hinweis = document.getElementById("lobby-rating-hinweis");
-    if (hinweis) hinweis.classList.toggle("fehler", !(res && res.erfolg));
-    zeigeFehler("lobby-rating-hinweis", res && res.erfolg ? "Gespeichert ✓" : (res && res.fehler) || "");
   });
 
   // Lobby: als Veranstalter selbst mitspielen
@@ -1491,6 +1516,23 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "7.4",
+    groups: [
+      { title: "Beim Anmelden steht jetzt dran: es geht um dein 1vs1-Elo", items: [
+          "Das Feld hieß nur „Rating“. Bei einem 2vs2-Turnier war damit nicht klar, welcher Wert gemeint ist – und wer sein Team-Elo einträgt, wird in eine Mannschaft gesteckt, die nicht zu ihm passt.",
+          "Es heißt jetzt „1vs1-Elo“, und darunter steht der Satz dazu: auch bei einem 2vs2-Turnier zählt das 1vs1-Elo, nicht das Team-Elo.",
+          "Derselbe Hinweis steht an jeder Stelle, an der der Wert eingegeben wird – beim Anmelden und beim Nachträglich-Ändern."
+      ]},
+      { title: "Dein Elo lässt sich länger korrigieren", items: [
+          "Stand ein falscher Wert drin, ließ er sich nur so lange ändern, wie die Anmeldung offen war. Sobald der Veranstalter die Mannschaften gebildet hatte, war er festgenagelt.",
+          "Jetzt steht derselbe Kasten auch auf dem Mannschafts-Bildschirm. Bis zur Auslosung kann jede:r seinen Wert richtigstellen.",
+          "Der Durchschnitt der Mannschaft rechnet sich dabei sofort mit – vorher hätte auf der Karte weiter die alte Zahl gestanden.",
+          "Damit sich eine Korrektur auch auf die Aufteilung auswirkt, muss der Veranstalter die Mannschaften noch einmal neu vorschlagen lassen. Das steht als Satz im Kasten.",
+          "Ab der Auslosung bleibt der Wert zu: daran hängen Setzliste und Baum, und ein nachträglich geändertes Elo würde eine schon gespielte Runde anders begründen, als sie zustande kam."
+      ]},
+    ],
+  },
   {
     version: "7.3",
     groups: [
