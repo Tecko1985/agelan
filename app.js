@@ -1492,6 +1492,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.9",
+    groups: [
+      { title: "Frühstück: Bestellannahme auf- und zudrehen", items: [
+          "Beim Essen gab es den Schalter schon, beim Frühstück nicht: dort entschied allein der Bestellschluss am Vorabend, ob jemand buchen kann.",
+          "In den Einstellungen des Veranstalters steht jetzt „Bestellannahme ist offen“. Der Haken wirkt sofort, ohne „Einstellungen speichern“.",
+          "Ist zu, bleiben alle Morgen sichtbar – die Plus- und Minus-Knöpfe sind nur ausgegraut, und oben steht „Geschlossen“. Ansehen geht weiter, bestellen nicht.",
+          "Die beiden Gründe werden auseinandergehalten: „geschlossen“ heißt warten auf den Veranstalter, „Bestellschluss vorbei“ heißt für diesen Morgen ist Schluss. Ein gemeinsames Wort für beides würde niemanden wissen lassen, ob Warten hilft.",
+          "Der Veranstalter selbst kann auch bei zugedrehter Annahme weiter bestellen – genau wie beim Essen.",
+          "Bestehende Frühstücksbestellungen bleiben offen: fehlt das Feld, gilt offen."
+      ]},
+    ],
+  },
+  {
     version: "6.8",
     groups: [
       { title: "Stream: der Veranstalter-PIN steht nicht mehr offen im Netz", items: [

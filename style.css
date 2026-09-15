@@ -780,6 +780,17 @@ main#app.ub-breit { max-width: 980px; }
 .fr-tagkarte h3 { margin: 0 0 2px; }
 .fr-schluss { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
 .fr-schluss.zu { color: #dc2626; }
+/* Der Stand ganz oben. Leer, solange die Annahme offen ist. */
+.fr-annahme-stand { font-size: 13px; margin: 6px 0 0; color: var(--muted); }
+/* ⚠️ #dc2626 kommt hier auf 4,27 gegen den hellen Hintergrund – unter den
+   4,5, die fuer Text dieser Groesse gefordert sind. Gemessen, nicht geschaetzt:
+   #b91c1c sind 5,71 hell und #fca5a5 sind 9,41 dunkel. */
+.fr-annahme-stand.zu { color: #b91c1c; font-weight: 700; }
+.fr-schalter { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 15px; cursor: pointer; }
+.fr-schalter input { width: 20px; height: 20px; }
+@media (prefers-color-scheme: dark) {
+  .fr-annahme-stand.zu { color: #fca5a5; }
+}
 .fr-paket { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
 .fr-paket:first-of-type { border-top: none; }
 .fr-paket-info { flex: 1 1 auto; min-width: 0; }

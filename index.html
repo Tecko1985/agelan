@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a56a0">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=5.2">
+<link rel="stylesheet" href="style.css?v=5.3">
 </head>
 <body>
 
@@ -780,6 +780,9 @@
     <div class="sk-kopf">
       <h2 id="fr-titel">Frühstücksbestellung</h2>
       <p class="hinweis-text" id="fr-zeitraum"></p>
+      <!-- Bleibt leer, solange die Annahme offen ist – ein Dauerhinweis „offen"
+           wäre nur Rauschen über jedem Morgen. -->
+      <p class="fr-annahme-stand" id="fr-annahme-stand"></p>
     </div>
 
     <div class="sk-tagchips" id="fr-tagchips"></div>
@@ -811,6 +814,16 @@
       <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
 
       <p class="feld-label">Einstellungen</p>
+
+      <!-- ⚠️ Wirkt sofort, ohne „Einstellungen speichern" – im Gegensatz zu den
+           beiden Feldern darunter. Der Bestellschluss läuft von allein, das hier
+           ist der Griff für zwischendurch. -->
+      <label class="fr-schalter">
+        <input type="checkbox" id="fr-ein-annahme">
+        <span>Bestellannahme ist offen</span>
+      </label>
+      <p class="hinweis-text">Ausschalten, wenn gerade nichts angenommen werden soll. Die Morgen bleiben sichtbar, die Knöpfe sind dann nur ausgegraut und es steht „Geschlossen" dabei. Du als Veranstalter kannst weiter bestellen.</p>
+
       <div class="feld-zeile">
         <div>
           <label class="feld-label" for="fr-ein-tage">Wie viele Tage?</label>
@@ -1268,11 +1281,11 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.1',
-    'app.js?v=3.42',
+    'app.js?v=3.43',
     'stream-service.js?v=1.9',
     'stream-app.js?v=2.2',
-    'fruehstueck-service.js?v=1.4',
-    'fruehstueck-app.js?v=1.7',
+    'fruehstueck-service.js?v=1.5',
+    'fruehstueck-app.js?v=1.8',
     'essen-service.js?v=2.1',
     'essen-app.js?v=2.8',
     'uebersicht-app.js?v=1.0'

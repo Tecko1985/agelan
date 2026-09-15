@@ -63,6 +63,14 @@ function frRender(z) {
     frAktiverTag = (offener || z.tage[0] || {}).datum || null;
   }
 
+  // ⚠️ Der Stand gehört ganz nach oben. Wer den Reiter aufmacht und nichts
+  // anklicken kann, soll den Grund sehen, ohne erst zu einem Tag zu scrollen.
+  const stand = frEl("fr-annahme-stand");
+  if (stand) {
+    stand.textContent = z.schalterAn ? "" : "Geschlossen – gerade werden keine Bestellungen angenommen.";
+    stand.classList.toggle("zu", !z.schalterAn);
+  }
+
   frRenderChips(z);
   frRenderTagInhalt(z);
   frRenderAdmin(z);
@@ -72,7 +80,7 @@ function frRenderChips(z) {
   const box = frEl("fr-tagchips");
   box.innerHTML = z.tage.map((t) => `
     <button class="sk-chip${t.datum === frAktiverTag ? " aktiv" : ""}" data-datum="${t.datum}">
-      ${escapeHtml(t.label)}${t.vorbei ? " · zu" : ""}
+      ${escapeHtml(t.label)}${t.offen ? "" : " · zu"}
     </button>`).join("");
   box.querySelectorAll("button[data-datum]").forEach((b) => {
     b.addEventListener("click", () => {
@@ -135,6 +143,10 @@ function frRenderTagInhalt(z) {
   frEntwurfAuffrischen(tag);
 
   const bearbeitbar = tag.offen || z.istAdmin;
+  // ⚠️ Unten steht bewusst tag.zeitOffen und nicht tag.offen: tag.offen
+  // enthält auch den Schalter des Veranstalters. Mit tag.offen stand bei
+  // zugedrehter Annahme bei JEDEM Morgen „Bestellschluss war", obwohl er erst
+  // am Abend kommt. Genau so gemessen, bevor es hier stand.
   const stueckGesamt = Object.values(frEntwurf.positionen).reduce((s, n) => s + (n || 0), 0);
   const summeCent = z.pakete.reduce((s, p) => s + p.preisCent * (frEntwurf.positionen[p.id] || 0), 0);
 
@@ -164,9 +176,11 @@ function frRenderTagInhalt(z) {
   box.innerHTML = `
     <div class="fr-tagkarte">
       <h3>${escapeHtml(tag.tagLang)}, ${escapeHtml(tag.label)}</h3>
-      <p class="fr-schluss${tag.vorbei ? " zu" : ""}">${tag.offen ? "Bestellschluss: " : "Bestellschluss war: "}${escapeHtml(tag.schlussLabel)}</p>
+      <p class="fr-schluss${tag.vorbei ? " zu" : ""}">${tag.zeitOffen ? "Bestellschluss: " : "Bestellschluss war: "}${escapeHtml(tag.schlussLabel)}</p>
 
-      ${!bearbeitbar ? `<p class="hinweis-text">Für diesen Morgen ist der Bestellschluss vorbei.</p>` : ""}
+      ${!bearbeitbar ? `<p class="hinweis-text">${tag.zeitOffen
+          ? "Geschlossen – der Veranstalter nimmt gerade keine Bestellungen an."
+          : "Für diesen Morgen ist der Bestellschluss vorbei."}</p>` : ""}
 
       ${paketeHtml}
 
@@ -400,6 +414,13 @@ function frRenderAdmin(z) {
     frEl("fr-ein-schluss").value = frZeitInputWert(z.meta.schlussUhr);
   }
 
+  // ⚠️ Der Schalter hängt NICHT am Berührt-Merker der beiden Felder daneben:
+  // er schreibt sofort, es gibt also nichts, was ein Live-Update überschreiben
+  // könnte. Nur während er selbst den Fokus hat, bleibt er in Ruhe – sonst
+  // springt er unter dem Finger zurück, wenn jemand anders gerade bestellt.
+  const schalter = frEl("fr-ein-annahme");
+  if (schalter && document.activeElement !== schalter) schalter.checked = z.schalterAn;
+
   frRenderPaketeVerwalten(z);
 }
 
@@ -475,6 +496,11 @@ function frWireEvents() {
   // Live-Update (siehe frRenderAdmin).
   frEl("fr-ein-tage").addEventListener("input", () => { frEinstellungenBeruehrt = true; });
   frEl("fr-ein-schluss").addEventListener("input", () => { frEinstellungenBeruehrt = true; });
+
+  frEl("fr-ein-annahme").addEventListener("change", async () => {
+    const res = await fruehstueckService.setzeAnnahme(frEl("fr-ein-annahme").checked);
+    frZeigeFehler("fr-einstellungen-fehler", res.erfolg ? "" : res.fehler);
+  });
 
   frEl("fr-btn-einstellungen-speichern").addEventListener("click", async () => {
     const res = await fruehstueckService.setzeEinstellungen({

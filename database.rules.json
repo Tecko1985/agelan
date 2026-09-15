@@ -132,7 +132,8 @@
           "titel":      { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
           "startDatum": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
           "anzahlTage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 7" },
-          "schlussUhr": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" }
+          "schlussUhr":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" },
+          "annahmeOffen": { ".validate": "newData.isBoolean()" }
         },
 
         "pakete": {

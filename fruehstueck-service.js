@@ -13,7 +13,7 @@
 //
 // Datenmodell (ein aktiver Plan unter fruehstueck/aktuell):
 //   meta        : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
-//                   anzahlTage, schlussUhr }
+//                   anzahlTage, schlussUhr, annahmeOffen }
 //   pakete/$pid : { name, beschreibung, preisCent, sort, erstelltAm }
 //   bestellungen/$datum/$uid : { name, positionen:{pid:anzahl},
 //                                preise:{pid:{name,preisCent}}, notiz,
@@ -254,6 +254,9 @@ function frTageListe(meta, bestellungenRoh, pakete) {
   const anzahl = Math.min(FR_MAX_TAGE, Math.max(1, Math.round(frZahl(meta.anzahlTage, 1))));
   const schlussUhr = Math.max(0, Math.min(1439, Math.round(frZahl(meta.schlussUhr, FR_STANDARD_SCHLUSS))));
   const jetzt = frJetzt();
+  // ⚠️ Fehlt das Feld, ist offen der Normalfall. Ein Plan, der vor dem
+  // Schalter angelegt wurde, darf nicht dadurch zumachen, dass es ihn jetzt gibt.
+  const schalterAn = meta.annahmeOffen !== false;
   const liste = [];
 
   for (let i = 0; i < anzahl; i++) {
@@ -277,7 +280,11 @@ function frTageListe(meta, bestellungenRoh, pakete) {
       schlussUhr,
       schlussMs,
       schlussLabel: frDatumLabel(frDatumPlus(datum, -1)) + ", " + frZeitLabel(schlussUhr) + " Uhr",
-      offen: jetzt < schlussMs,
+      // ⚠️ Drei getrennte Werte, weil die Oberfläche verschieden erklären muss,
+      // warum gerade nichts geht. `vorbei` ist allein die Uhr – sonst stünde bei
+      // zugedrehtem Schalter „Bestellschluss war", obwohl er erst noch kommt.
+      zeitOffen: jetzt < schlussMs,
+      offen: schalterAn && jetzt < schlussMs,
       vorbei: jetzt >= schlussMs,
       bestellungen,
       meineBestellung: eigene,
@@ -337,6 +344,7 @@ function frGetZustand() {
       meta: null,
       pakete: [],
       tage: [],
+      schalterAn: false,
       istAdmin: false,
       eigeneUid: frEigeneUid,
       vorhandenerPin: frVorhandenerPin(),
@@ -350,6 +358,9 @@ function frGetZustand() {
     meta,
     pakete,
     tage,
+    // ⚠️ Der reine Schalter, ohne die Uhr. Die Oberfläche braucht ihn getrennt:
+    // „geschlossen" ist etwas anderes als „Bestellschluss vorbei".
+    schalterAn: meta.annahmeOffen !== false,
     abrechnung,
     summeGesamtCent: abrechnung.reduce((sum, p) => sum + p.summeCent, 0),
     offenGesamtCent: abrechnung.reduce((sum, p) => sum + p.offenCent, 0),
@@ -432,6 +443,7 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
       startDatum: startDatum,
       anzahlTage: tage,
       schlussUhr: uhr,
+      annahmeOffen: true,
     },
   });
   try {
@@ -532,6 +544,16 @@ async function frVerschiebePaket(id, richtung) {
   return { erfolg: true };
 }
 
+// Warum gerade nichts geht. Zwei Gründe, zwei Antworten: „geschlossen" heißt
+// warten auf den Veranstalter, „vorbei" heißt für diesen Morgen ist Schluss.
+// ⚠️ Die Uhr steht VOR dem Schalter. Ein Morgen, dessen Bestellschluss durch
+// ist, bleibt zu, auch wenn der Veranstalter gleich wieder aufdreht – wer hier
+// „geschlossen" liest, wartet sonst auf etwas, das für diesen Tag nie kommt.
+function frWarumZu(z, tag) {
+  if (!tag.zeitOffen) return "Für " + tag.tagLang + " ist der Bestellschluss vorbei.";
+  return "Die Bestellannahme ist gerade geschlossen.";
+}
+
 // Eine Bestellung wird immer komplett geschrieben: positionen ersetzt, nicht
 // gemischt. Ein „update" mit nur den geänderten Zählern ließe Reste von
 // Paketen stehen, die gerade auf 0 gestellt wurden.
@@ -543,7 +565,7 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   const tag = z.tage.find((t) => t.datum === datum);
   if (!tag) return { erfolg: false, fehler: "Diesen Morgen gibt es nicht." };
   if (!tag.offen && !z.istAdmin) {
-    return { erfolg: false, fehler: "Für " + tag.tagLang + " ist der Bestellschluss vorbei." };
+    return { erfolg: false, fehler: frWarumZu(z, tag) };
   }
 
   const n = frText(name, 40);
@@ -600,7 +622,7 @@ async function frStorniere(datum) {
   const tag = z.tage.find((t) => t.datum === datum);
   if (!tag) return { erfolg: false, fehler: "Diesen Morgen gibt es nicht." };
   if (!tag.offen && !z.istAdmin) {
-    return { erfolg: false, fehler: "Für " + tag.tagLang + " ist der Bestellschluss vorbei." };
+    return { erfolg: false, fehler: frWarumZu(z, tag) };
   }
   await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid).remove();
   return { erfolg: true };
@@ -619,6 +641,16 @@ async function frSetzeBezahlt(datum, uid, wert) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/bezahlt").set(!!wert);
+  return { erfolg: true };
+}
+
+// Der Griff für zwischendurch: alles dicht, ohne an den Bestellzeiten zu drehen.
+// Steht bewusst NICHT in frSetzeEinstellungen – der Schalter wirkt sofort, die
+// Felder daneben erst auf „Speichern".
+async function frSetzeAnnahme(offen) {
+  await frAuthBereit;
+  if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  await db.ref(FR_BASIS + "/meta/annahmeOffen").set(!!offen);
   return { erfolg: true };
 }
 
@@ -681,6 +713,7 @@ const fruehstueckService = {
   storniere: frStorniere,
   setzeAbgeholt: frSetzeAbgeholt,
   setzeBezahlt: frSetzeBezahlt,
+  setzeAnnahme: frSetzeAnnahme,
   setzeEinstellungen: frSetzeEinstellungen,
   leereBestellungen: frLeereBestellungen,
   loeschePlan: frLoeschePlan,
