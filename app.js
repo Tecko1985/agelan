@@ -1492,6 +1492,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.0",
+    groups: [
+      { title: "Discord: der Bot meldet neue Anmeldungen", items: [
+          "Legt sich jemand ein Konto an, bekommt jeder Veranstalter mit hinterlegter Discord-ID sofort eine Nachricht vom Bot.",
+          "Darin stehen der Name, ob die Person selbst eine Discord-ID hinterlegt hat, und wie viele Konten es jetzt insgesamt gibt.",
+          "Hat sich jemand beim Anlegen gleich mit dem Veranstalter-Passwort Veranstalter-Rechte gegeben, steht das ausdrücklich dabei.",
+          "Die Meldung geht an Veranstalter, nicht an die Orga – und niemand bekommt eine Nachricht über sich selbst.",
+          "Die Anmeldung wartet nicht auf den Bot: klemmt Discord, ist das Konto trotzdem angelegt.",
+          "Die Konten-Liste unter „Einstellungen“ sagt jetzt, wen diese Meldung überhaupt erreicht. Hat kein Veranstalter eine Discord-ID hinterlegt, steht das dort – sonst bliebe unklar, ob der Bot schweigt oder ob nur niemand neu ist."
+      ]},
+    ],
+  },
+  {
     version: "6.9",
     groups: [
       { title: "Frühstück: Bestellannahme auf- und zudrehen", items: [
@@ -2383,8 +2396,19 @@ async function ladeKonten() {
          Diese Leute bekommen keine Nachricht, wenn ihr Essen da ist. Jede:r trägt sie selbst ein – oben auf den eigenen Namen tippen, dann „Mein Konto“.</p>`
       : "";
 
+    // ⚠️ Der Worker meldet eine neue Anmeldung per Discord an die VERANSTALTER
+    // (admin), bewusst nicht an die Orga. Diese Meldung läuft NACH der Antwort
+    // an den neuen Nutzer – ein Fehlschlag ist also nirgends zu sehen. Deshalb
+    // steht hier, wen sie überhaupt erreicht: sonst wäre „es kam nichts“ nicht
+    // von „es gibt niemanden zum Anschreiben“ zu unterscheiden.
+    const melder = daten.konten.filter((k) => k.admin && k.discord).map((k) => k.nickname);
+    const meldung = melder.length
+      ? `<p class="hinweis-text">🆕 Neue Anmeldungen meldet der Bot per Discord an: ${escapeHtml(melder.join(", "))}.</p>`
+      : `<p class="konten-fehlend"><b>⚠️ Neue Anmeldungen meldet dir niemand.</b><br>
+         Der Bot schreibt sie an jeden Veranstalter mit hinterlegter Discord-ID – gerade hat keiner eine. Trag deine oben über deinen Namen unter „Mein Konto“ ein.</p>`;
+
     box.innerHTML = daten.konten.length
-      ? fehlend + `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
+      ? fehlend + meldung + `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
         daten.konten.map((k) => `
           <div class="konto-zeile">
             <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>

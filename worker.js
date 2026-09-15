@@ -16,7 +16,9 @@
 //   PW_AGELAN_VERANSTALTER = Turniere anlegen und Konten verwalten (nur Michel)
 //   DISCORD_BOT_TOKEN      = Token des Bots, der die Benachrichtigungen verschickt.
 //                            Fehlt es, sagen NUR die Discord-Aktionen das klar;
-//                            alles Uebrige laeuft unveraendert weiter.
+//                            alles Uebrige laeuft unveraendert weiter. Auch die
+//                            Meldung ueber eine neue Anmeldung entfaellt dann
+//                            still - eine Anmeldung darf daran nicht scheitern.
 //
 // Bindings:
 //   KONTEN (KV) = die Benutzerkonten. Fehlt das Binding, laufen die Konto-
@@ -57,7 +59,10 @@ const FEHL_MAX_PRO_STUNDE = 30;
 const FEHL_ZAEHLER = new Map();
 
 export default {
-  async fetch(request, env) {
+  // ⚠️ ctx kommt dazu, weil die Meldung ueber eine neue Anmeldung NACH der
+  // Antwort laufen muss (ctx.waitUntil). Zwei Discord-Aufrufe je Veranstalter
+  // duerfen den Menschen, der sich gerade anmeldet, nicht warten lassen.
+  async fetch(request, env, ctx) {
     const origin = request.headers.get("Origin") || "";
     const cors = corsKopf(origin);
 
@@ -85,7 +90,7 @@ export default {
 
     const aktion = String(body.action || "");
     if (aktion === "verify-action-password") return pruefePasswort(request, body, env, cors);
-    if (aktion === "konto-anlegen")  return kontoAnlegen(request, body, env, cors);
+    if (aktion === "konto-anlegen")  return kontoAnlegen(request, body, env, cors, ctx);
     if (aktion === "konto-login")    return kontoLogin(request, body, env, cors);
     if (aktion === "konto-pruefen")  return kontoPruefen(body, env, cors);
     if (aktion === "konto-admin")    return kontoAdmin(request, body, env, cors);
@@ -469,7 +474,7 @@ async function tokenLesen(env, token) {
   }
 }
 
-async function kontoAnlegen(request, body, env, cors) {
+async function kontoAnlegen(request, body, env, cors, ctx) {
   if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet (KV-Binding KONTEN fehlt)." }, 500, cors);
   if (!bremseOffen(request)) {
     return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
@@ -517,6 +522,18 @@ async function kontoAnlegen(request, body, env, cors) {
     discordId: discord.id,   // "" = nicht hinterlegt, jederzeit nachtragbar
     angelegtAm: Date.now(),
   }));
+
+  // ⚠️ ERST nach dem Schreiben, und bewusst ohne await: das Konto steht schon,
+  // die Meldung ist eine Zugabe. Ein klemmender Discord-Bot darf eine Anmeldung
+  // weder verzoegern noch kippen. Fehlt ctx (Prueflauf, alte Laufzeit), faellt
+  // nur die Meldung weg.
+  if (ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(meldeNeuesKonto(env, {
+      nick: geprueft.nick,
+      discordId: discord.id,
+      admin: istAdmin,
+    }));
+  }
 
   return json({
     ok: true,
@@ -1056,6 +1073,83 @@ async function discordSammel(request, body, env, cors) {
   }
 
   return json({ ok: true, geschickt: erreicht.length, erreicht: erreicht, offen: offen }, 200, cors);
+}
+
+// --- Neue Anmeldung an die Veranstalter melden ------------------------------
+//
+// Michel am 15.09.2026: „bau mir hier für den bot einmal ein das ich
+// benachritigt werde wenn neue user sich angemeldet haben".
+//
+// ⚠️ Läuft NACH der Antwort (ctx.waitUntil) und wirft NIE. Das Konto steht zu
+// diesem Zeitpunkt schon im KV – ein klemmender Bot darf eine Anmeldung weder
+// verzögern noch kippen. Der Preis dafür: ein Fehler beim Verschicken ist von
+// aussen nicht sichtbar. Deshalb sagt die Konten-Liste in der App, WEN diese
+// Meldung überhaupt erreicht – sonst wäre „es kam nichts“ nicht von „es gibt
+// niemanden zum Anschreiben“ zu unterscheiden.
+//
+// ⚠️ Nur an `admin`, bewusst NICHT an `orga`. Beide dürfen die Konten-Liste
+// sehen, aber melden lassen will es sich der, der die Veranstaltung ausrichtet.
+// Ändert sich das, muss die Zeile in der Konten-Liste (app.js) mitwandern –
+// sonst behauptet die App etwas anderes, als der Worker tut.
+//
+// ⚠️ Keine Bremse: wer ein Konto anlegen kann, hat das Einladungs-Passwort.
+// Eine Bremse würde echte Anmeldungen verschlucken, und genau die sind der
+// Zweck. Anders als bei der Testnachricht gibt es hier also keine Pause.
+async function meldeNeuesKonto(env, neu) {
+  try {
+    if (!env.DISCORD_BOT_TOKEN || !kvDa(env)) return;
+
+    // Sich selbst meldet niemand. Legt Michel sein eigenes Konto mit dem
+    // Veranstalter-Passwort an, ist er in derselben Sekunde Veranstalter – und
+    // bekäme sonst eine Nachricht über sich selbst.
+    const eigener = nickSchluessel(neu.nick);
+
+    const ziele = [];
+    let anzahl = 0;
+    let cursor;
+    do {
+      const seite = await env.KONTEN.list({ prefix: "konto:", cursor: cursor });
+      anzahl += seite.keys.length;
+      for (const k of seite.keys) {
+        if (k.name === eigener) continue;
+        const roh = await env.KONTEN.get(k.name);
+        if (!roh) continue;
+        try {
+          const konto = JSON.parse(roh);
+          if (konto.admin && konto.discordId) ziele.push(konto);
+        } catch (e) { /* kaputter Eintrag wird übersprungen */ }
+      }
+      cursor = seite.list_complete ? null : seite.cursor;
+    } while (cursor);
+
+    if (!ziele.length) return;
+
+    // ⚠️ Der Name geht ROH hinein, nicht durch discordSauber. nickPruefen hat
+    // `@`, Backticks, Sternchen und Zeilenumbrüche schon ausgeschlossen; übrig
+    // bleibt nur der Unterstrich, der im Doppelpack kursiv machen kann. Den zu
+    // schlucken wäre schlimmer: die Meldung muss das Konto EXAKT benennen,
+    // sonst findet Michel es in der Liste nicht wieder.
+    const text =
+      "🆕 Neue Anmeldung in der AgeLan\n\n" +
+      "Name: " + neu.nick + "\n" +
+      "Discord-ID: " + (neu.discordId
+        ? "hinterlegt"
+        : "fehlt – diese Person bekommt keine Nachricht, wenn ihr Essen da ist") + "\n" +
+      "Konten insgesamt: " + anzahl +
+      (neu.admin
+        ? "\n\n⚠️ Dieses Konto hat beim Anlegen das Veranstalter-Passwort mitgeschickt und ist damit selbst Veranstalter."
+        : "") +
+      "\n\nDie ganze Liste steht in der App unter „Einstellungen“.";
+
+    // Nacheinander, wie beim Sammel-Bescheid: Discord bremst beim Massenöffnen
+    // von DM-Kanälen. Veranstalter sind wenige, das kostet nichts.
+    for (const ziel of ziele) {
+      await discordDm(env, ziel.discordId, text);
+    }
+  } catch (e) {
+    // Bewusst still. Hier gibt es niemanden mehr, dem man etwas sagen könnte –
+    // die Antwort an den neuen Nutzer ist längst raus.
+  }
 }
 
 // --- base64-Helfer ----------------------------------------------------------
