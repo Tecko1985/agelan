@@ -167,14 +167,22 @@ function bremseIp(request) {
 // deshalb oft eine leere Map. Die Map bleibt als schnelle erste Reihe stehen,
 // die Bindung ist die, die live wirklich haelt.
 //
-// ⚠️ Der Rest der Flotte hat das seit dem 15.09.2026 (landingpage,
-// beleg-scanner, mitgliedsportal, vereinsverwaltung). agelan war als
-// einziger Worker noch ohne -- nachgezogen am selben Tag.
+// ⚠️⚠️ BEI DIESEM WORKER IST DIE BINDUNG BEWUSST NICHT GESETZT.
+// Michel am 15.09.2026: "die bremse im agelan binding brauchen wir nicht."
+// AgeLan ist ein privates Event-Tool mit einer Handvoll Teilnehmern, die das
+// Passwort ohnehin kennen -- der Aufwand lohnt hier nicht.
 //
-// ⚠️⚠️ Die Bindung muss je Worker EINZELN gesetzt sein. Fehlt sie, bremst
-// dieser Worker nichts, und von aussen sieht das genau aus wie "musste nicht
-// bremsen". Nachsehen laesst sich das mit
-// ToolsUebersicht/pruefe-bremsen.ps1.
+// Der Code bleibt trotzdem stehen, weil er GENAU DANN NICHTS TUT: fehlt
+// env.BREMSE, gibt bindungBremseOffen sofort true zurueck, ein typeof je
+// Fehlversuch. Die Map-Bremse darueber laeuft unveraendert weiter. Wer die
+// Bindung spaeter doch setzt (Name BREMSE), schaltet sie damit scharf, ohne
+// eine Zeile zu aendern.
+//
+// ⚠️ Das ist eine ENTSCHEIDUNG, kein offener Befund -- bei einer Abnahme
+// nicht erneut melden. Der Rest der Flotte hat die Bindung seit dem
+// 15.09.2026 (landingpage, beleg-scanner, mitgliedsportal,
+// vereinsverwaltung); dort gehoert sie auch hin, denn dort haengen
+// Vereinsdaten dran. Nachsehen: ToolsUebersicht/pruefe-bremsen.ps1.
 //
 // Drei Faelle geben bewusst frei statt zu sperren: Bindung fehlt (aelterer
 // Deploy), keine Client-Adresse, Bindung wirft. Eine kaputte Bremse darf den
