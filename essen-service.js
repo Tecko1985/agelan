@@ -64,7 +64,7 @@ const ES_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie Turnier, 
 // Seite besteht sie. Der PIN lag damit bis zum 15.09.2026 im Klartext für
 // jeden Besucher abrufbar, und dahinter liegen Telefonnummer des Bestellers,
 // die Lieferantenmail und sämtliche Bestellungen mit Namen.
-// Er liegt jetzt als SHA-256-Hash unter essenGeheim/aktuell/adminPinHash –
+// Er liegt jetzt als SHA-256-Hash unter essenGeheim/essen-aktuell/adminPinHash –
 // ein Knoten ganz ohne Leserecht. Geprüft wird über esBeweisePin(), denselben
 // Weg, den Turnier und Streamplan seit dem 15.09.2026 gehen.
 // ⚠️ NICHT "aktuell". Dieser Wert ist zugleich der Pfadteil UND das Salz des
@@ -277,7 +277,10 @@ async function esPruefeGemerktenPin() {
   esPinLaeuft = true;
   try {
     if (await esBeweisePin(pin)) esPinOk = true;
-    else await esHeileAltenPin(pin);
+    else if (await esHeileAltenPin(pin)) esPinOk = true;
+    // Siehe esAuthentifiziereAlsAdmin: solange die Regeln nicht stehen, ist
+    // der Klartext der einzige Weg.
+    else if (esRoh.meta.adminPin && esRoh.meta.adminPin === pin) esPinOk = true;
     if (esPinOk) esMelde();
   } finally {
     esPinLaeuft = false;
@@ -1078,6 +1081,21 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
   try { pinH = await pinHash(ES_PID, pin); }
   catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." }; }
 
+  // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank, nicht danach.
+  //
+  // Bis die neuen Regeln in der Firebase-Konsole veröffentlicht sind, gibt es
+  // essenGeheim gar nicht und dieser Schreibvorgang scheitert. Stünde er HINTER
+  // dem Plan, gäbe es danach einen Plan, dessen PIN nirgends hinterlegt ist —
+  // weder als Hash noch (seit heute) als Klartext. Dann käme nur noch das
+  // anlegende Gerät über hostId hinein, und auf jedem anderen wäre der
+  // Veranstalter-Bereich dauerhaft zu. Scheitert es hier, entsteht schlicht
+  // kein Plan, und die Meldung sagt warum.
+  try {
+    await db.ref("essenGeheim/" + ES_PID + "/adminPinHash").set(pinH);
+  } catch (e) {
+    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich sind die neuen Datenbank-Regeln noch nicht veröffentlicht." };
+  }
+
 
   const mail = esText(lieferantEmail, 120);
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
@@ -1100,11 +1118,14 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
       hinweis: esText(hinweis, 400),
     },
   });
-  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
-  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
-  // verlangt sie später beim PIN-Wechsel und beim Löschen.
-  await db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash").set(pinH);
-  await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
+  // Der Hash liegt schon (siehe oben, VOR dem Plan). Hier nur noch die
+  // Beweisablage: die Regel verlangt sie später beim PIN-Wechsel und beim
+  // Löschen. ⚠️ Mit try, weil der Plan an dieser Stelle bereits steht — ein
+  // Fehlschlag bei einer Nebensache darf ihn nicht als misslungen melden.
+  // Nachgeholt wird sie beim nächsten Laden von esPruefeGemerktenPin().
+  try {
+    await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
+  } catch (e) { /* siehe oben */ }
   esPinOk = true;
   try {
     localStorage.setItem(ES_PIN_KEY, pin);
@@ -1638,6 +1659,20 @@ async function esAuthentifiziereAlsAdmin(pin) {
   let ok = await esBeweisePin(eingabe);
   // Altbestand: Plan von vor dem 15.09.2026, Hash noch nicht hinterlegt.
   if (!ok) ok = await esHeileAltenPin(eingabe);
+  // ⚠️⚠️ Altbestand-Rueckfall auf den KLARTEXT. Turnier und Streamplan machen
+  // dasselbe (authentifiziereAlsAdmin dort) und aus demselben Grund: die neuen
+  // Regeln muessen in der Firebase-Konsole von Hand veroeffentlicht werden.
+  // Bis dahin gibt es die Knoten essenGeheim/essenPinProbe gar nicht, beide
+  // Schreibvorgaenge oben scheitern, und OHNE diesen Zweig kaeme niemand mehr
+  // an den Veranstalter-Bereich -- an einen Bereich, hinter dem Telefonnummer,
+  // Lieferantenmail und alle Bestellungen liegen, mitten in der Veranstaltung.
+  //
+  // Der Zweig wird von selbst bedeutungslos: sobald die Regeln stehen, zieht
+  // esHeileAltenPin() den Klartext weg, und danach ist `alt` immer leer.
+  if (!ok) {
+    const alt = esRoh.meta.adminPin;
+    if (alt && eingabe === alt) ok = true;
+  }
   if (!ok) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
   esPinOk = true;
   try {
