@@ -27,7 +27,9 @@
 // `database.rules.json` und müssen dort eingespielt werden.
 //
 // Datenmodell (ein aktiver Plan unter essen/aktuell):
-//   meta            : { titel, hostId, adminPin, erstelltAm, annahmeOffen,
+//   meta            : { titel, hostId, erstelltAm, annahmeOffen,
+//                       (⚠️ KEIN adminPin mehr - der liegt seit dem 15.09.2026
+//                        als Hash unter essenGeheim/essen-aktuell)
 //                       lieferantName, lieferantEmail,
 //                       bestellerName, bestellerTelefon, hinweis }
 //   karte/$gid      : { name, beschreibung, preisCent, kategorie, sort, erstelltAm }
@@ -56,6 +58,22 @@
 
 const ES_BASIS = "essen/aktuell";
 const ES_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie Turnier, Stream und Frühstück
+
+// ⚠️ Der Admin-PIN steht NICHT mehr in meta. essen/aktuell trug ".read":
+// "auth != null", und die Anmeldung dieser Seite ist ANONYM – jede:r auf der
+// Seite besteht sie. Der PIN lag damit bis zum 15.09.2026 im Klartext für
+// jeden Besucher abrufbar, und dahinter liegen Telefonnummer des Bestellers,
+// die Lieferantenmail und sämtliche Bestellungen mit Namen.
+// Er liegt jetzt als SHA-256-Hash unter essenGeheim/aktuell/adminPinHash –
+// ein Knoten ganz ohne Leserecht. Geprüft wird über esBeweisePin(), denselben
+// Weg, den Turnier und Streamplan seit dem 15.09.2026 gehen.
+// ⚠️ NICHT "aktuell". Dieser Wert ist zugleich der Pfadteil UND das Salz des
+// Hashes (pinHash bildet SHA-256 ueber "<id>:<pin>"). Stuende hier derselbe
+// Text wie beim Fruehstueck, ergaebe derselbe PIN in beiden Bereichen
+// denselben Hash -- ein Treffer waere dann sofort zwei Treffer.
+const ES_PID         = "essen-aktuell";
+const ES_GEHEIM_PFAD = "essenGeheim";    // <pid>/adminPinHash – kein Leserecht
+const ES_PROBE_PFAD  = "essenPinProbe";  // <pid>/<uid> – Beweisablage, kein Leserecht
 const ES_NAME_KEY = "agelan_streamer_name"; // denselben Namen wie im Streamplan vorschlagen
 
 const ES_MAX_GERICHTE = 150;      // eine echte Speisekarte ist lang – der Import soll sie fassen
@@ -111,6 +129,11 @@ function esStatusKnopf(status, orga) {
 // --- lokaler Zustand -------------------------------------------------------
 let esEigeneUid = null;
 let esRoh = null;            // roher { meta, karte, bestellungen }-Snapshot
+// Steht esPinOk auf true, hat der SERVER den gemerkten PIN bestätigt – nicht
+// der Browser. Ein Vergleich im Browser wäre wertlos, sobald der Hash nicht
+// mehr lesbar ist, und genau das ist der Sinn der Übung.
+let esPinOk = false;
+let esPinLaeuft = false;
 let esListener = null;
 // true, sobald Firebase das Lesen ablehnt – praktisch immer die fehlende Regel.
 let esZugriffFehler = false;
@@ -210,27 +233,66 @@ function esIstAdmin() {
   const meta = esRoh && esRoh.meta;
   if (!meta) return false;
   if (meta.hostId && meta.hostId === esEigeneUid) return true;
-  return !!(meta.adminPin && esGespeicherterPin() === meta.adminPin);
+  return esPinOk;
+}
+
+// turnier-service.js wird VOR dieser Datei geladen und stellt den Beweisweg
+// bereit. Fehlt er (einzeln geöffnete Datei, Prüfstand), sagt das die
+// Oberfläche klar, statt den PIN still durchzuwinken.
+function esBeweisWegDa() {
+  return typeof beweisePinAn === "function" && typeof pinHashMoeglich === "function";
+}
+
+function esBeweisePin(pin) {
+  if (!esBeweisWegDa()) return Promise.resolve(false);
+  return beweisePinAn(ES_GEHEIM_PFAD, ES_PROBE_PFAD, ES_PID, esEigeneUid, pin);
+}
+
+// Altbestand: Pläne aus der Zeit, als der PIN im Klartext in meta stand. Wer
+// ihn noch gemerkt hat, zieht sie beim Öffnen selbst um – Hash in den
+// geschützten Knoten, Klartext raus.
+async function esHeileAltenPin(pin) {
+  const alt = esRoh && esRoh.meta && esRoh.meta.adminPin;
+  if (!alt || alt !== pin || !esBeweisWegDa() || !pinHashMoeglich()) return false;
+  try {
+    const h = await pinHash(ES_PID, alt);
+    await db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash").set(h);
+    await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, h);
+    await db.ref(ES_BASIS + "/meta/adminPin").remove();
+    esPinOk = true;
+    return true;
+  } catch (e) {
+    console.error("Essen: PIN-Umzug fehlgeschlagen:", e);
+    return false;
+  }
+}
+
+// Läuft einmal, sobald der Plan da ist: den gemerkten PIN gegen den Server
+// halten. Erst danach zeigt die Oberfläche die Veranstalter-Knöpfe – deshalb
+// am Ende esMelde().
+async function esPruefeGemerktenPin() {
+  if (esPinOk || esPinLaeuft) return;
+  const pin = esGespeicherterPin();
+  if (!pin || !esRoh || !esRoh.meta) return;
+  esPinLaeuft = true;
+  try {
+    if (await esBeweisePin(pin)) esPinOk = true;
+    else await esHeileAltenPin(pin);
+    if (esPinOk) esMelde();
+  } finally {
+    esPinLaeuft = false;
+  }
 }
 
 // Beim Anlegen den PIN vorschlagen, den Turnier oder Frühstück schon haben –
 // es ist derselbe Veranstalter und derselbe Abend.
 function esVorhandenerPin() {
-  const gemerkt = esGespeicherterPin();
-  if (gemerkt) return gemerkt;
-  try {
-    if (typeof fruehstueckService !== "undefined") {
-      const z = fruehstueckService.getZustand();
-      if (z && z.vorhanden && z.istAdmin && z.meta && z.meta.adminPin) return z.meta.adminPin;
-    }
-  } catch (e) { /* kein Frühstück */ }
-  try {
-    if (typeof turnierService !== "undefined" && turnierService.getZustand) {
-      const z = turnierService.getZustand();
-      if (z && z.vorhanden && z.istAdmin && z.meta && z.meta.adminPin) return z.meta.adminPin;
-    }
-  } catch (e) { /* kein Turnier */ }
-  return "";
+  // ⚠️ Seit dem 15.09.2026 NUR noch aus dem eigenen Gerät. Vorher stand hier
+  // ein Blick in fremdes meta.adminPin – das Feld gibt es nirgends mehr, der
+  // Vorschlag wäre also ohnehin immer leer geblieben. Ein Griff in den
+  // geschützten Hash-Knoten geht nicht und soll auch nicht gehen: aus einem
+  // Hash lässt sich der PIN nicht zurückrechnen, das ist sein Zweck.
+  return esGespeicherterPin() || "";
 }
 
 // ===========================================================================
@@ -967,6 +1029,9 @@ esAuthBereit.then(() => {
       esZugriffFehler = false;
       esRoh = snap.val() || {};
       esMelde();
+      // ⚠️ Ohne await und ohne Rückgabe: der Beweis läuft über das Netz und
+      // darf das Rendern nicht aufhalten. Ist er durch, meldet er selbst.
+      esPruefeGemerktenPin();
     },
     // ⚠️ Ohne diesen zweiten Rückruf scheitert das Lesen lautlos: `esRoh` bliebe
     // `null`, die Oberfläche zeigte für immer das leere Anlegen-Formular, und
@@ -1005,6 +1070,14 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
 
   const pin = esText(adminPin, 20);
   if (!pin) return { erfolg: false, fehler: "Bitte lege einen Veranstalter-PIN fest." };
+  if (pinZuKurz(pin)) return { erfolg: false, fehler: PIN_ZU_KURZ };
+  if (!esBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." };
+  }
+  let pinH;
+  try { pinH = await pinHash(ES_PID, pin); }
+  catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." }; }
+
 
   const mail = esText(lieferantEmail, 120);
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
@@ -1015,7 +1088,9 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
     meta: {
       titel: t,
       hostId: esEigeneUid,
-      adminPin: pin,
+      // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
+      // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
+      // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
       annahmeOffen: true,
       lieferantName: esText(lieferantName, 80),
@@ -1025,6 +1100,12 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
       hinweis: esText(hinweis, 400),
     },
   });
+  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
+  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
+  // verlangt sie später beim PIN-Wechsel und beim Löschen.
+  await db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash").set(pinH);
+  await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
+  esPinOk = true;
   try {
     localStorage.setItem(ES_PIN_KEY, pin);
   } catch (e) { /* privater Modus: dann zählt nur hostId */ }
@@ -1534,16 +1615,31 @@ async function esLoeschePlan() {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(ES_BASIS).remove();
+  // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
+  // die nächste Bestellung mit dem PIN der vorigen aufmachen – und der ist
+  // unter Umständen längst weitergereicht.
+  try { await db.ref(ES_GEHEIM_PFAD + "/" + ES_PID).remove(); } catch (e) {}
+  try { await db.ref(ES_PROBE_PFAD + "/" + ES_PID + "/" + esEigeneUid).remove(); } catch (e) {}
+  esPinOk = false;
   return { erfolg: true };
 }
 
-function esAuthentifiziereAlsAdmin(pin) {
+// ⚠️ Jetzt async: der PIN wird nicht mehr im Browser verglichen, sondern dem
+// SERVER bewiesen. Die Aufrufer in essen-app.js müssen darauf warten.
+async function esAuthentifiziereAlsAdmin(pin) {
   const eingabe = esText(pin, 20);
   if (!eingabe) return { erfolg: false, fehler: "Bitte gib den PIN ein." };
-  if (!esRoh || !esRoh.meta || !esRoh.meta.adminPin) {
+  if (!esRoh || !esRoh.meta) {
     return { erfolg: false, fehler: "Es gibt noch keine Essensbestellung." };
   }
-  if (eingabe !== esRoh.meta.adminPin) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  if (!esBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht prüfen." };
+  }
+  let ok = await esBeweisePin(eingabe);
+  // Altbestand: Plan von vor dem 15.09.2026, Hash noch nicht hinterlegt.
+  if (!ok) ok = await esHeileAltenPin(eingabe);
+  if (!ok) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  esPinOk = true;
   try {
     localStorage.setItem(ES_PIN_KEY, eingabe);
   } catch (e) { /* privater Modus */ }

@@ -12,7 +12,9 @@
 // – genauso wie der Streamplan.
 //
 // Datenmodell (ein aktiver Plan unter fruehstueck/aktuell):
-//   meta        : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
+//   meta        : { titel, hostId, erstelltAm, startDatum:"YYYY-MM-DD",
+//                   (⚠️ KEIN adminPin mehr - der liegt seit dem 15.09.2026
+//                    als Hash unter fruehstueckGeheim/fruehstueck-aktuell)
 //                   anzahlTage, schlussUhr, annahmeOffen }
 //   pakete/$pid : { name, beschreibung, preisCent, sort, erstelltAm }
 //   bestellungen/$datum/$uid : { name, positionen:{pid:anzahl},
@@ -38,6 +40,19 @@
 
 const FR_BASIS = "fruehstueck/aktuell";
 const FR_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie Turnier und Streamplan
+
+// ⚠️ Der Admin-PIN steht NICHT mehr in meta. fruehstueck/<pid> trägt
+// ".read": true – der PIN lag dort bis zum 15.09.2026 im Klartext offen im
+// Netz, abrufbar ohne Konto und ohne Browser, mit einem blanken Aufruf der
+// Datenbankadresse. Er liegt jetzt als SHA-256-Hash unter
+// fruehstueckGeheim/<pid>/adminPinHash – ein Knoten ganz ohne Leserecht.
+// Geprüft wird über frBeweisePin(), denselben Weg wie Turnier und Streamplan.
+// ⚠️ NICHT "aktuell" -- siehe ES_PID in essen-service.js: dieser Wert ist
+// zugleich Pfadteil UND Salz des Hashes. Zwei Bereiche mit demselben Salz
+// haetten bei demselben PIN denselben Hash.
+const FR_PID         = "fruehstueck-aktuell";
+const FR_GEHEIM_PFAD = "fruehstueckGeheim";    // <pid>/adminPinHash – kein Leserecht
+const FR_PROBE_PFAD  = "fruehstueckPinProbe";  // <pid>/<uid> – Beweisablage, kein Leserecht
 const FR_NAME_KEY = "agelan_streamer_name"; // denselben Namen wie im Streamplan vorschlagen
 
 const FR_MAX_TAGE = 7;
@@ -50,6 +65,10 @@ const FR_TAG_LANG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", 
 // --- lokaler Zustand -------------------------------------------------------
 let frEigeneUid = null;
 let frRoh = null;             // roher { meta, pakete, bestellungen }-Snapshot
+// Steht frPinOk auf true, hat der SERVER den gemerkten PIN bestätigt – nicht
+// der Browser.
+let frPinOk = false;
+let frPinLaeuft = false;
 let frListener = null;
 
 const frAuthBereit = new Promise((resolve) => {
@@ -147,26 +166,62 @@ function frIstAdmin() {
   if (!frRoh || !frRoh.meta) return false;
   const meta = frRoh.meta;
   if (meta.hostId && meta.hostId === frEigeneUid) return true;
-  return !!meta.adminPin && frGespeicherterPin() === meta.adminPin;
+  return frPinOk;
+}
+
+// turnier-service.js wird VOR dieser Datei geladen und stellt den Beweisweg
+// bereit.
+function frBeweisWegDa() {
+  return typeof beweisePinAn === "function" && typeof pinHashMoeglich === "function";
+}
+
+function frBeweisePin(pin) {
+  if (!frBeweisWegDa()) return Promise.resolve(false);
+  return beweisePinAn(FR_GEHEIM_PFAD, FR_PROBE_PFAD, FR_PID, frEigeneUid, pin);
+}
+
+// Altbestand: Pläne aus der Zeit, als der PIN im Klartext in meta stand.
+async function frHeileAltenPin(pin) {
+  const alt = frRoh && frRoh.meta && frRoh.meta.adminPin;
+  if (!alt || alt !== pin || !frBeweisWegDa() || !pinHashMoeglich()) return false;
+  try {
+    const h = await pinHash(FR_PID, alt);
+    await db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash").set(h);
+    await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, h);
+    await db.ref(FR_BASIS + "/meta/adminPin").remove();
+    frPinOk = true;
+    return true;
+  } catch (e) {
+    console.error("Frühstück: PIN-Umzug fehlgeschlagen:", e);
+    return false;
+  }
+}
+
+// Läuft einmal, sobald der Plan da ist: den gemerkten PIN gegen den Server
+// halten. Erst danach zeigt die Oberfläche die Veranstalter-Knöpfe.
+async function frPruefeGemerktenPin() {
+  if (frPinOk || frPinLaeuft) return;
+  const pin = frGespeicherterPin();
+  if (!pin || !frRoh || !frRoh.meta) return;
+  frPinLaeuft = true;
+  try {
+    if (await frBeweisePin(pin)) frPinOk = true;
+    else await frHeileAltenPin(pin);
+    if (frPinOk) frMelde();
+  } finally {
+    frPinLaeuft = false;
+  }
 }
 
 // PIN des laufenden Turniers bzw. des Streamplans, damit ein neuer
 // Frühstücksplan denselben PIN übernimmt und es nicht drei Geheimnisse für
 // dieselbe Person gibt.
 function frVorhandenerPin() {
-  try {
-    if (typeof streamService !== "undefined") {
-      const s = streamService.getZustand();
-      if (s && s.vorhanden && s.istAdmin && s.meta && s.meta.adminPin) return s.meta.adminPin;
-    }
-  } catch (e) { /* Streamplan noch nicht geladen */ }
-  try {
-    if (typeof turnierService !== "undefined") {
-      const z = turnierService.getZustand();
-      if (z && z.vorhanden && z.istAdmin && z.meta && z.meta.adminPin) return z.meta.adminPin;
-    }
-  } catch (e) { /* kein Turnier */ }
-  return "";
+  // ⚠️ Seit dem 15.09.2026 NUR noch aus dem eigenen Gerät. Vorher stand hier
+  // ein Blick in fremdes meta.adminPin – das Feld gibt es nirgends mehr, der
+  // Vorschlag wäre also ohnehin immer leer geblieben. Aus dem Hash lässt sich
+  // der PIN nicht zurückrechnen; das ist sein Zweck.
+  return frGespeicherterPin() || "";
 }
 
 // ===========================================================================
@@ -395,6 +450,9 @@ frAuthBereit.then(() => {
   frListener = db.ref(FR_BASIS).on("value", (snap) => {
     frRoh = snap.val() || {};
     frMelde();
+    // ⚠️ Ohne await: der Beweis läuft über das Netz und darf das Rendern
+    // nicht aufhalten. Ist er durch, meldet er selbst.
+    frPruefeGemerktenPin();
   });
 });
 
@@ -433,12 +491,23 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
 
   const pin = frText(adminPin, 20);
   if (!pin) return { erfolg: false, fehler: "Bitte lege einen Veranstalter-PIN fest." };
+  if (pinZuKurz(pin)) return { erfolg: false, fehler: PIN_ZU_KURZ };
+  if (!frBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." };
+  }
+  // Hash VOR dem Anlegen bilden: scheitert er, gibt es keinen halben Plan
+  // ohne jeden Veranstalter-Zugang.
+  let pinH;
+  try { pinH = await pinHash(FR_PID, pin); }
+  catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." }; }
 
   await db.ref(FR_BASIS).update({
     meta: {
       titel: t,
       hostId: frEigeneUid,
-      adminPin: pin,
+      // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
+      // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
+      // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
       startDatum: startDatum,
       anzahlTage: tage,
@@ -446,6 +515,12 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
       annahmeOffen: true,
     },
   });
+  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
+  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
+  // verlangt sie später beim PIN-Wechsel und beim Löschen.
+  await db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash").set(pinH);
+  await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, pinH);
+  frPinOk = true;
   try {
     localStorage.setItem(FR_PIN_KEY, pin);
   } catch (e) { /* privater Modus: dann zählt nur hostId */ }
@@ -679,16 +754,31 @@ async function frLoeschePlan() {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(FR_BASIS).remove();
+  // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
+  // der nächste Plan mit dem PIN des vorigen aufmachen – und der ist unter
+  // Umständen längst weitergereicht.
+  try { await db.ref(FR_GEHEIM_PFAD + "/" + FR_PID).remove(); } catch (e) {}
+  try { await db.ref(FR_PROBE_PFAD + "/" + FR_PID + "/" + frEigeneUid).remove(); } catch (e) {}
+  frPinOk = false;
   return { erfolg: true };
 }
 
-function frAuthentifiziereAlsAdmin(pin) {
+// ⚠️ Jetzt async: der PIN wird nicht mehr im Browser verglichen, sondern dem
+// SERVER bewiesen. Die Aufrufer in fruehstueck-app.js müssen darauf warten.
+async function frAuthentifiziereAlsAdmin(pin) {
   const eingabe = frText(pin, 20);
   if (!eingabe) return { erfolg: false, fehler: "Bitte gib den PIN ein." };
-  if (!frRoh || !frRoh.meta || !frRoh.meta.adminPin) {
+  if (!frRoh || !frRoh.meta) {
     return { erfolg: false, fehler: "Es gibt noch keine Frühstücksbestellung." };
   }
-  if (eingabe !== frRoh.meta.adminPin) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  if (!frBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht prüfen." };
+  }
+  let ok = await frBeweisePin(eingabe);
+  // Altbestand: Plan von vor dem 15.09.2026, Hash noch nicht hinterlegt.
+  if (!ok) ok = await frHeileAltenPin(eingabe);
+  if (!ok) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  frPinOk = true;
   try {
     localStorage.setItem(FR_PIN_KEY, eingabe);
   } catch (e) { /* privater Modus */ }

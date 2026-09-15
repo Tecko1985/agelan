@@ -47,7 +47,7 @@
     "turnierPinProbe": {
       "$tid": {
         "$uid": {
-          ".write": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('turnierPinTakt').child($tid).child(auth.uid).val() > now - 5000)",
           ".validate": "newData.isString() && newData.val() === root.child('turnierGeheim').child($tid).child('adminPinHash').val()"
         }
       }
@@ -66,8 +66,82 @@
     "streamplanPinProbe": {
       "$pid": {
         "$uid": {
-          ".write": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('streamplanPinTakt').child($pid).child(auth.uid).val() > now - 5000)",
           ".validate": "newData.isString() && newData.val() === root.child('streamplanGeheim').child($pid).child('adminPinHash').val()"
+        }
+      }
+    },
+
+    "turnierPinTakt": {
+      "$tid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!data.exists() || now > data.val() + 1000)",
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 5000"
+        }
+      }
+    },
+
+    "streamplanPinTakt": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!data.exists() || now > data.val() + 1000)",
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 5000"
+        }
+      }
+    },
+
+    "fruehstueckPinTakt": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!data.exists() || now > data.val() + 1000)",
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 5000"
+        }
+      }
+    },
+
+    "essenPinTakt": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!data.exists() || now > data.val() + 1000)",
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 5000"
+        }
+      }
+    },
+
+    "fruehstueckGeheim": {
+      "$pid": {
+        "adminPinHash": {
+          ".write": "auth != null && (!data.exists() || data.val() === root.child('fruehstueckPinProbe').child($pid).child(auth.uid).val())",
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+        },
+        "$sonst": { ".validate": false }
+      }
+    },
+
+    "fruehstueckPinProbe": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('fruehstueckPinTakt').child($pid).child(auth.uid).val() > now - 5000)",
+          ".validate": "newData.isString() && newData.val() === root.child('fruehstueckGeheim').child($pid).child('adminPinHash').val()"
+        }
+      }
+    },
+
+    "essenGeheim": {
+      "$pid": {
+        "adminPinHash": {
+          ".write": "auth != null && (!data.exists() || data.val() === root.child('essenPinProbe').child($pid).child(auth.uid).val())",
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+        },
+        "$sonst": { ".validate": false }
+      }
+    },
+
+    "essenPinProbe": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('essenPinTakt').child($pid).child(auth.uid).val() > now - 5000)",
+          ".validate": "newData.isString() && newData.val() === root.child('essenGeheim').child($pid).child('adminPinHash').val()"
         }
       }
     },
@@ -133,7 +207,9 @@
           "startDatum": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
           "anzahlTage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 7" },
           "schlussUhr":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" },
-          "annahmeOffen": { ".validate": "newData.isBoolean()" }
+          "annahmeOffen": { ".validate": "newData.isBoolean()" },
+
+          "adminPin": { ".validate": false }
         },
 
         "pakete": {
@@ -179,7 +255,9 @@
           "annahmeVon":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
           "annahmeBis":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
           "rundeZaehler":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
-          "rundeTag":         { ".validate": "newData.isString() && newData.val().length <= 60" }
+          "rundeTag":         { ".validate": "newData.isString() && newData.val().length <= 60" },
+
+          "adminPin": { ".validate": false }
         },
 
         "runden": {

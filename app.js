@@ -1492,6 +1492,26 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.3",
+    groups: [
+      { title: "Der Veranstalter-PIN ist jetzt überall geschützt", items: [
+          "Frühstück und Essen bewahrten ihren PIN bisher im Klartext in der Datenbank auf. Beim Frühstück war er damit für jeden abrufbar, beim Essen für jeden, der die Seite offen hatte – und hinter dem Essens-PIN stehen Telefonnummer, Lieferantenadresse und alle Bestellungen mit Namen.",
+          "Beide gehen jetzt denselben Weg wie Turnier und Streamplan: gespeichert wird nur noch eine Prüfsumme, aus der sich der PIN nicht zurückrechnen lässt. Geprüft wird auf dem Server, nicht mehr im Browser.",
+          "Für dich ändert sich nichts: derselbe PIN, dieselben Knöpfe. Nur die Anmeldung braucht jetzt einen kurzen Augenblick, weil sie übers Netz geht.",
+          "Wer einen Plan von früher aufmacht und seinen PIN noch gemerkt hat, zieht ihn dabei von selbst um.",
+          "Neue Pläne brauchen einen PIN mit mindestens sechs Zeichen. Bestehende behalten ihren.",
+          "Wird ein Plan gelöscht, verschwindet seine Prüfsumme mit – sonst ließe sich der nächste mit dem alten PIN aufmachen."
+      ]},
+      { title: "Falsche Passwörter werden härter gebremst", items: [
+          "Die Bremse gegen das Durchprobieren von Passwörtern zählte bisher nur innerhalb eines Servers mit – und davon laufen viele nebeneinander. Eine Welle verteilte sich darauf und kam durch.",
+          "Jetzt zählt zusätzlich Cloudflare selbst mit, außerhalb der einzelnen Server. Wer das Passwort kennt, merkt davon weiterhin nichts."
+      ]},
+      { title: "Datenschutz: ein Satz, der gefehlt hat", items: [
+          "Seit gestern bekommen die Veranstalter eine Discord-Nachricht, sobald jemand ein Konto anlegt. Dass das passiert, steht jetzt auch im Datenschutz-Hinweis."
+      ]},
+    ],
+  },
+  {
     version: "7.2",
     groups: [
       { title: "Streamplan: mehrere dürfen sich dieselbe Zeit nehmen", items: [

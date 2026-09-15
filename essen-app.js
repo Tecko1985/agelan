@@ -1367,10 +1367,20 @@ function esWireEvents() {
   esEl("es-btn-ger-anlegen").addEventListener("click", esSpeichereGericht);
   esEl("es-btn-import-pruefen").addEventListener("click", esPruefeImport);
 
-  esEl("es-btn-admin-anmelden").addEventListener("click", () => {
-    const res = essenService.authentifiziereAlsAdmin(esEl("es-admin-pin").value);
-    esZeigeFehler("es-admin-login-fehler", res.erfolg ? "" : res.fehler);
-    if (res.erfolg) esEl("es-admin-pin").value = "";
+  // ⚠️ await: der PIN wird seit dem 15.09.2026 dem SERVER bewiesen, nicht im
+  // Browser verglichen. Ohne await waere `res` ein Promise, `res.erfolg`
+  // undefined -- die Anmeldung saehe dann bei JEDER Eingabe nach Fehlschlag
+  // aus, auch beim richtigen PIN, und die Meldung waere leer.
+  esEl("es-btn-admin-anmelden").addEventListener("click", async () => {
+    const knopf = esEl("es-btn-admin-anmelden");
+    knopf.disabled = true;
+    try {
+      const res = await essenService.authentifiziereAlsAdmin(esEl("es-admin-pin").value);
+      esZeigeFehler("es-admin-login-fehler", res.erfolg ? "" : res.fehler);
+      if (res.erfolg) esEl("es-admin-pin").value = "";
+    } finally {
+      knopf.disabled = false;
+    }
   });
 
   esEl("es-ein-annahme").addEventListener("change", async () => {

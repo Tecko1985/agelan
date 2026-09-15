@@ -130,6 +130,11 @@ async function pruefePasswort(request, body, env, cors) {
   const stimmt = await passwortGleich(String(body.password || ""), env[secretName]);
   if (!stimmt) {
     bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "aktions-pw"))) {
+      return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+    }
     return json({ error: "Falsches Passwort" }, 403, cors);
   }
   return json({ ok: true }, 200, cors);
@@ -153,6 +158,38 @@ async function passwortGleich(eingabe, erwartet) {
 
 function bremseIp(request) {
   return String((request.headers && request.headers.get("CF-Connecting-IP")) || "");
+}
+
+// Cloudflares eigenes Zaehlwerk (Bindung "BREMSE"). Es zaehlt AUSSERHALB des
+// Isolates -- und genau das ist der Unterschied zu FEHL_ZAEHLER hier drueber:
+// die Map lebt nur im gerade laufenden Isolate. Cloudflare verteilt Anfragen
+// auf viele davon und raeumt kalte weg; eine Welle aus einem Anschluss sieht
+// deshalb oft eine leere Map. Die Map bleibt als schnelle erste Reihe stehen,
+// die Bindung ist die, die live wirklich haelt.
+//
+// ⚠️ Der Rest der Flotte hat das seit dem 15.09.2026 (landingpage,
+// beleg-scanner, mitgliedsportal, vereinsverwaltung). agelan war als
+// einziger Worker noch ohne -- nachgezogen am selben Tag.
+//
+// ⚠️⚠️ Die Bindung muss je Worker EINZELN gesetzt sein. Fehlt sie, bremst
+// dieser Worker nichts, und von aussen sieht das genau aus wie "musste nicht
+// bremsen". Nachsehen laesst sich das mit
+// ToolsUebersicht/pruefe-bremsen.ps1.
+//
+// Drei Faelle geben bewusst frei statt zu sperren: Bindung fehlt (aelterer
+// Deploy), keine Client-Adresse, Bindung wirft. Eine kaputte Bremse darf den
+// normalen Weg nicht kippen.
+async function bindungBremseOffen(env, request, kennung) {
+  if (!env || !env.BREMSE || typeof env.BREMSE.limit !== "function") return true;
+  const ip = bremseIp(request);
+  if (!ip) return true;
+  try {
+    const r = await env.BREMSE.limit({ key: kennung + ":" + ip });
+    return r && r.success !== false;
+  } catch (fehler) {
+    console.warn("BREMSE-Bindung nicht nutzbar: " + ((fehler && fehler.message) || fehler));
+    return true;
+  }
 }
 
 function bremseOffen(request) {
@@ -485,6 +522,11 @@ async function kontoAnlegen(request, body, env, cors, ctx) {
   const einladungOk = await passwortGleich(String(body.lanPasswort || ""), env.PW_AGELAN);
   if (!einladungOk) {
     bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "konto-anlegen"))) {
+      return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+    }
     return json({ error: "Falsches Passwort für die Anmeldung." }, 403, cors);
   }
 
@@ -566,7 +608,15 @@ async function kontoLogin(request, body, env, cors) {
   // Bewusst dieselbe Meldung wie bei falschem Passwort: sonst ließe sich von
   // außen durchprobieren, welche Namen es überhaupt gibt.
   const fehlmeldung = { error: "Name oder Passwort stimmt nicht." };
-  if (!roh) { bremseFehlschlag(request); return json(fehlmeldung, 403, cors); }
+  if (!roh) {
+    bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "konto-login"))) {
+      return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+    }
+    return json(fehlmeldung, 403, cors);
+  }
 
   let konto;
   try {
@@ -577,6 +627,11 @@ async function kontoLogin(request, body, env, cors) {
 
   if (!(await passwortStimmt(String(body.passwort || ""), konto.pw))) {
     bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "konto-login"))) {
+      return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+    }
     return json(fehlmeldung, 403, cors);
   }
   return json({
@@ -643,6 +698,11 @@ async function kontoAdmin(request, body, env, cors) {
     && await passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
   if (anschalten && !mitPasswort) {
     bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "konto-admin"))) {
+      return json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." }, 429, cors);
+    }
     return json({ error: "Falsches Veranstalter-Passwort." }, 403, cors);
   }
 
@@ -779,6 +839,11 @@ async function veranstalterOk(request, body, env) {
   const stimmt = await passwortGleich(String(body.veranstalterPasswort), env.PW_AGELAN_VERANSTALTER);
   if (!stimmt) {
     bremseFehlschlag(request);
+    // ⚠️ Hier, nicht oben am Eingang: limit() zaehlt bei JEDEM Aufruf mit -- am
+    // Eingang wuerde normales Arbeiten die Bremse fuellen.
+    if (!(await bindungBremseOffen(env, request, "veranstalter-pw"))) {
+      return { ok: false, fehler: "Zu viele Fehlversuche. Bitte später erneut versuchen.", status: 429 };
+    }
     return nurToken;
   }
   return { ok: true };

@@ -42,6 +42,31 @@ const RATING_MIN = 500;
 const RATING_MAX = 3000;
 const RATING_DEFAULT = 1500;
 
+// ⚠️ Mindestlaenge des PINs, und zwar der eigentliche Schutz (15.09.2026).
+//
+// Der Beweisweg ueber turnierPinProbe ist ein Orakel: ein Schreibvorgang
+// gelingt genau dann, wenn der Hash stimmt. Der Takt daneben laesst einen
+// Versuch je Sekunde und Konto zu -- wer sich aber staendig neue anonyme
+// Konten holt, umgeht ihn. Ein vierstelliger PIN ("1234") waere damit in
+// ueberschaubarer Zeit durchprobiert.
+//
+// Sechs Zeichen sind die Grenze, ab der das aussichtslos wird: rein
+// ziffrig eine Million Moeglichkeiten, mit Buchstaben ein Vielfaches davon.
+// Der PIN darf weiterhin alles sein, was sich tippen laesst -- nur nicht
+// mehr kurz.
+//
+// ⚠️ Gilt fuer NEUE Plaene. Bestehende Turniere, Streamplaene, Fruehstuecks-
+// und Essensplaene behalten ihren alten PIN; sie hier abzuweisen wuerde
+// laufende Veranstaltungen aussperren.
+const PIN_MIN = 6;
+const PIN_ZU_KURZ = "Der PIN ist zu kurz. Bitte mindestens " + PIN_MIN + " Zeichen – Ziffern und Buchstaben sind erlaubt.";
+
+// Gibt die Fehlermeldung zurueck, oder "" wenn der PIN lang genug ist.
+// ⚠️ Global, weil Streamplan, Fruehstueck und Essen dieselbe Grenze benutzen.
+function pinZuKurz(pin) {
+  return String(pin || "").trim().length < PIN_MIN ? PIN_ZU_KURZ : "";
+}
+
 const ADMIN_PIN_KEY = "agelan_admin_pin";
 // Zwei Knoten AUSSERHALB von turniere/: dort haengt ".read": true am ganzen
 // Turnierbaum, und ein Leserecht laesst sich in Firebase weiter unten nicht
@@ -252,6 +277,53 @@ const PIN_UNSICHER = "Dieses Geraet kann den PIN nicht pruefen: die Seite laeuft
 // ⚠️ Der Streamkalender benutzt denselben Weg mit eigenen Knoten und ruft
 // beweisePinAn() direkt auf (stream-service.js wird nach dieser Datei geladen).
 // Wer hier etwas aendert, aendert es fuer beide.
+// Der Taktknoten zum Beweisknoten. Alle vier Bereiche heissen gleich gebaut
+// (<bereich>PinProbe / <bereich>PinTakt); passt das nicht, gibt es lieber gar
+// keinen Takt als einen falschen Pfad, auf den keine Regel zeigt.
+function taktPfadZu(probePfad) {
+  const p = String(probePfad || "");
+  return p.endsWith("PinProbe") ? p.slice(0, -"PinProbe".length) + "PinTakt" : "";
+}
+
+// ⚠️ Vor JEDEM Beweis einmal takten. Der Beweisweg ist naemlich ein Orakel:
+// der Schreibvorgang gelingt genau dann, wenn der Hash stimmt. Ohne Bremse
+// koennte jemand einen vierstelligen PIN in Minuten durchprobieren –
+// Firebase-Regeln haben von sich aus kein Zaehlwerk. Die Regel laesst den
+// Beweis nur durch, wenn derselbe uid in den letzten 5 Sekunden getaktet hat,
+// und takten darf man hoechstens jede Sekunde.
+//
+// ⚠️⚠️ ServerValue.TIMESTAMP, NIEMALS Date.now(). Die Regel misst gegen `now`
+// (die Serverzeit). Wer die Geraeteuhr schickt, sperrt jeden mit einer schief
+// gehenden Uhr dauerhaft aus – der PIN ginge dann nie mehr durch.
+async function takte(probePfad, id, uid) {
+  const takt = taktPfadZu(probePfad);
+  if (!takt) return false;
+  try {
+    const marke = (firebase && firebase.database && firebase.database.ServerValue)
+      ? firebase.database.ServerValue.TIMESTAMP : null;
+    if (marke === null) return false;
+    await db.ref(takt + "/" + id + "/" + uid).set(marke);
+    return true;
+  } catch (e) {
+    // Abgelehnt heisst hier fast immer "zu schnell hintereinander" – der
+    // Aufrufer wartet kurz und nimmt einen zweiten Anlauf.
+    return false;
+  }
+}
+
+// Einen Beweis ABLEGEN, ohne vorher zu raten: beim Anlegen und beim Wechseln
+// kennen wir den richtigen Hash schon. Der Takt muss trotzdem sein – die Regel
+// verlangt ihn fuer JEDES Hinlegen, nicht nur fuers Probieren.
+// ⚠️ Wirft weiter, wenn es nicht klappt: hier ist ein Fehlschlag KEIN "PIN war
+// falsch", sondern ein echtes Problem, und der Aufrufer muss davon erfahren.
+async function legeBeweisAb(probePfad, id, uid, hash) {
+  for (let versuch = 0; versuch < 2; versuch++) {
+    if (await takte(probePfad, id, uid)) break;
+    if (versuch === 0) await new Promise((f) => setTimeout(f, 1100));
+  }
+  await db.ref(probePfad + "/" + id + "/" + uid).set(hash);
+}
+
 async function beweisePinAn(geheimPfad, probePfad, id, uid, pin) {
   if (!id || !uid || !pin) return false;
   if (!pinHashMoeglich()) return false;
@@ -265,12 +337,38 @@ async function beweisePinAn(geheimPfad, probePfad, id, uid, pin) {
       return snap.val() === h;
     } catch (e) { return false; }
   }
-  try {
-    await db.ref(probePfad + "/" + id + "/" + uid).set(h);
-    return true;
-  } catch (e) {
-    return false;
+  // ⚠️⚠️ Der Beweis wird IMMER versucht, auch wenn der Takt nicht lag.
+  //
+  // Das ist kein Schlendrian, sondern die Reihenfolge-Sicherung: die neuen
+  // Regeln muessen in der Firebase-Konsole von Hand veroeffentlicht werden,
+  // und bis dahin gibt es den Knoten turnierPinTakt gar nicht -- takte()
+  // scheitert dann bei JEDEM. Wuerde der Beweis daran haengen, waere nach dem
+  // Hochladen dieser Datei und VOR dem Veroeffentlichen der Regeln in allen
+  // vier Bereichen kein Veranstalter-Zugang mehr moeglich. Mitten in einer
+  // laufenden Veranstaltung.
+  //
+  // Beide Welten gehen damit auf:
+  //   - alte Regeln: Takt scheitert, Beweis geht durch (wie bisher).
+  //   - neue Regeln: ohne frischen Takt weist die Regel den Beweis ab --
+  //     die Bremse greift also genau dann, wenn die Regeln stehen.
+  //
+  // Zwei Anlaeufe, weil der Takt auch daran scheitern kann, dass derselbe
+  // Browser gerade eben schon getaktet hat (zwei gemerkte PINs hintereinander,
+  // oder ein zweiter offener Tab). Nach gut einer Sekunde ist der Weg frei.
+  for (let versuch = 0; versuch < 2; versuch++) {
+    const getaktet = await takte(probePfad, id, uid);
+    try {
+      await db.ref(probePfad + "/" + id + "/" + uid).set(h);
+      return true;
+    } catch (e) {
+      // Lag der Takt, kann es nur am Hash gelegen haben: der PIN war falsch,
+      // ein zweiter Anlauf brauchte niemand. Lag der Takt NICHT, war
+      // moeglicherweise nur das Sekundenfenster zu -- dafuer der zweite Gang.
+      if (getaktet) return false;
+      if (versuch === 0) await new Promise((f) => setTimeout(f, 1100));
+    }
   }
+  return false;
 }
 
 function beweisePin(id, pin) {
@@ -288,7 +386,7 @@ async function heileAltenPin(id, pins) {
   try {
     const h = await pinHash(id, alt);
     await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(h);
-    await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(h);
+    await legeBeweisAb(PROBE_PFAD, id, eigeneUid, h);
     await db.ref("turniere/" + id + "/meta/adminPin").remove();
     pinOk[id] = true;
     benachrichtige();
@@ -823,6 +921,7 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Turniernamen eingeben." };
   if (!adminPin || !String(adminPin).trim()) return { erfolg: false, fehler: "Bitte einen Admin-PIN festlegen." };
   const pin = String(adminPin).trim();
+  if (pinZuKurz(pin)) return { erfolg: false, fehler: PIN_ZU_KURZ };
   if (!pinHashMoeglich()) return { erfolg: false, fehler: PIN_UNSICHER };
   const id = neueTurnierId();
   // Hash VOR dem Anlegen bilden: scheitert er, gibt es kein halbes Turnier.
@@ -860,7 +959,7 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
   // verlangt sie spaeter beim PIN-Wechsel und beim Loeschen.
   await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(pinH);
-  await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(pinH);
+  await legeBeweisAb(PROBE_PFAD, id, eigeneUid, pinH);
   pinOk[id] = true;
   merkeAdminPin(id, pin);
   waehleTurnier(id);

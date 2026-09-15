@@ -95,6 +95,12 @@
         nichts an Discord; du bestellst dann genauso, fragst aber selbst nach. Löschen kannst
         du sie jederzeit im selben Feld, indem du es leer machst und speicherst.</p>
 
+        <p><strong>Wer von deiner Anmeldung erfährt.</strong> Sobald du ein Konto anlegst,
+        bekommen die Veranstalter der AgeLan darüber eine Nachricht im Discord – mit deinem
+        Namen und, falls du sie hinterlegt hast, deiner Discord-ID. Das ist nötig, damit sie
+        dich freischalten und dir bei Fragen antworten können. Weiter als bis zu den
+        Veranstaltern geht die Nachricht nicht.</p>
+
         <p><strong>Wo es liegt:</strong> Anmeldedaten und Discord-ID bei Cloudflare, alles Übrige in der
         Echtzeit-Datenbank von Google (Firebase). Das Rechenzentrum steht in
         <strong>Belgien</strong> und wird von Google betrieben. <strong>Wenn du das nicht
@@ -338,7 +344,7 @@
         <input type="text" id="neu-name" class="eingabe" placeholder="z. B. AgeLan 2026 – 2vs2" maxlength="40" autocomplete="off">
 
         <label class="feld-label" for="neu-pin">Admin-PIN (für dich als Veranstalter)</label>
-        <input type="text" id="neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+        <input type="text" id="neu-pin" class="eingabe" placeholder="mindestens 6 Zeichen" minlength="6" maxlength="20" autocomplete="off">
 
         <button class="btn btn-primary btn-grow" id="btn-turnier-erstellen">Turnier starten</button>
         <p class="hinweis-text">Erst die Anmeldung, dann das Format: Turnierform und Ablauf wählst du später in der
@@ -679,7 +685,7 @@
       <p class="hinweis-text">Zeiten nach Mitternacht sind mit „(Nacht)“ gekennzeichnet und gehören noch zum selben Tag. Einzelne Tage – etwa einen Sonntag, an dem nur vormittags etwas läuft – stellst du danach kürzer.</p>
 
       <label class="feld-label" for="sk-neu-pin">Veranstalter-PIN</label>
-      <input type="text" id="sk-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <input type="text" id="sk-neu-pin" class="eingabe" placeholder="mindestens 6 Zeichen" minlength="6" maxlength="20" autocomplete="off">
       <p class="hinweis-text" id="sk-neu-pin-hinweis"></p>
 
       <button class="btn btn-primary btn-grow" id="sk-btn-erstellen">Streamplan anlegen</button>
@@ -767,7 +773,7 @@
       <p class="hinweis-text">Bestellungen für einen Morgen sind bis zu dieser Uhrzeit am Tag davor möglich – danach wird eingekauft.</p>
 
       <label class="feld-label" for="fr-neu-pin">Veranstalter-PIN</label>
-      <input type="text" id="fr-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <input type="text" id="fr-neu-pin" class="eingabe" placeholder="mindestens 6 Zeichen" minlength="6" maxlength="20" autocomplete="off">
       <p class="hinweis-text" id="fr-neu-pin-hinweis"></p>
 
       <button class="btn btn-primary btn-grow" id="fr-btn-erstellen">Frühstücksbestellung anlegen</button>
@@ -894,7 +900,7 @@
       </div>
 
       <label class="feld-label" for="es-neu-pin">Veranstalter-PIN</label>
-      <input type="text" id="es-neu-pin" class="eingabe" placeholder="z. B. 1234" maxlength="20" autocomplete="off">
+      <input type="text" id="es-neu-pin" class="eingabe" placeholder="mindestens 6 Zeichen" minlength="6" maxlength="20" autocomplete="off">
 
       <button class="btn btn-primary btn-grow" id="es-btn-erstellen">Essensbestellung anlegen</button>
       <p class="hinweis-text fehler" id="es-neu-fehler"></p>
@@ -1280,14 +1286,14 @@
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
-    'turnier-service.js?v=2.1',
-    'app.js?v=3.46',
-    'stream-service.js?v=2.0',
+    'turnier-service.js?v=2.2',
+    'app.js?v=3.47',
+    'stream-service.js?v=2.1',
     'stream-app.js?v=2.3',
-    'fruehstueck-service.js?v=1.5',
-    'fruehstueck-app.js?v=1.8',
-    'essen-service.js?v=2.1',
-    'essen-app.js?v=2.8',
+    'fruehstueck-service.js?v=1.6',
+    'fruehstueck-app.js?v=1.9',
+    'essen-service.js?v=2.2',
+    'essen-app.js?v=2.9',
     'uebersicht-app.js?v=1.0'
   ];
 

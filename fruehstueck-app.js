@@ -486,10 +486,20 @@ function frWireEvents() {
   frEl("fr-neu-tage").addEventListener("input", frAktualisiereVorschau);
   frEl("fr-btn-pak-anlegen").addEventListener("click", frSpeicherePaket);
 
-  frEl("fr-btn-admin-anmelden").addEventListener("click", () => {
-    const res = fruehstueckService.authentifiziereAlsAdmin(frEl("fr-admin-pin").value);
-    frZeigeFehler("fr-admin-fehler", res.erfolg ? "" : res.fehler);
-    if (res.erfolg) frEl("fr-admin-pin").value = "";
+  // ⚠️ await: der PIN wird seit dem 15.09.2026 dem SERVER bewiesen, nicht im
+  // Browser verglichen. Ohne await waere `res` ein Promise und `res.erfolg`
+  // undefined -- die Anmeldung saehe dann bei JEDER Eingabe nach Fehlschlag
+  // aus, auch beim richtigen PIN, und die Meldung waere leer.
+  frEl("fr-btn-admin-anmelden").addEventListener("click", async () => {
+    const knopf = frEl("fr-btn-admin-anmelden");
+    knopf.disabled = true;
+    try {
+      const res = await fruehstueckService.authentifiziereAlsAdmin(frEl("fr-admin-pin").value);
+      frZeigeFehler("fr-admin-fehler", res.erfolg ? "" : res.fehler);
+      if (res.erfolg) frEl("fr-admin-pin").value = "";
+    } finally {
+      knopf.disabled = false;
+    }
   });
 
   // Ab der ersten Änderung gehört das Feld dem Veranstalter, nicht mehr dem

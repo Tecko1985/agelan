@@ -181,7 +181,7 @@ async function skHeileAltenPin(pin) {
   try {
     const h = await pinHash(SK_PID, alt);
     await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").set(h);
-    await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).set(h);
+    await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, h);
     await db.ref(SK_BASIS + "/meta/adminPin").remove();
     skPinOk = true;
     skMelde();
@@ -513,6 +513,7 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
 
   const pin = skText(adminPin, 20);
   if (!pin) return { erfolg: false, fehler: "Bitte lege einen Veranstalter-PIN fest." };
+  if (pinZuKurz(pin)) return { erfolg: false, fehler: PIN_ZU_KURZ };
   if (!skBeweisWegDa() || !pinHashMoeglich()) {
     return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht sichern." };
   }
@@ -537,7 +538,7 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
   // den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel verlangt
   // sie spaeter beim PIN-Wechsel und beim Loeschen.
   await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").set(pinH);
-  await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).set(pinH);
+  await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, pinH);
   skPinOk = true;
   try {
     localStorage.setItem(SK_PIN_KEY, pin);

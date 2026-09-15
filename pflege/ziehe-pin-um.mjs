@@ -1,5 +1,5 @@
-// Zieht die Admin-PINs bestehender Turniere UND des Streamplans an ihren
-// neuen Platz um:
+// Zieht die Admin-PINs bestehender Turniere, des Streamplans, des
+// Fruehstuecks- und des Essensplans an ihren neuen Platz um:
 // Klartext raus aus dem offenen turniere/$tid/meta, Pruefsumme rein in den
 // Knoten turnierGeheim/$tid, den niemand lesen darf.
 //
@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 const DB = "https://agelan-ab042-default-rtdb.europe-west1.firebasedatabase.app";
 const API_KEY = "AIzaSyCOA-Ogseh13AKND3nGITSDWRbPBEKpIu0";   // nicht geheim, steht in firebase-config.js
 const ECHT = process.argv.includes("--umziehen");
+const UMBRUCH = String.fromCharCode(10);
 
 // Die Regeln verlangen fuer jeden Schreibvorgang "auth != null". Die Anmeldung
 // ist anonym - genau die, die jeder Besucher der Seite auch bekommt.
@@ -112,6 +113,41 @@ if (!planMeta.wert) {
   offen++;
   console.log("  aktuell  " + (planMeta.wert.titel || "?") + ": Klartext-PIN offen (Laenge " + String(planPin).length + ")");
   if (ECHT) await ziehUm("Streamplan", "streamplanGeheim", "aktuell", "streamplan/aktuell/meta", planPin);
+}
+
+// --- Fruehstueck und Essen: derselbe Fehler, gefunden bei der Abnahme -----
+//
+// ⚠️ Beim FRUEHSTUECK wog es am schwersten: fruehstueck/$pid traegt
+// ".read": true. Der PIN stand dort fuer jeden abrufbar, ganz ohne Konto und
+// ohne Browser. Beim Essen reichte eine anonyme Anmeldung, die auf der Seite
+// jede:r bekommt -- und dahinter liegen die Telefonnummer des Bestellers, die
+// Lieferantenmail und saemtliche Bestellungen mit Namen.
+//
+// ⚠️⚠️ Die Kennung ist hier NICHT "aktuell", sondern "fruehstueck-aktuell"
+// bzw. "essen-aktuell". Dieser Text ist zugleich das SALZ des Hashes (pinHash
+// bildet sha256 ueber "<id>:<pin>"); mit demselben Salz haetten beide
+// Bereiche bei demselben PIN denselben Hash. Wer das hier auf "aktuell"
+// kuerzt, legt einen Hash ab, den die App nie wiedererkennt -- der PIN ginge
+// dann von keinem Geraet mehr durch. Dieselben Werte stehen als ES_PID und
+// FR_PID in essen-service.js und fruehstueck-service.js.
+for (const [was, basis, geheim, kennung] of [
+  ["Fruehstueck", "fruehstueck/aktuell", "fruehstueckGeheim", "fruehstueck-aktuell"],
+  ["Essen",       "essen/aktuell",       "essenGeheim",       "essen-aktuell"],
+]) {
+  console.log(UMBRUCH + was + ":");
+  const m = await hole(basis + "/meta", true);
+  const pin = m.wert && m.wert.adminPin;
+  if (!m.ok) {
+    console.log("  nicht lesbar (" + m.status + ") - von Hand nachsehen");
+  } else if (!m.wert) {
+    console.log("  kein Plan angelegt");
+  } else if (!pin) {
+    console.log("  kein Klartext mehr - nichts zu tun");
+  } else {
+    offen++;
+    console.log("  " + kennung + "  " + (m.wert.titel || "?") + ": Klartext-PIN offen (Laenge " + String(pin).length + ")");
+    if (ECHT) await ziehUm(was, geheim, kennung, basis + "/meta", pin);
+  }
 }
 
 console.log("\n" + (offen ? offen + " Stelle(n) mit offenem PIN" : "kein offener PIN mehr"));

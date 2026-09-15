@@ -33,6 +33,11 @@ const REGELN = JSON.parse(fs.readFileSync(DATEI, "utf8")).rules;
 const HASH_T1 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 const HASH_ANDERS = "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752";
 
+// Die Uhr, gegen die die Takt-Regeln gemessen werden. Firebase fuellt `now`
+// selbst mit der Serverzeit; hier steht ein fester Wert, damit der Prueflauf
+// morgen dasselbe sagt wie heute (Linie wie f-echte-uhr: nie gegen Date.now()).
+const JETZT = 1789000000000;
+
 const WELT = {
   turniere: { T1: { meta: { name: "AgeLan" } } },
   // Der Admin-PIN des Turniers liegt NEBEN dem Turnierbaum, nicht darin:
@@ -45,7 +50,22 @@ const WELT = {
   streamplan: { P1: { meta: { titel: "Stream" } } },
   streamplanGeheim: { P1: { adminPinHash: HASH_T1 } },
   streamplanPinProbe: { P1: { "gast-1": HASH_T1 } },
-  essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } } }
+  essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } } },
+  // Fruehstueck und Essen gehen seit dem 15.09.2026 denselben Weg wie Turnier
+  // und Streamplan: Hash im geschuetzten Knoten, nichts mehr im Klartext.
+  fruehstueck: { F1: { meta: { titel: "Fruehstueck" } } },
+  fruehstueckGeheim: { F1: { adminPinHash: HASH_T1 } },
+  fruehstueckPinProbe: { F1: { "gast-1": HASH_T1 } },
+  essenGeheim: { aktuell: { adminPinHash: HASH_T1 } },
+  essenPinProbe: { aktuell: { "gast-1": HASH_T1 } },
+  // ⚠️ Der Takt ist die Bremse gegen das Durchprobieren des PINs. Ein Beweis
+  // geht nur durch, wenn derselbe uid GERADE getaktet hat. "gast-1" hat das,
+  // "gast-schnell" hat vor 200 ms getaktet (darf also noch nicht wieder),
+  // "gast-alt" vor einer Minute (sein Takt ist abgelaufen).
+  turnierPinTakt:     { T1: { "gast-1": JETZT - 200, "gast-schnell": JETZT - 200, "gast-alt": JETZT - 60000 } },
+  streamplanPinTakt:  { P1: { "gast-1": JETZT - 200 } },
+  fruehstueckPinTakt: { F1: { "gast-1": JETZT - 200 } },
+  essenPinTakt:  { aktuell: { "gast-1": JETZT - 200 } }
 };
 
 function wert(pfad) {
@@ -86,7 +106,7 @@ function findeRegeln(regeln, pfadTeile, typ) {
 // ⚠️ Die Schluessel heissen ".read"/".write", nicht "read"/"write". Ohne den
 // Punkt findet die Suche NIE eine Regel und meldet alles als verboten - das
 // sieht wie ein sicherer Zustand aus und ist nur ein toter Test.
-function darf(regeln, pfad, typ, uid) {
+function darf(regeln, pfad, typ, uid, loeschen) {
   const gefunden = findeRegeln(regeln, pfad.split("/"), "." + typ);
   for (const { ausdruck, vars } of gefunden) {
     if (ausdruck === true) return true;
@@ -98,6 +118,8 @@ function darf(regeln, pfad, typ, uid) {
     // Ohne dieses Objekt wirft eval() und `darf()` meldet stumpf false: alles
     // sieht sicher aus, und geprueft ist nichts.
     const data = { exists: () => wert(pfad) !== null, val: () => wert(pfad) };
+    const now = JETZT;
+    const newData = { exists: () => !loeschen };
     let code = String(ausdruck);
     for (const [name, w] of Object.entries(vars)) {
       code = code.split(name).join(JSON.stringify(w));
@@ -176,12 +198,55 @@ const faelle = [
   ["DARF NICHT: Stream-Beweis unter fremder Kennung", "streamplanPinProbe/P1/gast-1", "write", "fremd-1", false],
   ["MUSS: Stream-PIN beim neuen Plan hinterlegen", "streamplanGeheim/P2/adminPinHash", "write", "gast-1", true],
   ["MUSS: Stream-PIN wechseln mit gueltigem Beweis", "streamplanGeheim/P1/adminPinHash", "write", "gast-1", true],
-  ["DARF NICHT: fremden Stream-PIN ohne Beweis ueberschreiben", "streamplanGeheim/P1/adminPinHash", "write", "fremd-1", false]
+  ["DARF NICHT: fremden Stream-PIN ohne Beweis ueberschreiben", "streamplanGeheim/P1/adminPinHash", "write", "fremd-1", false],
+
+  // --- Die Takt-Bremse gegen das Durchprobieren des PINs (15.09.2026) ------
+  //
+  // Der Beweisweg ist ein Orakel: ein Schreibvorgang gelingt genau dann, wenn
+  // der Hash stimmt. Ohne Bremse ist ein vierstelliger PIN in Minuten geraten
+  // -- 10.000 Versuche, und Firebase-Regeln haben von sich aus KEIN Zaehlwerk.
+  //
+  // Der Takt kappt das: ein Beweis geht nur durch, wenn derselbe uid in den
+  // letzten 5 Sekunden getaktet hat, und getaktet werden darf hoechstens jede
+  // Sekunde. Damit bleibt EIN Versuch je Sekunde und Konto.
+  //
+  // ⚠️ Das haelt niemanden auf, der sich staendig NEUE anonyme Konten holt --
+  // die Anmeldung ist offen. Die eigentliche Arbeit macht die Mindestlaenge
+  // des PINs (turnier-service.js, PIN_MIN). Der Takt ist die zweite Reihe.
+  ["DARF NICHT: Beweis OHNE vorherigen Takt", "turnierPinProbe/T1/gast-neu", "write", "gast-neu", false],
+  ["DARF NICHT: Beweis mit ABGELAUFENEM Takt", "turnierPinProbe/T1/gast-alt", "write", "gast-alt", false],
+  ["MUSS: Beweis mit frischem Takt", "turnierPinProbe/T1/gast-1", "write", "gast-1", true],
+  ["MUSS: erstes Takten geht immer", "turnierPinTakt/T1/gast-neu", "write", "gast-neu", true],
+  ["DARF NICHT: zweimal takten binnen einer Sekunde", "turnierPinTakt/T1/gast-schnell", "write", "gast-schnell", false],
+  ["MUSS: wieder takten, wenn die Sekunde um ist", "turnierPinTakt/T1/gast-alt", "write", "gast-alt", true],
+  ["DARF NICHT: fremden Takt setzen", "turnierPinTakt/T1/gast-1", "write", "fremd-1", false],
+  ["DARF NICHT: Takt lesen", "turnierPinTakt/T1/gast-1", "read", "gast-1", false],
+
+  // --- Fruehstueck und Essen: derselbe Weg, eigene Knoten (15.09.2026) -----
+  //
+  // ⚠️ Der Anlass: beide legten den Admin-PIN bis heute im KLARTEXT unter
+  // meta.adminPin ab. Beim Fruehstueck stand darueber ".read": true -- der PIN
+  // war damit fuer JEDEN abrufbar, ohne Konto, ohne Browser. Beim Essen
+  // reichte eine anonyme Anmeldung, die auf dieser Seite jede:r besteht.
+  // Dahinter liegen Telefonnummer, Lieferantenmail und alle Bestellungen.
+  ["DARF NICHT: Fruehstuecks-PIN-Hash lesen", "fruehstueckGeheim/F1/adminPinHash", "read", "gast-1", false],
+  ["DARF NICHT: Fruehstuecks-Hash OHNE Beweis ersetzen", "fruehstueckGeheim/F1/adminPinHash", "write", "fremd-1", false],
+  ["MUSS: Fruehstuecks-Hash ersetzen, wer ihn bewiesen hat", "fruehstueckGeheim/F1/adminPinHash", "write", "gast-1", true],
+  ["DARF NICHT: Essens-PIN-Hash lesen", "essenGeheim/aktuell/adminPinHash", "read", "gast-1", false],
+  ["DARF NICHT: Essens-Hash OHNE Beweis ersetzen", "essenGeheim/aktuell/adminPinHash", "write", "fremd-1", false],
+  ["MUSS: Essens-Hash ersetzen, wer ihn bewiesen hat", "essenGeheim/aktuell/adminPinHash", "write", "gast-1", true],
+  ["DARF NICHT: Essens-Beweisablage lesen", "essenPinProbe/aktuell/gast-1", "read", "gast-1", false],
+  ["MUSS: frischen Essens-Hash anlegen, wo keiner steht", "essenGeheim/neu1/adminPinHash", "write", "gast-1", true],
+
+  // Aufraeumen braucht KEINEN Takt -- sonst scheitert das Loeschen eines
+  // Turniers am eigenen Schutz und laesst Reste in der Datenbank stehen.
+  ["MUSS: eigenen Beweis wegnehmen, auch ohne Takt", "turnierPinProbe/T1/gast-alt", "write", "gast-alt", true, true],
+  ["DARF NICHT: fremden Beweis wegnehmen", "turnierPinProbe/T1/gast-1", "write", "fremd-1", false, true]
 ];
 
 let fehler = 0;
-for (const [text, pfad, typ, uid, erwartet] of faelle) {
-  const ist = darf(REGELN, pfad, typ, uid);
+for (const [text, pfad, typ, uid, erwartet, loeschen] of faelle) {
+  const ist = darf(REGELN, pfad, typ, uid, loeschen);
   const ok = ist === erwartet;
   if (!ok) fehler++;
   console.log((ok ? "  OK   " : "  FEHL ") + text + "   (erwartet " + erwartet + ", ist " + ist + ")");
@@ -286,6 +351,7 @@ function gueltig(regeln, pfad, wert) {
   // eval() und jeder Beweis gaelte als ungueltig. Das saehe sicher aus und
   // wuerde in Wahrheit nichts pruefen.
   const root = { child: (p) => kindKette(p) };
+  const now = JETZT;
   let code = String(ausdruck);
   for (const [name, w] of Object.entries(vars)) {
     code = code.split(name).join(JSON.stringify(w));
@@ -337,6 +403,31 @@ const WERT_FAELLE = [
   ["DARF NICHT: fremdes Feld im Stream-Geheim-Knoten", "streamplanGeheim/P1/adminPin", "geheim123", false],
   ["MUSS: Stream-Beweis gleicht dem hinterlegten Hash", "streamplanPinProbe/P1/gast-1", HASH_T1, true],
   ["DARF NICHT: Stream-Beweis mit falschem Hash", "streamplanPinProbe/P1/gast-1", HASH_ANDERS, false],
+
+  // --- Der Klartext-PIN ist jetzt UEBERALL verriegelt (15.09.2026) ---------
+  ["DARF NICHT: Klartext-PIN zurueck ins Turnier-meta", "turniere/T1/meta/adminPin", "1234", false],
+  ["DARF NICHT: Klartext-PIN zurueck ins Fruehstuecks-meta", "fruehstueck/F1/meta/adminPin", "1234", false],
+  ["DARF NICHT: Klartext-PIN zurueck ins Essens-meta", "essen/aktuell/meta/adminPin", "1234", false],
+  ["DARF NICHT: Klartext-PIN zurueck ins Streamplan-meta", "streamplan/P1/meta/adminPin", "1234", false],
+
+  // --- Takt: nur eine Zahl, und nur die aktuelle Serverzeit ----------------
+  // ⚠️ Der Client schickt hier ServerValue.TIMESTAMP, NICHT seine eigene Uhr.
+  // Wer stattdessen Date.now() schickt, sperrt sich mit einer schief gehenden
+  // Geraeteuhr selbst aus -- der PIN ginge dann nie mehr durch.
+  ["MUSS: Takt als aktuelle Zeit", "turnierPinTakt/T1/gast-1", 1789000000000, true],
+  ["DARF NICHT: Takt in der Zukunft", "turnierPinTakt/T1/gast-1", 1789000060000, false],
+  ["DARF NICHT: Takt weit in der Vergangenheit", "turnierPinTakt/T1/gast-1", 1788999000000, false],
+  ["DARF NICHT: Takt als Text", "turnierPinTakt/T1/gast-1", "jetzt", false],
+
+  // --- Die neuen Hash-Knoten nehmen nur echte Hashes -----------------------
+  ["MUSS: Fruehstuecks-Hash als 64 Hex-Zeichen", "fruehstueckGeheim/F1/adminPinHash", HASH_ANDERS, true],
+  ["DARF NICHT: Klartext statt Fruehstuecks-Hash", "fruehstueckGeheim/F1/adminPinHash", "1234", false],
+  ["DARF NICHT: fremdes Feld im Fruehstuecks-Geheim-Knoten", "fruehstueckGeheim/F1/notiz", "hallo", false],
+  ["MUSS: Essens-Hash als 64 Hex-Zeichen", "essenGeheim/aktuell/adminPinHash", HASH_ANDERS, true],
+  ["DARF NICHT: Klartext statt Essens-Hash", "essenGeheim/aktuell/adminPinHash", "1234", false],
+  ["DARF NICHT: fremdes Feld im Essens-Geheim-Knoten", "essenGeheim/aktuell/notiz", "hallo", false],
+  ["MUSS: Essens-Beweis gleicht dem hinterlegten Hash", "essenPinProbe/aktuell/gast-1", HASH_T1, true],
+  ["DARF NICHT: Essens-Beweis mit falschem Hash", "essenPinProbe/aktuell/gast-1", HASH_ANDERS, false],
 
   // Die alten Felder als Gegenprobe, dass der Pruefer ueberhaupt greift.
   ["MUSS: Saetze als Zahl", "turniere/T1/spiele/s1/saetzeA", 2, true],
