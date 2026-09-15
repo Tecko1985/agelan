@@ -1490,6 +1490,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.6",
+    groups: [
+      { title: "Turnier: Klick auf eine Turnierkachel öffnet wieder", items: [
+          "In der Turnierliste tat ein Klick auf ein Turnier nichts – die Liste blieb einfach stehen.",
+          "Grund: seit es die Übersicht gibt, hängen zwei Stellen am Turnier-Dienst. Der Dienst merkte sich aber nur eine davon, und die Übersicht kam als Letzte – damit war die Turnier-Oberfläche abgeklemmt und zeichnete nie wieder neu.",
+          "Der Dienst führt jetzt eine Liste aller Zuhörer, so wie Stream, Frühstück und Essen es schon immer tun."
+      ]},
+    ],
+  },
+  {
     version: "6.5",
     groups: [
       { title: "Turnier: Spiele bekommen einen Anstoß", items: [

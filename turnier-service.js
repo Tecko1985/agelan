@@ -44,7 +44,14 @@ const SPIELER_FARBEN = ["#1a56a0", "#057a55", "#c9941f", "#9333ea", "#dc2626", "
 // --- lokaler Zustand -------------------------------------------------------
 let eigeneUid = null;
 let letzterZustand = null;   // roher meta/spieler/teams/gruppen/spiele-Snapshot
-let listener = null;
+// ⚠️ MEHRERE Zuhoerer, keiner allein: neben der Turnier-Oberflaeche haengt auch
+// die Uebersicht-Kachel an diesem Dienst. Ein einzelnes `listener = callback`
+// hat den zuletzt Angemeldeten den vorigen ueberschreiben lassen - die
+// Turnier-Oberflaeche zeichnete dann nie wieder neu, und ein Klick auf eine
+// Turnierkachel tat sichtbar nichts. Die anderen drei Dienste fuehren aus
+// demselben Grund eine Liste.
+let callbacks = [];
+let startGelaufen = false;
 let turnierRef = null;
 let turnierCb = null;        // Callback des Haupt-Listeners – zum gezielten Abhängen
 
@@ -548,7 +555,11 @@ function getZustand() {
 }
 
 function benachrichtige() {
-  if (listener) listener(getZustand());
+  const z = getZustand();
+  // Ein Fehler in einem Zuhoerer darf die anderen nicht mit abraeumen.
+  callbacks.forEach((cb) => {
+    try { cb(z); } catch (e) { console.error("Turnier-Zuhoerer fehlgeschlagen:", e); }
+  });
 }
 
 // ===========================================================================
@@ -650,7 +661,17 @@ function waehleTurnier(id) {
 }
 
 function onZustandsAenderung(callback) {
-  listener = callback;
+  if (typeof callback !== "function") return;
+  callbacks.push(callback);
+  // Wer sich spaeter anhaengt, bekommt den Stand sofort - sonst sieht er bis
+  // zur naechsten fremden Aenderung nichts.
+  if (startGelaufen) {
+    callback(getZustand());
+    return;
+  }
+  // Der Datenbank-Teil unten gehoert genau einmal angeschaltet. Ein zweiter
+  // Aufruf haenge sonst einen zweiten Index-Listener an denselben Pfad.
+  startGelaufen = true;
   authBereit.then(async () => {
     try { await heileIndex(); } catch (e) { console.error("Index-Abgleich fehlgeschlagen:", e); }
     db.ref(INDEX_PFAD).on("value", (snap) => {
