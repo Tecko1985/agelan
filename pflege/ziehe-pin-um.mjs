@@ -1,4 +1,5 @@
-// Zieht die Admin-PINs bestehender Turniere an ihren neuen Platz um:
+// Zieht die Admin-PINs bestehender Turniere UND des Streamplans an ihren
+// neuen Platz um:
 // Klartext raus aus dem offenen turniere/$tid/meta, Pruefsumme rein in den
 // Knoten turnierGeheim/$tid, den niemand lesen darf.
 //
@@ -62,6 +63,23 @@ const ids = Object.keys(idsAntwort.wert || {});
 console.log((ECHT ? "UMZUG" : "NUR ANSEHEN (mit --umziehen wird es echt)") + " - " + ids.length + " Turnier(e)\n");
 
 let offen = 0;
+
+// Ein Vorgang, zweimal gebraucht: erst den Hash hinlegen, den Klartext NUR
+// loeschen, wenn der Hash wirklich angekommen ist. Andersherum waere der PIN
+// von keiner Seite mehr nachweisbar.
+async function ziehUm(was, geheimPfad, id, metaPfad, klartext) {
+  const gelegt = await schreib(geheimPfad + "/" + id + "/adminPinHash", pinHash(id, String(klartext)));
+  if (!gelegt.ok) {
+    console.log("     -> KEIN Hash gelegt, Klartext bleibt stehen. Grund: " + gelegt.grund);
+    console.log("        Meistens: die Regeln sind in der Firebase-Konsole noch nicht veroeffentlicht.");
+    console.log("        Sonst: dort liegt schon ein Hash - dann darf nur umschreiben, wer den alten PIN beweist.");
+    return false;
+  }
+  await loesche(metaPfad + "/adminPin");
+  console.log("     -> Hash gelegt, Klartext geloescht (" + was + ")");
+  return true;
+}
+
 for (const id of ids) {
   const metaAntwort = await hole("turniere/" + id + "/meta", true);
   const meta = metaAntwort.wert || {};
@@ -79,18 +97,22 @@ for (const id of ids) {
   console.log("  " + id + "  " + name + ": Klartext-PIN offen (Laenge " + String(klartext).length + ")");
   if (!ECHT) continue;
 
-  // Erst den Hash hinlegen, dann den Klartext wegnehmen - und den Klartext NUR
-  // dann, wenn der Hash wirklich angekommen ist.
-  const gelegt = await schreib("turnierGeheim/" + id + "/adminPinHash", pinHash(id, String(klartext)));
-  if (!gelegt.ok) {
-    console.log("     -> KEIN Hash gelegt, Klartext bleibt stehen. Grund: " + gelegt.grund);
-    console.log("        Meistens: die Regeln sind in der Firebase-Konsole noch nicht veroeffentlicht.");
-    console.log("        Sonst: dort liegt schon ein Hash - dann darf nur umschreiben, wer den alten PIN beweist.");
-    continue;
-  }
-  await loesche("turniere/" + id + "/meta/adminPin");
-  console.log("     -> Hash gelegt, Klartext geloescht");
+  await ziehUm("Turnier", "turnierGeheim", id, "turniere/" + id + "/meta", klartext);
 }
 
-console.log("\n" + (offen ? offen + " Turnier(e) mit offenem PIN" : "kein offener PIN mehr"));
+// --- Der Streamplan hatte denselben Fehler --------------------------------
+console.log("\nStreamplan:");
+const planMeta = await hole("streamplan/aktuell/meta", true);
+const planPin = planMeta.wert && planMeta.wert.adminPin;
+if (!planMeta.wert) {
+  console.log("  kein Streamplan angelegt");
+} else if (!planPin) {
+  console.log("  kein Klartext mehr - nichts zu tun");
+} else {
+  offen++;
+  console.log("  aktuell  " + (planMeta.wert.titel || "?") + ": Klartext-PIN offen (Laenge " + String(planPin).length + ")");
+  if (ECHT) await ziehUm("Streamplan", "streamplanGeheim", "aktuell", "streamplan/aktuell/meta", planPin);
+}
+
+console.log("\n" + (offen ? offen + " Stelle(n) mit offenem PIN" : "kein offener PIN mehr"));
 console.log("Gegenprobe danach:  node pflege/pruefe-live-pin.mjs");

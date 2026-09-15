@@ -41,6 +41,10 @@ const WELT = {
   // ist frisch (noch kein Hash hinterlegt).
   turnierGeheim: { T1: { adminPinHash: HASH_T1 } },
   turnierPinProbe: { T1: { "gast-1": HASH_T1 } },
+  // Der Streamkalender geht denselben Weg mit eigenen Knoten.
+  streamplan: { P1: { meta: { titel: "Stream" } } },
+  streamplanGeheim: { P1: { adminPinHash: HASH_T1 } },
+  streamplanPinProbe: { P1: { "gast-1": HASH_T1 } },
   essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } } }
 };
 
@@ -158,7 +162,21 @@ const faelle = [
   ["MUSS: PIN beim neuen Turnier hinterlegen", "turnierGeheim/T2/adminPinHash", "write", "gast-1", true],
   ["MUSS: PIN wechseln mit gueltigem Beweis", "turnierGeheim/T1/adminPinHash", "write", "gast-1", true],
   ["DARF NICHT: fremden PIN ohne Beweis ueberschreiben", "turnierGeheim/T1/adminPinHash", "write", "fremd-1", false],
-  ["DARF NICHT: PIN hinterlegen OHNE Anmeldung", "turnierGeheim/T2/adminPinHash", "write", null, false]
+  ["DARF NICHT: PIN hinterlegen OHNE Anmeldung", "turnierGeheim/T2/adminPinHash", "write", null, false],
+
+  // --- Der Veranstalter-PIN des Streamplans ------------------------------
+  // Derselbe Fehler, derselbe Fix: streamplan/$pid traegt ".read": true (der
+  // Kalender haengt im Raum), und der PIN lag im Klartext darunter.
+  ["DARF NICHT: Stream-PIN-Hash lesen OHNE Anmeldung", "streamplanGeheim/P1/adminPinHash", "read", null, false],
+  ["DARF NICHT: Stream-PIN-Hash lesen MIT Anmeldung", "streamplanGeheim/P1/adminPinHash", "read", "gast-1", false],
+  ["DARF NICHT: Stream-Beweisablage lesen", "streamplanPinProbe/P1/gast-1", "read", "gast-1", false],
+  ["MUSS: Streamplan bleibt oeffentlich lesbar (zweite Probe)", "streamplan/P1/slots", "read", null, true],
+
+  ["MUSS: eigenen Stream-Beweis ablegen", "streamplanPinProbe/P1/gast-1", "write", "gast-1", true],
+  ["DARF NICHT: Stream-Beweis unter fremder Kennung", "streamplanPinProbe/P1/gast-1", "write", "fremd-1", false],
+  ["MUSS: Stream-PIN beim neuen Plan hinterlegen", "streamplanGeheim/P2/adminPinHash", "write", "gast-1", true],
+  ["MUSS: Stream-PIN wechseln mit gueltigem Beweis", "streamplanGeheim/P1/adminPinHash", "write", "gast-1", true],
+  ["DARF NICHT: fremden Stream-PIN ohne Beweis ueberschreiben", "streamplanGeheim/P1/adminPinHash", "write", "fremd-1", false]
 ];
 
 let fehler = 0;
@@ -193,16 +211,22 @@ if (durchgerutscht.length !== ohneAnmeldung.length) {
 // der PIN einmal dort, wo er bis 15.09.2026 lag (turniere/$tid/meta, ".read":
 // true), und einmal dort, wo er jetzt liegt. Zeigt dieser Abschnitt keinen
 // Unterschied mehr, ist der Umzug rueckgaengig gemacht worden.
-WELT.turniere.T1.meta.adminPin = "geheim123";
-const alsKlartext = darf(REGELN, "turniere/T1/meta/adminPin", "read", null);
-delete WELT.turniere.T1.meta.adminPin;
-const alsHash = darf(REGELN, "turnierGeheim/T1/adminPinHash", "read", null);
 console.log("\nMutationsprobe (PIN am alten Platz in meta):");
-console.log("  Klartext unter turniere/T1/meta   - ohne Anmeldung lesbar: " + alsKlartext);
-console.log("  Hash unter turnierGeheim/T1       - ohne Anmeldung lesbar: " + alsHash);
-if (!alsKlartext || alsHash) {
-  fehler++;
-  console.log("  FEHL  Der Vergleich zeigt keinen Unterschied - er ist tot.");
+for (const [was, altPfad, neuPfad] of [
+  ["Turnier   ", "turniere/T1/meta/adminPin",   "turnierGeheim/T1/adminPinHash"],
+  ["Streamplan", "streamplan/P1/meta/adminPin", "streamplanGeheim/P1/adminPinHash"],
+]) {
+  const knoten = altPfad.split("/").slice(0, -1).reduce((o, t) => o[t], WELT);
+  knoten.adminPin = "geheim123";
+  const alsKlartext = darf(REGELN, altPfad, "read", null);
+  delete knoten.adminPin;
+  const alsHash = darf(REGELN, neuPfad, "read", null);
+  console.log("  " + was + ": Klartext in meta ohne Anmeldung lesbar: " + alsKlartext +
+              "   |   Hash lesbar: " + alsHash);
+  if (!alsKlartext || alsHash) {
+    fehler++;
+    console.log("  FEHL  Der Vergleich zeigt keinen Unterschied - er ist tot.");
+  }
 }
 
 
@@ -305,6 +329,14 @@ const WERT_FAELLE = [
   ["MUSS: Beweis gleicht dem hinterlegten Hash", "turnierPinProbe/T1/gast-1", HASH_T1, true],
   ["DARF NICHT: Beweis mit falschem Hash", "turnierPinProbe/T1/gast-1", HASH_ANDERS, false],
   ["DARF NICHT: Beweis fuer Turnier ohne Hash", "turnierPinProbe/T2/gast-1", HASH_T1, false],
+
+  ["DARF NICHT: Stream-PIN im Klartext in meta", "streamplan/P1/meta/adminPin", "geheim123", false],
+  ["MUSS: alter Stream-Klartext darf weg", "streamplan/P1/meta/adminPin", undefined, true],
+  ["MUSS: Stream-Hash als 64 Hex-Zeichen", "streamplanGeheim/P1/adminPinHash", HASH_ANDERS, true],
+  ["DARF NICHT: Klartext statt Stream-Hash", "streamplanGeheim/P1/adminPinHash", "geheim123", false],
+  ["DARF NICHT: fremdes Feld im Stream-Geheim-Knoten", "streamplanGeheim/P1/adminPin", "geheim123", false],
+  ["MUSS: Stream-Beweis gleicht dem hinterlegten Hash", "streamplanPinProbe/P1/gast-1", HASH_T1, true],
+  ["DARF NICHT: Stream-Beweis mit falschem Hash", "streamplanPinProbe/P1/gast-1", HASH_ANDERS, false],
 
   // Die alten Felder als Gegenprobe, dass der Pruefer ueberhaupt greift.
   ["MUSS: Saetze als Zahl", "turniere/T1/spiele/s1/saetzeA", 2, true],

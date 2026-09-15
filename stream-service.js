@@ -7,8 +7,14 @@
 // auch ganz ohne Turnier.
 //
 // Datenmodell (Realtime Database, ein aktiver Plan unter streamplan/aktuell):
-//   meta         : { titel, hostId, adminPin, erstelltAm, startDatum:"YYYY-MM-DD",
+//   meta         : { titel, hostId, erstelltAm, startDatum:"YYYY-MM-DD",
 //                    anzahlTage, standardVon, standardBis }
+//
+// ⚠️ Der Veranstalter-PIN steht NICHT in meta. streamplan/$pid ist fuer jeden
+// lesbar (".read": true), also lag er dort bis 2026-09-15 offen im Netz. Er
+// liegt jetzt als SHA-256-Hash unter streamplanGeheim/$pid/adminPinHash, in
+// einem Knoten ohne jedes Leserecht. Denselben Weg geht das Turnier; die
+// Hilfsfunktionen dafuer stehen in turnier-service.js.
 //   tage/$datum  : { von, bis }        // abweichendes Zeitfenster für einen Tag
 //   slots/$sid   : { datum, von, bis, streamer, uid, titel, notiz, erstelltAm }
 //   programm/$id : { datum, von, bis, titel, notiz, streamerNoetig, erstelltAm }
@@ -27,6 +33,12 @@
 
 const SK_BASIS = "streamplan/aktuell";
 const SK_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie beim Turnier: ein PIN für beides
+const SK_PID = "aktuell";                   // ein aktiver Plan, passend zu SK_BASIS
+// Zwei Knoten AUSSERHALB von streamplan/: dort haengt ".read": true am ganzen
+// Plan, und ein Leserecht laesst sich in Firebase weiter unten nicht wieder
+// wegnehmen. Deshalb liegt das Geheimnis daneben statt darunter.
+const SK_GEHEIM_PFAD = "streamplanGeheim";    // <pid>/adminPinHash – kein Leserecht
+const SK_PROBE_PFAD  = "streamplanPinProbe";  // <pid>/<uid> – Beweisablage, kein Leserecht
 const SK_NAME_KEY = "agelan_streamer_name";
 
 // ⚠️ Das ist die FEINSTE erlaubte Einheit, nicht das Raster der Auswahllisten.
@@ -136,13 +148,71 @@ function skGespeicherterPin() {
   }
 }
 
+// --- PIN-Beweis ------------------------------------------------------------
+// Steht skPinOk auf true, ist der gemerkte PIN serverseitig bestaetigt.
+// skIstAdmin() ist synchron und kann selbst nicht fragen.
+let skPinOk = false;
+let skPinLaeuft = false;
+
+// Der ganze Beweis-Weg steht in turnier-service.js und wird von beiden benutzt.
+// ⚠️ Die Datei wird VOR dieser geladen (Liste in index.html). Fehlt sie doch
+// einmal, faellt hier nur der PIN-Weg aus - Konto und hostId tragen weiter.
+function skBeweisWegDa() {
+  return typeof beweisePinAn === "function" && typeof pinHashMoeglich === "function";
+}
+
+function skBeweisePin(pin) {
+  if (!skBeweisWegDa()) return Promise.resolve(false);
+  return beweisePinAn(SK_GEHEIM_PFAD, SK_PROBE_PFAD, SK_PID, skEigeneUid, pin);
+}
+
+// Altbestand: Plaene aus der Zeit, als der PIN im Klartext in meta stand.
+// Wer ihn noch gemerkt hat, zieht den Plan beim Oeffnen selbst um.
+async function skHeileAltenPin(pin) {
+  const alt = skRoh && skRoh.meta && skRoh.meta.adminPin;
+  if (!alt || alt !== pin || !skBeweisWegDa() || !pinHashMoeglich()) return false;
+  try {
+    const h = await pinHash(SK_PID, alt);
+    await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").set(h);
+    await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).set(h);
+    await db.ref(SK_BASIS + "/meta/adminPin").remove();
+    skPinOk = true;
+    skMelde();
+    return true;
+  } catch (e) {
+    console.error("Streamplan: PIN-Umzug fehlgeschlagen:", e);
+    return false;
+  }
+}
+
+// Laeuft einmal, sobald der Plan geladen ist: den gemerkten PIN gegen den
+// Server halten. Erst danach zeigt die Oberflaeche die Veranstalter-Knoepfe.
+async function skPruefeGemerktenPin() {
+  if (skPinOk || skPinLaeuft) return;
+  const pin = skGespeicherterPin();
+  if (!pin || !skRoh || !skRoh.meta) return;
+  skPinLaeuft = true;
+  try {
+    if (await skBeweisePin(pin)) {
+      skPinOk = true;
+      skMelde();
+      return;
+    }
+    await skHeileAltenPin(pin);
+  } finally {
+    skPinLaeuft = false;
+  }
+}
+
 function skIstAdmin() {
   // Ein Veranstalter-Konto gilt ueberall, auch ohne PIN und auf jedem Geraet.
   if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
   if (!skRoh || !skRoh.meta) return false;
   const meta = skRoh.meta;
   if (meta.hostId && meta.hostId === skEigeneUid) return true;
-  return !!meta.adminPin && skGespeicherterPin() === meta.adminPin;
+  // Der PIN-Weg laeuft ueber den Server und laesst sich hier nicht synchron
+  // nachschlagen. Was zaehlt, ist das Ergebnis von skPruefeGemerktenPin().
+  return skPinOk;
 }
 
 // Wer darf sich in den Kalender eintragen?
@@ -171,12 +241,15 @@ function skDarfEintragen() {
 // PIN des laufenden Turniers, falls es eines gibt und wir dort Veranstalter
 // sind. Damit übernimmt ein neuer Streamplan denselben PIN und es gibt nicht
 // zwei Geheimnisse für dieselbe Person.
+// ⚠️ Seit 2026-09-15 steht der Turnier-PIN nicht mehr in dessen meta - er waere
+// dort oeffentlich lesbar. Genommen wird jetzt der lokal gemerkte PIN, und nur
+// dann, wenn wir im laufenden Turnier auch wirklich Veranstalter sind.
 function skTurnierPin() {
   try {
     if (typeof turnierService === "undefined") return "";
     const z = turnierService.getZustand();
-    if (!z || !z.vorhanden || !z.istAdmin || !z.meta) return "";
-    return z.meta.adminPin || "";
+    if (!z || !z.vorhanden || !z.istAdmin) return "";
+    return skGespeicherterPin() || "";
   } catch (e) {
     return "";
   }
@@ -360,6 +433,9 @@ skAuthBereit.then(() => {
   skListener = db.ref(SK_BASIS).on("value", (snap) => {
     skLeseFehler = "";
     skRoh = snap.val() || {};
+    // Erst jetzt steht der Plan - und erst jetzt laesst sich ein gemerkter PIN
+    // gegen den Server halten. Laeuft nur einmal.
+    skPruefeGemerktenPin();
     skMelde();
   }, (fehler) => {
     // ⚠️ OHNE diesen Rueckruf scheitert das Lesen lautlos: skRoh bliebe null,
@@ -411,12 +487,18 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
 
   const pin = skText(adminPin, 20);
   if (!pin) return { erfolg: false, fehler: "Bitte lege einen Veranstalter-PIN fest." };
+  if (!skBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht sichern." };
+  }
+  // Hash VOR dem Anlegen bilden: scheitert er, gibt es keinen halben Plan.
+  let pinH;
+  try { pinH = await pinHash(SK_PID, pin); }
+  catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht sichern." }; }
 
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS).update({
     meta: {
       titel: t,
       hostId: skEigeneUid,
-      adminPin: pin,
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
       startDatum: startDatum,
       anzahlTage: tage,
@@ -425,6 +507,12 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
     },
   }));
   if (!geschrieben.erfolg) return geschrieben;
+  // Der PIN selbst kommt nirgends in die Datenbank - nur sein Hash, und zwar in
+  // den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel verlangt
+  // sie spaeter beim PIN-Wechsel und beim Loeschen.
+  await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").set(pinH);
+  await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).set(pinH);
+  skPinOk = true;
   try {
     localStorage.setItem(SK_PIN_KEY, pin);
   } catch (e) { /* privater Modus: dann zählt nur hostId */ }
@@ -685,17 +773,36 @@ async function skLoeschePlan() {
   if (!skIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS).remove());
   if (!geschrieben.erfolg) return geschrieben;
+  // Geheimnis zuerst, Beweisablage danach: die Regel laesst das Loeschen des
+  // Hashes nur zu, solange der Beweis noch daneben liegt.
+  try { await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").remove(); } catch (e) {}
+  try { await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).remove(); } catch (e) {}
+  skPinOk = false;
   return { erfolg: true };
 }
 
-function skAuthentifiziereAlsAdmin(pin) {
+// ⚠️ Seit 2026-09-15 ASYNCHRON: geprueft wird gegen den Server, nicht mehr
+// gegen einen mitgelieferten Klartext-PIN. Jeder Aufrufer muss await setzen -
+// ohne await ist das Ergebnis ein Promise und damit immer wahr.
+async function skAuthentifiziereAlsAdmin(pin) {
+  await skAuthBereit;
   const eingabe = skText(pin, 20);
   if (!eingabe) return { erfolg: false, fehler: "Bitte gib den PIN ein." };
-  if (!skRoh || !skRoh.meta || !skRoh.meta.adminPin) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
-  if (eingabe !== skRoh.meta.adminPin) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  if (!skRoh || !skRoh.meta) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
+  if (!skBeweisWegDa() || !pinHashMoeglich()) {
+    return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht pruefen." };
+  }
+  if (!(await skBeweisePin(eingabe))) {
+    // Altbestand ohne hinterlegten Hash: dort entscheidet noch der Klartext -
+    // einmalig, denn skHeileAltenPin() raeumt ihn gleich danach weg.
+    const alt = skRoh.meta.adminPin;
+    if (!alt || eingabe !== alt) return { erfolg: false, fehler: "Der PIN stimmt nicht." };
+  }
+  skPinOk = true;
   try {
     localStorage.setItem(SK_PIN_KEY, eingabe);
   } catch (e) { /* privater Modus */ }
+  await skHeileAltenPin(eingabe);
   skMelde();
   return { erfolg: true };
 }

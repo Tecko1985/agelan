@@ -1492,6 +1492,18 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "6.8",
+    groups: [
+      { title: "Stream: der Veranstalter-PIN steht nicht mehr offen im Netz", items: [
+          "Derselbe Fehler wie beim Turnier, nur eine Ecke weiter: der PIN des Streamplans lag im Klartext im offen lesbaren Datensatz.",
+          "Er wird jetzt genauso behandelt – nur noch als Pruefsumme, in einem Knoten, den niemand lesen darf, und geprueft wird auf dem Server.",
+          "Einen laufenden PIN kann nur noch wechseln, wer den alten kennt.",
+          "Ein bestehender Plan zieht beim naechsten Oeffnen von selbst um – wer den PIN gemerkt hat, bleibt Veranstalter.",
+          "Beim Anlegen eines Streamplans wird weiterhin der PIN des laufenden Turniers vorgeschlagen. Er kommt jetzt aus dem Geraet statt aus dem Turnier-Datensatz, wo er nicht mehr steht."
+      ]},
+    ],
+  },
+  {
     version: "6.7",
     groups: [
       { title: "Turnier: der Admin-PIN steht nicht mehr offen im Netz", items: [

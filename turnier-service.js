@@ -249,8 +249,11 @@ const PIN_UNSICHER = "Dieses Geraet kann den PIN nicht pruefen: die Seite laeuft
 // vorgang durch, war der PIN richtig – geht er nicht durch, war er falsch.
 // Nebenwirkung mit Absicht: die Ablage ist zugleich der Nachweis, den die Regel
 // spaeter beim PIN-Wechsel und beim Loeschen verlangt.
-async function beweisePin(id, pin) {
-  if (!id || !pin) return false;
+// ⚠️ Der Streamkalender benutzt denselben Weg mit eigenen Knoten und ruft
+// beweisePinAn() direkt auf (stream-service.js wird nach dieser Datei geladen).
+// Wer hier etwas aendert, aendert es fuer beide.
+async function beweisePinAn(geheimPfad, probePfad, id, uid, pin) {
+  if (!id || !uid || !pin) return false;
   if (!pinHashMoeglich()) return false;
   let h;
   try { h = await pinHash(id, pin); } catch (e) { return false; }
@@ -258,16 +261,20 @@ async function beweisePin(id, pin) {
   // Test-Modus wird deshalb direkt verglichen.
   if (istMockModus()) {
     try {
-      const snap = await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").once("value");
+      const snap = await db.ref(geheimPfad + "/" + id + "/adminPinHash").once("value");
       return snap.val() === h;
     } catch (e) { return false; }
   }
   try {
-    await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).set(h);
+    await db.ref(probePfad + "/" + id + "/" + uid).set(h);
     return true;
   } catch (e) {
     return false;
   }
+}
+
+function beweisePin(id, pin) {
+  return beweisePinAn(GEHEIM_PFAD, PROBE_PFAD, id, eigeneUid, pin);
 }
 
 // Altbestand: Turniere aus der Zeit, als der PIN im Klartext in meta stand.

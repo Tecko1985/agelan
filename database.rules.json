@@ -53,6 +53,25 @@
       }
     },
 
+    "streamplanGeheim": {
+      "$pid": {
+        "adminPinHash": {
+          ".write": "auth != null && (!data.exists() || data.val() === root.child('streamplanPinProbe').child($pid).child(auth.uid).val())",
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+        },
+        "$sonst": { ".validate": false }
+      }
+    },
+
+    "streamplanPinProbe": {
+      "$pid": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isString() && newData.val() === root.child('streamplanGeheim').child($pid).child('adminPinHash').val()"
+        }
+      }
+    },
+
     "streamplan": {
       "$pid": {
         ".read": true,
@@ -64,7 +83,9 @@
           "startDatum":  { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
           "anzahlTage":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 7" },
           "standardVon": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1440" },
-          "standardBis": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" }
+          "standardBis": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1800" },
+
+          "adminPin": { ".validate": false }
         },
 
         "tage": {

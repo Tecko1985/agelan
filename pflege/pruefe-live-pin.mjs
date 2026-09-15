@@ -1,5 +1,5 @@
-// Haelt die LIVE-Datenbank gegen die Zusage: der Turnier-Admin-PIN darf von
-// aussen nicht mehr lesbar sein.
+// Haelt die LIVE-Datenbank gegen die Zusage: weder der Turnier-Admin-PIN noch
+// der Veranstalter-PIN des Streamplans darf von aussen lesbar sein.
 //
 // Der Anlass (15.09.2026): der PIN stand im Klartext in turniere/$tid/meta,
 // und dort gilt ".read": true. Ein einzelner Aufruf ohne Anmeldung, ohne
@@ -50,7 +50,23 @@ for (const id of ids) {
   melde(!!probe.fehler, id + ": Beweisablage lesbar = " + (probe.fehler ? "nein (" + probe.fehler + ")" : "JA"));
 }
 
-// --- 4. Gegenprobe: der Abruf funktioniert ueberhaupt ----------------------
+// --- 4. Derselbe Fehler lag im Streamplan ---------------------------------
+// Der Knoten ist nicht auflistbar, der Pfad streamplan/aktuell aber in einer
+// Minute geraten - das ist kein Schutz.
+console.log("\nStreamplan ohne Anmeldung abgefragt:");
+const planMeta = await hole("streamplan/aktuell/meta");
+if (!planMeta.wert) {
+  console.log("  (kein Streamplan angelegt)");
+} else {
+  const drin = Object.prototype.hasOwnProperty.call(planMeta.wert, "adminPin");
+  melde(!drin, "adminPin im offenen meta = " + (drin ? "JA (Laenge " + String(planMeta.wert.adminPin).length + ")" : "nein"));
+  const geheim = await hole("streamplanGeheim/aktuell/adminPinHash");
+  melde(!!geheim.fehler, "adminPinHash lesbar = " + (geheim.fehler ? "nein (" + geheim.fehler + ")" : "JA"));
+  const probe = await hole("streamplanPinProbe/aktuell");
+  melde(!!probe.fehler, "Beweisablage lesbar = " + (probe.fehler ? "nein (" + probe.fehler + ")" : "JA"));
+}
+
+// --- 5. Gegenprobe: der Abruf funktioniert ueberhaupt ----------------------
 // ⚠️ Ohne diesen Punkt waere ein kaputter Aufruf (Tippfehler im Pfad, DB weg)
 // von einem sauberen Ergebnis nicht zu unterscheiden - alles waere gruen und
 // nichts geprueft.

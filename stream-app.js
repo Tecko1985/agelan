@@ -933,8 +933,10 @@ function skWireEvents() {
   });
 
   // Veranstalter
-  skEl("sk-btn-admin-anmelden").addEventListener("click", () => {
-    const res = streamService.authentifiziereAlsAdmin(skEl("sk-admin-pin").value);
+  // ⚠️ await: die Pruefung laeuft seit 2026-09-15 ueber den Server. Ohne await
+  // waere res ein Promise - und `res.erfolg` damit immer undefined.
+  skEl("sk-btn-admin-anmelden").addEventListener("click", async () => {
+    const res = await streamService.authentifiziereAlsAdmin(skEl("sk-admin-pin").value);
     skZeigeFehler("sk-admin-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) skEl("sk-admin-pin").value = "";
   });

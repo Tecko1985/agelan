@@ -36,11 +36,12 @@ schreiben. Die Regeln verhindern kaputte Datenstruktur und beschränken das Rati
 sie sind **keine** echte Zugriffskontrolle. Das ist für ein Vereins-/Fun-Event völlig ok – es ist aber
 **kein** abgesichertes System, und so sollte es auch nicht verkauft werden.
 
-⚠️ **Der Turnier-Admin-PIN ist davon ausgenommen (seit 15.09.2026).** Er lag bis dahin im
-Klartext im öffentlich lesbaren `turniere/$tid/meta` – ein einzelner Aufruf der DB-Adresse gab
-ihn heraus. Jetzt steht nur noch sein SHA-256 unter `turnierGeheim/$tid/adminPinHash`, in einem
-Knoten ohne jedes Leserecht, und geprüft wird serverseitig über die Regel für
-`turnierPinProbe/$tid/$uid`. Details in `CLAUDE.md` unter „Admin-PIN".
+⚠️ **Die Veranstalter-PINs sind davon ausgenommen (seit 15.09.2026).** Sie lagen bis dahin im
+Klartext im öffentlich lesbaren `turniere/$tid/meta` bzw. `streamplan/$pid/meta` – ein einzelner
+Aufruf der DB-Adresse gab sie heraus. Jetzt steht nur noch ihr SHA-256 unter
+`turnierGeheim/$tid/adminPinHash` bzw. `streamplanGeheim/$pid/adminPinHash`, in Knoten ohne jedes
+Leserecht, und geprüft wird serverseitig über die Regeln für `…PinProbe/$id/$uid`.
+Details in `CLAUDE.md` unter „Admin-PIN".
 
 ⚠️ **Nach jeder Änderung an `database.rules.json`:** Realtime Database → Tab **Regeln** →
 Inhalt der Datei einfügen → **Veröffentlichen**. Ohne diesen Schritt gilt weiter die alte
