@@ -22,7 +22,14 @@
 // slots = was die Streamer für sich buchen, programm = was die Veranstaltung
 // selbst vorgibt (Turniere usw.). Zwei getrennte Spuren, die sich absichtlich
 // überlappen dürfen: ein Stream, der zeitgleich zum Turnier läuft, ist der
-// Normalfall und kein Konflikt. Nur innerhalb der Streams gilt "einer sendet".
+// Normalfall und kein Konflikt.
+//
+// ⚠️ Seit 2026-09-15 dürfen sich auch zwei STREAMS überlappen. Bis dahin wies
+// der Plan sie ab ("Es sendet immer nur einer"). Michel: "mehr als ein streamer
+// der sich den platz nehmen darf es ist ja erstmal nur eine planung" – der Plan
+// ist eine Vormerkung, kein Sendeplan. Wer sich eine Zeit notiert, nimmt sie
+// keinem weg. Gesagt wird es trotzdem: die Maske nennt vorher, wer schon auf
+// der Zeit steht, und im Kalender stehen die Blöcke nebeneinander.
 //
 // Alle Uhrzeiten sind Minuten seit 0:00 DES JEWEILIGEN TAGES. Werte über 1440
 // sind gewollt (LAN-Nächte): 1500 = 25:00 = 1:00 in der Nacht auf den Folgetag.
@@ -458,10 +465,29 @@ function skNeueId(praefix) {
 }
 
 // Zwei Zeiträume überschneiden sich, wenn jeder vor dem Ende des anderen
-// beginnt. Berührung (Ende == Beginn) ist erlaubt: 20–22 Uhr und 22–24 Uhr
-// sind zwei saubere Blöcke, kein Konflikt.
-function skFindeKonflikt(slots, absVon, absBis, ausserId) {
-  return slots.find((s) => s.id !== ausserId && absVon < s.absBis && absBis > s.absVon) || null;
+// beginnt. Berührung (Ende == Beginn) zählt NICHT mit: 20–22 Uhr und 22–24 Uhr
+// sind zwei saubere Blöcke, keine Parallele.
+//
+// ⚠️ Das Ergebnis sperrt nichts mehr, es beschreibt nur. Genau diese Menge
+// meint auch skVerteileSpuren() in stream-app.js, wenn es die Blöcke im
+// Kalender nebeneinanderstellt – ändert sich die eine Seite, muss die andere
+// mit, sonst behauptet die Maske etwas anderes, als das Bild zeigt.
+function skFindeParallele(slots, absVon, absBis, ausserId) {
+  return slots.filter((s) => s.id !== ausserId && absVon < s.absBis && absBis > s.absVon);
+}
+
+// Wer steht sonst noch auf dieser Zeit? Rein zum Anzeigen. Nimmt dieselben
+// rohen Formularwerte wie skPruefeBelegung, damit die Maske nicht selbst
+// rechnen muss – und beide dasselbe Ergebnis meinen.
+function skParalleleZu({ datum, von, bis }, ausserId) {
+  const z = skGetZustand();
+  if (!z.vorhanden) return [];
+  const tag = z.tage.find((t) => t.datum === datum);
+  if (!tag) return [];
+  const v = Math.round(skZahl(von, -1));
+  const b = Math.round(skZahl(bis, -1));
+  if (!(b > v)) return [];
+  return skFindeParallele(z.slots, tag.index * 1440 + v, tag.index * 1440 + b, ausserId || null);
 }
 
 async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPin }) {
@@ -642,8 +668,8 @@ async function skAendereSlot(id, { datum, von, bis, streamer, titel, notiz }) {
 }
 
 // Gemeinsame Prüfung für Anlegen und Ändern: gültiger Tag, Zeiten im Raster und
-// im Tagesfenster, Name gesetzt, keine Überschneidung mit einer fremden oder
-// eigenen Belegung. Es gibt einen Kanal, also kann nur einer senden.
+// im Tagesfenster, Name gesetzt. Überschneidungen werden NICHT mehr geprüft,
+// siehe unten.
 function skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, ausserId) {
   const tag = z.tage.find((t) => t.datum === datum);
   if (!tag) return { erfolg: false, fehler: "Bitte wähle einen Tag aus dem Plan." };
@@ -659,17 +685,11 @@ function skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, ausser
   const name = skText(streamer, 40);
   if (!name) return { erfolg: false, fehler: "Bitte trag deinen Namen ein." };
 
-  const absVon = tag.index * 1440 + v;
-  const absBis = tag.index * 1440 + b;
-  const konflikt = skFindeKonflikt(z.slots, absVon, absBis, ausserId);
-  if (konflikt) {
-    return {
-      erfolg: false,
-      fehler: "Da streamt schon " + (konflikt.streamer || "jemand") + " (" +
-        skDatumLabel(konflikt.datum, false) + " " + skZeitLabel(konflikt.von) + "–" + skZeitLabel(konflikt.bis) + ").",
-    };
-  }
-
+  // ⚠️ Hier stand bis 2026-09-15 ein harter Riegel: "Da streamt schon X." Damit
+  // war der Plan strenger als die Wirklichkeit – zwei Leute dürfen sich sehr
+  // wohl dieselbe Zeit vormerken und sich später einigen. Die Überschneidung
+  // bleibt sichtbar (Maske sagt es vorher, Kalender stellt nebeneinander), sie
+  // ist nur kein Grund mehr, das Speichern abzulehnen.
   return {
     erfolg: true,
     werte: { datum, von: v, bis: b, streamer: name, titel: skText(titel, 60), notiz: skText(notiz, 200) },
@@ -818,6 +838,7 @@ const streamService = {
   setzeTagesfenster: skSetzeTagesfenster,
   belegeZeit: skBelegeZeit,
   aendereSlot: skAendereSlot,
+  paralleleZu: skParalleleZu,
   loescheSlot: skLoescheSlot,
   legeProgrammAn: skLegeProgrammAn,
   aendereProgramm: skAendereProgramm,

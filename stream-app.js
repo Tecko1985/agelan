@@ -311,9 +311,10 @@ function skPx(minuten) {
   return Math.round((minuten / 60) * SK_STUNDE_PX);
 }
 
-// Überschneidungen sind beim Speichern gesperrt, können aber entstehen, wenn
-// zwei Leute im selben Moment auf dieselbe Zeit speichern. Dann sollen die
-// Blöcke nebeneinander stehen statt sich gegenseitig zu verdecken.
+// Überschneidungen sind seit 2026-09-15 ausdrücklich erlaubt (der Plan ist eine
+// Vormerkung, kein Sendeplan). Zwei Streams auf derselben Zeit stehen deshalb
+// nebeneinander statt sich gegenseitig zu verdecken – genau wie die
+// Programmpunkte in der Spur links daneben.
 function skVerteileSpuren(slots) {
   const spurEnde = [];
   slots.forEach((s) => {
@@ -440,11 +441,43 @@ function skOeffneDialog(slotId, vorbelegung) {
   skEl("sk-dlg-loeschen").style.display = slot && !skDialogNurLesen ? "" : "none";
   skEl("sk-dlg-abbrechen").textContent = skDialogNurLesen ? "Schließen" : "Abbrechen";
   skZeigeFehler("sk-dlg-fehler", "");
-  skEl("sk-dlg-hinweis").textContent = skDialogNurLesen
-    ? "Diesen Eintrag hat jemand anders gemacht."
-    : "Es sendet immer nur einer – überschneidende Zeiten nimmt der Plan nicht an.";
+  skAktualisiereParallelHinweis();
 
   skEl("modal-stream").classList.add("aktiv");
+}
+
+// ⚠️ Seit 2026-09-15 nimmt der Plan überschneidende Zeiten an. Weil dabei
+// niemand mehr abgewiesen wird, MUSS die Maske vorher sagen, wer schon auf der
+// Zeit steht – sonst merkt man es erst am fertigen Kalender, und dort sind zwei
+// halbbreite Blöcke leicht zu übersehen. Läuft bei jeder Änderung an Tag,
+// Beginn oder Ende neu; die Menge kommt aus dem Service, damit Maske und
+// Kalender dieselbe Überschneidung meinen.
+function skAktualisiereParallelHinweis() {
+  const el = skEl("sk-dlg-hinweis");
+  if (!el) return;
+  if (skDialogNurLesen) {
+    el.textContent = "Diesen Eintrag hat jemand anders gemacht.";
+    return;
+  }
+  const andere = streamService.paralleleZu({
+    datum: skEl("sk-dlg-tag").value,
+    von: skEl("sk-dlg-von").value,
+    bis: skEl("sk-dlg-bis").value,
+  }, skDialogSlotId);
+  if (!andere.length) {
+    el.textContent = "Mehrere dürfen sich dieselbe Zeit nehmen – das hier ist eine Planung, kein Sendeplan.";
+    return;
+  }
+  const namen = andere.map((s) => s.streamer || "jemand");
+  el.textContent = (namen.length === 1 ? "In dieser Zeit steht schon " : "In dieser Zeit stehen schon ") +
+    skUndListe(namen) + " im Plan. Das geht – ihr steht dann nebeneinander im Kalender.";
+}
+
+// „Anna, Ben und Carl" – ein Komma vor dem letzten Namen liest sich wie eine
+// abgebrochene Liste.
+function skUndListe(namen) {
+  if (namen.length < 2) return namen[0] || "";
+  return namen.slice(0, -1).join(", ") + " und " + namen[namen.length - 1];
 }
 
 // Startvorschlag: die angeklickte Zeit, sonst der nächste freie Viertelstunden-
@@ -889,10 +922,14 @@ function skWireEvents() {
   });
 
   // Dialog: Tageswechsel füllt die Zeiten neu (jeder Tag hat sein eigenes Fenster)
+  // ⚠️ Jede der drei Zeit-Auswahlen zieht den Parallel-Hinweis nach. Fehlt das
+  // an einer, steht dort der Satz zur vorherigen Zeit - schlimmer als gar
+  // keiner, weil er wie eine geprüfte Aussage aussieht.
   skEl("sk-dlg-tag").addEventListener("change", () => {
     if (!skZustand) return;
     const tag = skTagVon(skZustand, skEl("sk-dlg-tag").value);
     if (tag) skFuelleDialogZeiten(tag, tag.von, tag.von + 120);
+    skAktualisiereParallelHinweis();
   });
   skEl("sk-dlg-von").addEventListener("change", () => {
     if (!skZustand) return;
@@ -901,7 +938,9 @@ function skWireEvents() {
     const von = Number(skEl("sk-dlg-von").value);
     const bisAlt = Number(skEl("sk-dlg-bis").value);
     skFuelleZeiten(skEl("sk-dlg-bis"), von + SK_SCHRITT_UI, tag.bis, Math.max(bisAlt, von + SK_SCHRITT_UI));
+    skAktualisiereParallelHinweis();
   });
+  skEl("sk-dlg-bis").addEventListener("change", skAktualisiereParallelHinweis);
 
   skEl("sk-dlg-speichern").addEventListener("click", async () => {
     const werte = {

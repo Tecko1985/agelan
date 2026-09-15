@@ -1492,6 +1492,20 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.2",
+    groups: [
+      { title: "Streamplan: mehrere dürfen sich dieselbe Zeit nehmen", items: [
+          "Bisher wies der Plan eine schon belegte Zeit ab („Da streamt schon …“). Das war strenger als nötig – der Streamplan ist erstmal eine Planung, keine Sendeliste.",
+          "Jetzt darf sich jeder eine Zeit vormerken, auch wenn dort schon jemand steht. Wer am Ende wirklich sendet, klärt ihr untereinander.",
+          "Im Kalender stehen die Streams dann nebeneinander – so wie die Programmpunkte in der Spur links.",
+          "Damit das niemand übersieht: die Maske sagt schon beim Eintragen, wer auf dieser Zeit sonst noch im Plan steht. Der Satz passt sich sofort an, wenn du Tag, Beginn oder Ende änderst.",
+          "Auch Verschieben mit der Maus geht jetzt auf eine belegte Zeit.",
+          "Alles andere bleibt streng: Zeiten außerhalb des Tagesfensters, unter 15 Minuten oder ohne Namen nimmt der Plan weiterhin nicht an.",
+          "Ein Programmpunkt gilt weiter erst dann als abgedeckt, wenn die Zeit wirklich durchgehend belegt ist – zwei Streamer auf derselben Stunde zählen nicht doppelt."
+      ]},
+    ],
+  },
+  {
     version: "7.1",
     groups: [
       { title: "Kleinigkeit: „Kontoen“", items: [
@@ -2276,7 +2290,7 @@ const APP_CHANGELOG = [
       { title: "Streamkalender", items: [
           "Der Reiter „Stream“ zeigt einen Kalender über die Tage der Veranstaltung, in den sich die Streamer selbst eintragen.",
           "Eintragen heißt: Tag, Von, Bis, Name und wahlweise, was in der Zeit läuft. Der eigene Eintrag lässt sich jederzeit ändern oder wieder entfernen.",
-          "Es sendet immer nur einer: überschneidet sich eine Zeit mit einer schon eingetragenen, nimmt der Plan sie nicht an und sagt, wer da schon dran ist.",
+          "Mehrere dürfen sich dieselbe Zeit nehmen. Die Maske sagt beim Eintragen, wer dort schon steht, und im Kalender stehen die Streams dann nebeneinander.",
           "Am Handy zeigt der Kalender einen Tag, auf größeren Bildschirmen alle Tage nebeneinander.",
           "Zeiten nach Mitternacht gehören zum selben Veranstaltungstag und sind als „(Nacht)“ gekennzeichnet.",
           "Unter dem Kalender stehen Programm und Streams in einer gemeinsamen Zeitleiste, jeweils gekennzeichnet."
