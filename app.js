@@ -1492,6 +1492,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.1",
+    groups: [
+      { title: "Kleinigkeit: „Kontoen“", items: [
+          "In der Konten-Liste stand bei mehr als einem Konto „9 Kontoen“. Jetzt steht dort „9 Konten“ – und bei genau einem weiterhin „1 Konto“."
+      ]},
+    ],
+  },
+  {
     version: "7.0",
     groups: [
       { title: "Discord: der Bot meldet neue Anmeldungen", items: [
@@ -2408,7 +2416,7 @@ async function ladeKonten() {
          Der Bot schreibt sie an jeden Veranstalter mit hinterlegter Discord-ID – gerade hat keiner eine. Trag deine oben über deinen Namen unter „Mein Konto“ ein.</p>`;
 
     box.innerHTML = daten.konten.length
-      ? fehlend + meldung + `<p class="hinweis-text">${daten.konten.length} Konto${daten.konten.length === 1 ? "" : "en"}</p>` +
+      ? fehlend + meldung + `<p class="hinweis-text">${daten.konten.length} ${daten.konten.length === 1 ? "Konto" : "Konten"}</p>` +
         daten.konten.map((k) => `
           <div class="konto-zeile">
             <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
