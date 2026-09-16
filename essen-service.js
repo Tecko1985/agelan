@@ -267,6 +267,22 @@ async function esHeileAltenPin(pin) {
   }
 }
 
+// ⚠️ Nach JEDER bewiesenen Anmeldung: steht noch ein Klartext-PIN in meta,
+// ist ein früherer Umzug nur halb durchgelaufen (Hash lag schon, das Entfernen
+// des Klartexts scheiterte). esHeileAltenPin() greift dann nie wieder, weil
+// der Beweis schon gelingt – ohne diesen Schritt bliebe der PIN für immer offen
+// lesbar (Bugjagd 16.09.2026, A1). Wie stream-service.js nach der Anmeldung.
+// Der Klartext wird auch entfernt, wenn er vom bewiesenen PIN abweicht: dann
+// ist er ein alter PIN, der sonst über den Klartext-Rückfall weiter hineinließe.
+async function esRaeumeKlartext() {
+  if (!esRoh || !esRoh.meta || !esRoh.meta.adminPin) return;
+  try {
+    await db.ref(ES_BASIS + "/meta/adminPin").remove();
+  } catch (e) {
+    console.error("Essen: Klartext-PIN ließ sich nicht entfernen:", e);
+  }
+}
+
 // Läuft einmal, sobald der Plan da ist: den gemerkten PIN gegen den Server
 // halten. Erst danach zeigt die Oberfläche die Veranstalter-Knöpfe – deshalb
 // am Ende esMelde().
@@ -276,7 +292,10 @@ async function esPruefeGemerktenPin() {
   if (!pin || !esRoh || !esRoh.meta) return;
   esPinLaeuft = true;
   try {
-    if (await esBeweisePin(pin)) esPinOk = true;
+    if (await esBeweisePin(pin)) {
+      esPinOk = true;
+      await esRaeumeKlartext();
+    }
     else if (await esHeileAltenPin(pin)) esPinOk = true;
     // Siehe esAuthentifiziereAlsAdmin: solange die Regeln nicht stehen, ist
     // der Klartext der einzige Weg.
@@ -1712,6 +1731,7 @@ async function esAuthentifiziereAlsAdmin(pin) {
     return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht prüfen." };
   }
   let ok = await esBeweisePin(eingabe);
+  if (ok) await esRaeumeKlartext();
   // Altbestand: Plan von vor dem 15.09.2026, Hash noch nicht hinterlegt.
   if (!ok) ok = await esHeileAltenPin(eingabe);
   // ⚠️⚠️ Altbestand-Rueckfall auf den KLARTEXT. Turnier und Streamplan machen

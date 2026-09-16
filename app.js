@@ -1517,6 +1517,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.7",
+    groups: [
+      { title: "Frühstück und Essen: kein alter PIN mehr offen in der Datenbank", items: [
+          "Beim Umzug einer alten Bestellung auf die geschützte Prüfsumme konnte der letzte Schritt scheitern – etwa weil gerade die Verbindung wackelte. Dann lag die Prüfsumme schon, aber der alte PIN stand weiter lesbar in der Datenbank.",
+          "Weil die nächste Anmeldung danach über die Prüfsumme klappte, lief der Umzug nie wieder an, und der PIN blieb dort liegen.",
+          "Jetzt räumt jede erfolgreiche Anmeldung als Veranstalter einen noch vorhandenen alten PIN weg – so, wie es der Streamplan schon machte."
+      ]},
+    ],
+  },
+  {
     version: "7.6",
     groups: [
       { title: "Frühstück und Essen: nach dem Löschen lässt sich wieder neu anlegen", items: [
