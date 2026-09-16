@@ -1586,9 +1586,9 @@ const APP_CHANGELOG = [
           "Neue Pläne brauchen einen PIN mit mindestens sechs Zeichen. Bestehende behalten ihren.",
           "Wird ein Plan gelöscht, verschwindet seine Prüfsumme mit – sonst ließe sich der nächste mit dem alten PIN aufmachen."
       ]},
-      { title: "Falsche Passwörter werden härter gebremst", items: [
+      { title: "Bremse gegen falsche Passwörter: vorbereitet, aber nicht eingeschaltet", items: [
           "Die Bremse gegen das Durchprobieren von Passwörtern zählte bisher nur innerhalb eines Servers mit – und davon laufen viele nebeneinander. Eine Welle verteilte sich darauf und kam durch.",
-          "Jetzt zählt zusätzlich Cloudflare selbst mit, außerhalb der einzelnen Server. Wer das Passwort kennt, merkt davon weiterhin nichts."
+          "Der Anschluss an Cloudflares eigenes Zählwerk, das außerhalb der einzelnen Server mitzählt, ist eingebaut – bei AgeLan aber bewusst nicht eingeschaltet: das Passwort kennen die Teilnehmer ohnehin. Es gilt also weiter die bisherige Bremse. (Richtigstellung vom 16.09.2026: hier stand zuerst, Cloudflare zähle schon mit.)"
       ]},
       { title: "Datenschutz: ein Satz, der gefehlt hat", items: [
           "Seit gestern bekommen die Veranstalter eine Discord-Nachricht, sobald jemand ein Konto anlegt. Dass das passiert, steht jetzt auch im Datenschutz-Hinweis."
