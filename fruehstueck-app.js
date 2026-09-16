@@ -533,6 +533,9 @@ function frWireEvents() {
     if (!confirm("Die komplette Frühstücksbestellung löschen? Pakete, Einstellungen und alle Bestellungen sind dann weg. Das lässt sich nicht rückgängig machen.")) return;
     const res = await fruehstueckService.loeschePlan();
     frZeigeFehler("fr-admin-panel-fehler", res.erfolg ? "" : res.fehler);
+    // ⚠️ Die Warnung auf den Anlege-Schirm, nicht in den Admin-Kasten: der
+    // verschwindet mit dem Plan, und die Meldung gleich mit.
+    if (res.warnung) frZeigeFehler("fr-neu-fehler", res.warnung);
   });
 }
 

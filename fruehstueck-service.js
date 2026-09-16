@@ -791,16 +791,50 @@ async function frLeereBestellungen() {
   return { erfolg: true };
 }
 
+// Den hinterlegten Hash austragen. Liefert true, wenn er weg ist.
+// ⚠️ NUR das Kind adminPinHash: die Regel erlaubt Schreiben nur dort, ein
+// remove() auf den ganzen Knoten <pid> weist sie ab. Bis zum 16.09.2026 stand
+// hier genau das – still verschluckt, der alte Hash blieb, und jede neue
+// Bestellung mit anderem PIN scheiterte (Bugjagd A2).
+// ⚠️ Solange der eigene Beweis noch daneben liegt: die Regel vergleicht den
+// Hash mit der Beweisablage dieses Geräts. Fehlt sie (Veranstalter-Konto oder
+// hostId, ohne PIN angemeldet), wird sie mit dem gemerkten PIN nachgeholt.
+async function frEntferneHash() {
+  const ref = db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash");
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) { /* ohne Beweis abgewiesen – unten nachholen */ }
+  const pin = frGespeicherterPin();
+  if (!pin || !(await frBeweisePin(pin))) return false;
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function frLoeschePlan() {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(FR_BASIS).remove();
   // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
-  // der nächste Plan mit dem PIN des vorigen aufmachen – und der ist unter
-  // Umständen längst weitergereicht.
-  try { await db.ref(FR_GEHEIM_PFAD + "/" + FR_PID).remove(); } catch (e) {}
+  // die nächste Bestellung nur mit dem PIN der vorigen aufmachen – und der ist
+  // unter Umständen längst weitergereicht. Geheimnis zuerst, Beweisablage
+  // danach: die Regel lässt das Löschen des Hashes nur mit Beweis zu.
+  const hashWeg = await frEntferneHash();
+  // Eine Beweisablage ohne Hash ist wertlos – bleibt sie liegen, schadet sie nicht.
   try { await db.ref(FR_PROBE_PFAD + "/" + FR_PID + "/" + frEigeneUid).remove(); } catch (e) {}
   frPinOk = false;
+  if (!hashWeg) {
+    // ⚠️ Nicht schweigen: sonst scheitert die nächste Bestellung mit einer
+    // Meldung, die niemand mit diesem Löschen in Verbindung bringt.
+    return {
+      erfolg: true,
+      warnung: "Die Frühstücksbestellung ist gelöscht. Ihr PIN ließ sich aber nicht austragen – eine neue Frühstücksbestellung geht deshalb nur mit demselben PIN wie bisher.",
+    };
+  }
   return { erfolg: true };
 }
 

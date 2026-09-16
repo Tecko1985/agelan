@@ -1414,6 +1414,9 @@ function esWireEvents() {
     if (!confirm("Die komplette Essensbestellung löschen? Speisekarte und alle Bestellungen sind dann weg. Das lässt sich nicht rückgängig machen.")) return;
     const res = await essenService.loeschePlan();
     esZeigeFehler("es-admin-fehler", res.erfolg ? "" : res.fehler);
+    // ⚠️ Die Warnung auf den Anlege-Schirm, nicht in den Admin-Kasten: der
+    // verschwindet mit dem Plan, und die Meldung gleich mit.
+    if (res.warnung) esZeigeFehler("es-neu-fehler", res.warnung);
   });
 }
 

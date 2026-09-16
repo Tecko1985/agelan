@@ -1653,16 +1653,50 @@ async function esLeereBestellungen() {
   return { erfolg: true };
 }
 
+// Den hinterlegten Hash austragen. Liefert true, wenn er weg ist.
+// ⚠️ NUR das Kind adminPinHash: die Regel erlaubt Schreiben nur dort, ein
+// remove() auf den ganzen Knoten <pid> weist sie ab. Bis zum 16.09.2026 stand
+// hier genau das – still verschluckt, der alte Hash blieb, und jede neue
+// Bestellung mit anderem PIN scheiterte (Bugjagd A2).
+// ⚠️ Solange der eigene Beweis noch daneben liegt: die Regel vergleicht den
+// Hash mit der Beweisablage dieses Geräts. Fehlt sie (Veranstalter-Konto oder
+// hostId, ohne PIN angemeldet), wird sie mit dem gemerkten PIN nachgeholt.
+async function esEntferneHash() {
+  const ref = db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash");
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) { /* ohne Beweis abgewiesen – unten nachholen */ }
+  const pin = esGespeicherterPin();
+  if (!pin || !(await esBeweisePin(pin))) return false;
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function esLoeschePlan() {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   await db.ref(ES_BASIS).remove();
   // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
-  // die nächste Bestellung mit dem PIN der vorigen aufmachen – und der ist
-  // unter Umständen längst weitergereicht.
-  try { await db.ref(ES_GEHEIM_PFAD + "/" + ES_PID).remove(); } catch (e) {}
+  // die nächste Bestellung nur mit dem PIN der vorigen aufmachen – und der ist
+  // unter Umständen längst weitergereicht. Geheimnis zuerst, Beweisablage
+  // danach: die Regel lässt das Löschen des Hashes nur mit Beweis zu.
+  const hashWeg = await esEntferneHash();
+  // Eine Beweisablage ohne Hash ist wertlos – bleibt sie liegen, schadet sie nicht.
   try { await db.ref(ES_PROBE_PFAD + "/" + ES_PID + "/" + esEigeneUid).remove(); } catch (e) {}
   esPinOk = false;
+  if (!hashWeg) {
+    // ⚠️ Nicht schweigen: sonst scheitert die nächste Bestellung mit einer
+    // Meldung, die niemand mit diesem Löschen in Verbindung bringt.
+    return {
+      erfolg: true,
+      warnung: "Die Essensbestellung ist gelöscht. Ihr PIN ließ sich aber nicht austragen – eine neue Essensbestellung geht deshalb nur mit demselben PIN wie bisher.",
+    };
+  }
   return { erfolg: true };
 }
 

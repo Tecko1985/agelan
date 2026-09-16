@@ -1517,6 +1517,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.6",
+    groups: [
+      { title: "Frühstück und Essen: nach dem Löschen lässt sich wieder neu anlegen", items: [
+          "Beim Löschen einer Frühstücks- oder Essensbestellung sollte ihr PIN mit verschwinden. Das hat nicht geklappt: die Datenbank hat das Löschen abgelehnt, und die App hat den Fehler verschwiegen.",
+          "Die Folge: eine neue Bestellung mit einem anderen PIN ließ sich nicht mehr anlegen – mit der irreführenden Meldung, die Datenbank-Regeln seien nicht veröffentlicht.",
+          "Jetzt wird der PIN richtig ausgetragen. Wer als Veranstalter ohne PIN angemeldet ist, aber den PIN auf diesem Gerät gemerkt hat, trägt ihn dabei trotzdem aus.",
+          "Geht es einmal gar nicht, sagt die App das nach dem Löschen: eine neue Bestellung geht dann nur mit demselben PIN wie bisher."
+      ]},
+    ],
+  },
+  {
     version: "7.5",
     groups: [
       { title: "Frühstück und Essen: ein zweiter Anlauf beim Anlegen klappt wieder", items: [
