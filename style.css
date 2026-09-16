@@ -1509,14 +1509,15 @@ main#app.ub-breit { max-width: 980px; }
 /* --- Sammelmail --- */
 .es-mail-wahl { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 14px; }
 .es-mail-wahl label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.es-mail-text { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 1.5; resize: vertical; }
+.es-mail-text { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 16px; line-height: 1.5; resize: vertical; }
 .es-mail-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .es-mail-knoepfe > * { flex: 1 1 160px; }
 /* Der mailto-Weg ist ein <a>, sieht aber aus wie ein Knopf. */
 .es-mail-link { display: inline-block; text-align: center; text-decoration: none; }
 
 /* --- Import --- */
-.es-import-feld, .es-hinweis-feld { font-size: 14px; line-height: 1.5; resize: vertical; }
+/* ⚠️ Textareas nie unter 16px: sonst zoomt iOS beim Antippen die ganze Seite. */
+.es-import-feld, .es-hinweis-feld { font-size: 16px; line-height: 1.5; resize: vertical; }
 .es-import-kopf { margin-top: 12px; font-size: 14px; }
 /* ⚠️ Eine ganze Speisekarte ist lang – die Vorschau scrollt in sich, sonst
    schiebt sie die Übernehmen-Knöpfe außer Sicht. */

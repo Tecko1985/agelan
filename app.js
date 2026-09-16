@@ -1517,6 +1517,19 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.9",
+    groups: [
+      { title: "Datenschutz-Hinweis: was die Veranstalter bei einer neuen Anmeldung erfahren", items: [
+          "Der Hinweis im Vorraum sagte, die Nachricht an die Veranstalter enthalte deine Discord-ID. Das stimmte nicht: darin stehen dein Name, ob eine Discord-ID hinterlegt ist, und die Zahl der Konten – die ID selbst nie.",
+          "Der Text sagt das jetzt so, wie der Server es tatsächlich verschickt."
+      ]},
+      { title: "Essen: Textfelder zoomen am iPhone nicht mehr", items: [
+          "Das Feld für die Speisekarte zum Einlesen, der Hinweis und der E-Mail-Text waren kleiner geschrieben als 16 Pixel. Am iPhone hat das beim Antippen die ganze Seite herangezoomt.",
+          "Die drei Felder schreiben jetzt in 16 Pixeln."
+      ]},
+    ],
+  },
+  {
     version: "7.8",
     groups: [
       { title: "Streamplan: ein einzelner Stream steht wieder in voller Breite", items: [
