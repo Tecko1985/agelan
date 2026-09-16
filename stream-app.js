@@ -316,8 +316,24 @@ function skPx(minuten) {
 // nebeneinander statt sich gegenseitig zu verdecken – genau wie die
 // Programmpunkte in der Spur links daneben.
 function skVerteileSpuren(slots) {
-  const spurEnde = [];
-  slots.forEach((s) => {
+  // ⚠️ Die Spurenzahl gilt JE GRUPPE sich überschneidender Blöcke, nicht für den
+  // ganzen Tag. Bis zum 16.09.2026 stand hier eine Zahl für alle: zwei Streams
+  // um 20 Uhr machten auch den einsamen Stream um 10 Uhr halb so breit
+  // (Bugjagd A4). Eine Gruppe endet, sobald ein Block erst NACH dem Ende aller
+  // bisherigen beginnt (Berührung Ende == Beginn zählt nicht als Überschneidung).
+  // Sortiert wird eine Kopie – die Reihenfolge des Arrays gehört dem Aufrufer.
+  const reihe = slots.slice().sort((a, b) => a.von - b.von || a.bis - b.bis);
+  let gruppe = [];
+  let spurEnde = [];
+  let gruppeBis = -Infinity;
+  const schliesse = () => {
+    const anzahl = Math.max(1, spurEnde.length);
+    gruppe.forEach((s) => { s.spurAnzahl = anzahl; });
+    gruppe = [];
+    spurEnde = [];
+  };
+  reihe.forEach((s) => {
+    if (gruppe.length && s.von >= gruppeBis) schliesse();
     let spur = spurEnde.findIndex((ende) => ende <= s.von);
     if (spur === -1) {
       spurEnde.push(s.bis);
@@ -326,9 +342,10 @@ function skVerteileSpuren(slots) {
       spurEnde[spur] = s.bis;
     }
     s.spur = spur;
+    gruppe.push(s);
+    gruppeBis = gruppe.length === 1 ? s.bis : Math.max(gruppeBis, s.bis);
   });
-  const anzahl = Math.max(1, spurEnde.length);
-  slots.forEach((s) => { s.spurAnzahl = anzahl; });
+  if (gruppe.length) schliesse();
 }
 
 // --- Liste unter dem Kalender ----------------------------------------------

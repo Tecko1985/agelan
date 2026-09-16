@@ -1517,6 +1517,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.8",
+    groups: [
+      { title: "Streamplan: ein einzelner Stream steht wieder in voller Breite", items: [
+          "Standen irgendwo am Tag zwei Streams gleichzeitig, wurden ALLE Streams dieses Tages halb so breit gezeichnet – auch einer am Vormittag, neben dem gar nichts lief.",
+          "Jetzt teilen sich nur die Einträge die Breite, die sich wirklich überschneiden. Alles andere steht wieder in voller Breite und bleibt lesbar.",
+          "Dasselbe gilt für die Programmpunkte in der Spur links."
+      ]},
+    ],
+  },
+  {
     version: "7.7",
     groups: [
       { title: "Frühstück und Essen: kein alter PIN mehr offen in der Datenbank", items: [
