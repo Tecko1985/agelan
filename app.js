@@ -1517,6 +1517,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "7.5",
+    groups: [
+      { title: "Frühstück und Essen: ein zweiter Anlauf beim Anlegen klappt wieder", items: [
+          "Beim Essen wurde der PIN schon gesichert, bevor die Mail-Adresse des Lieferanten geprüft war. Ein Tippfehler in der Adresse – und jeder weitere Versuch scheiterte mit „Der PIN ließ sich nicht sichern“.",
+          "Jetzt wird erst alles geprüft und dann gespeichert. Ein Tippfehler lässt sich einfach korrigieren.",
+          "Reißt beim Anlegen die Verbindung ab, nimmt die App den schon gesicherten PIN wieder zurück. Klappt auch das nicht, kommst du mit demselben PIN beim nächsten Versuch trotzdem durch.",
+          "Die Fehlermeldung nennt jetzt beide möglichen Gründe: ein anderer PIN von früher ist noch hinterlegt, oder die Datenbank-Regeln fehlen."
+      ]},
+    ],
+  },
+  {
     version: "7.4",
     groups: [
       { title: "Beim Anmelden steht jetzt dran: es geht um dein 1vs1-Elo", items: [

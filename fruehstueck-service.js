@@ -513,34 +513,54 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
   // anlegende Gerät über hostId hinein, und auf jedem anderen wäre der
   // Veranstalter-Bereich dauerhaft zu. Scheitert es hier, entsteht schlicht
   // kein Plan, und die Meldung sagt warum.
+  const hashRef = db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash");
+  let hashGeschrieben = false;
   try {
-    await db.ref("fruehstueckGeheim/" + FR_PID + "/adminPinHash").set(pinH);
+    await hashRef.set(pinH);
+    hashGeschrieben = true;
   } catch (e) {
-    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich sind die neuen Datenbank-Regeln noch nicht veröffentlicht." };
+    // Liegt schon ein Hash (ein halber früherer Anlauf, ein nicht
+    // ausgetragener PIN), darf die Regel ihn nur mit Beweis ersetzen. Ist es
+    // der Hash zu GENAU DIESEM PIN, gelingt der Beweis – und es geht weiter
+    // (Bugjagd 16.09.2026, A3).
+    if (!(await frBeweisePin(pin))) {
+      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einer früheren Frühstücksbestellung noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
+    }
+  }
+  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
+  // Zurücknehmen des Hashes sie (die Regel vergleicht damit). Beim Weg über
+  // frBeweisePin() liegt sie schon. ⚠️ Mit try: ein Fehlschlag hier ist eine
+  // Nebensache, nachgeholt wird sie beim nächsten Laden von frPruefeGemerktenPin().
+  if (hashGeschrieben) {
+    try {
+      await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, pinH);
+    } catch (e) { /* siehe oben */ }
   }
 
-  await db.ref(FR_BASIS).update({
-    meta: {
-      titel: t,
-      hostId: frEigeneUid,
-      // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
-      // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
-      // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
-      erstelltAm: firebase.database.ServerValue.TIMESTAMP,
-      startDatum: startDatum,
-      anzahlTage: tage,
-      schlussUhr: uhr,
-      annahmeOffen: true,
-    },
-  });
-  // Der Hash liegt schon (siehe oben, VOR dem Plan). Hier nur noch die
-  // Beweisablage: die Regel verlangt sie später beim PIN-Wechsel und beim
-  // Löschen. ⚠️ Mit try, weil der Plan an dieser Stelle bereits steht — ein
-  // Fehlschlag bei einer Nebensache darf ihn nicht als misslungen melden.
-  // Nachgeholt wird sie beim nächsten Laden von frPruefeGemerktenPin().
   try {
-    await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, pinH);
-  } catch (e) { /* siehe oben */ }
+    await db.ref(FR_BASIS).update({
+      meta: {
+        titel: t,
+        hostId: frEigeneUid,
+        // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
+        // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
+        // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
+        erstelltAm: firebase.database.ServerValue.TIMESTAMP,
+        startDatum: startDatum,
+        anzahlTage: tage,
+        schlussUhr: uhr,
+        annahmeOffen: true,
+      },
+    });
+  } catch (e) {
+    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
+    // blockiert er den nächsten Anlauf mit einem anderen PIN. Scheitert auch
+    // das, kommt derselbe PIN trotzdem durch (Beweisweg oben).
+    if (hashGeschrieben) {
+      try { await hashRef.remove(); } catch (e2) { /* siehe oben */ }
+    }
+    return { erfolg: false, fehler: "Die Frühstücksbestellung ließ sich nicht anlegen. Bitte versuch es noch einmal." };
+  }
   frPinOk = true;
   try {
     localStorage.setItem(FR_PIN_KEY, pin);

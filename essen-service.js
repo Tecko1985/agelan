@@ -1081,6 +1081,14 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
   try { pinH = await pinHash(ES_PID, pin); }
   catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." }; }
 
+  // ⚠️ ALLE Prüfungen VOR dem ersten Schreibvorgang. Stand die Mail-Prüfung
+  // hinter dem Hash, lag nach einem Tippfehler schon ein Hash in essenGeheim –
+  // und der zweite Anlauf scheiterte daran (Bugjagd 16.09.2026, A3).
+  const mail = esText(lieferantEmail, 120);
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+    return { erfolg: false, fehler: "Die E-Mail-Adresse des Lieferanten sieht nicht richtig aus." };
+  }
+
   // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank, nicht danach.
   //
   // Bis die neuen Regeln in der Firebase-Konsole veröffentlicht sind, gibt es
@@ -1090,42 +1098,55 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
   // anlegende Gerät über hostId hinein, und auf jedem anderen wäre der
   // Veranstalter-Bereich dauerhaft zu. Scheitert es hier, entsteht schlicht
   // kein Plan, und die Meldung sagt warum.
+  const hashRef = db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash");
+  let hashGeschrieben = false;
   try {
-    await db.ref("essenGeheim/" + ES_PID + "/adminPinHash").set(pinH);
+    await hashRef.set(pinH);
+    hashGeschrieben = true;
   } catch (e) {
-    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich sind die neuen Datenbank-Regeln noch nicht veröffentlicht." };
+    // Liegt schon ein Hash (ein halber früherer Anlauf, ein nicht
+    // ausgetragener PIN), darf die Regel ihn nur mit Beweis ersetzen. Ist es
+    // der Hash zu GENAU DIESEM PIN, gelingt der Beweis – und es geht weiter.
+    if (!(await esBeweisePin(pin))) {
+      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einer früheren Essensbestellung noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
+    }
+  }
+  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
+  // Zurücknehmen des Hashes sie (die Regel vergleicht damit). Beim Weg über
+  // esBeweisePin() liegt sie schon. ⚠️ Mit try: ein Fehlschlag hier ist eine
+  // Nebensache, nachgeholt wird sie beim nächsten Laden von esPruefeGemerktenPin().
+  if (hashGeschrieben) {
+    try {
+      await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
+    } catch (e) { /* siehe oben */ }
   }
 
-
-  const mail = esText(lieferantEmail, 120);
-  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-    return { erfolg: false, fehler: "Die E-Mail-Adresse des Lieferanten sieht nicht richtig aus." };
-  }
-
-  await db.ref(ES_BASIS).update({
-    meta: {
-      titel: t,
-      hostId: esEigeneUid,
-      // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
-      // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
-      // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
-      erstelltAm: firebase.database.ServerValue.TIMESTAMP,
-      annahmeOffen: true,
-      lieferantName: esText(lieferantName, 80),
-      lieferantEmail: mail,
-      bestellerName: esText(bestellerName, 60),
-      bestellerTelefon: esText(bestellerTelefon, 40),
-      hinweis: esText(hinweis, 400),
-    },
-  });
-  // Der Hash liegt schon (siehe oben, VOR dem Plan). Hier nur noch die
-  // Beweisablage: die Regel verlangt sie später beim PIN-Wechsel und beim
-  // Löschen. ⚠️ Mit try, weil der Plan an dieser Stelle bereits steht — ein
-  // Fehlschlag bei einer Nebensache darf ihn nicht als misslungen melden.
-  // Nachgeholt wird sie beim nächsten Laden von esPruefeGemerktenPin().
   try {
-    await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
-  } catch (e) { /* siehe oben */ }
+    await db.ref(ES_BASIS).update({
+      meta: {
+        titel: t,
+        hostId: esEigeneUid,
+        // ⚠️ KEIN adminPin mehr. Die Firebase-Regel weist das Feld seit dem
+        // 15.09.2026 ab (".validate": false) – wer es hier wieder einträgt,
+        // bekommt den ganzen Schreibvorgang zurückgewiesen, nicht nur das Feld.
+        erstelltAm: firebase.database.ServerValue.TIMESTAMP,
+        annahmeOffen: true,
+        lieferantName: esText(lieferantName, 80),
+        lieferantEmail: mail,
+        bestellerName: esText(bestellerName, 60),
+        bestellerTelefon: esText(bestellerTelefon, 40),
+        hinweis: esText(hinweis, 400),
+      },
+    });
+  } catch (e) {
+    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
+    // blockiert er den nächsten Anlauf mit einem anderen PIN. Scheitert auch
+    // das, kommt derselbe PIN trotzdem durch (Beweisweg oben).
+    if (hashGeschrieben) {
+      try { await hashRef.remove(); } catch (e2) { /* siehe oben */ }
+    }
+    return { erfolg: false, fehler: "Die Essensbestellung ließ sich nicht anlegen. Bitte versuch es noch einmal." };
+  }
   esPinOk = true;
   try {
     localStorage.setItem(ES_PIN_KEY, pin);
