@@ -17,3 +17,4 @@ exclude:
   - "pflege/ziehe-pin-um.mjs"
   - "pruefe-zeitplan.mjs"
   - "worker.js"
+  - "database.rules.json"
