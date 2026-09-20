@@ -1,6 +1,6 @@
 :root {
-  --primary: #1a56a0;
-  --primary-dark: #123d75;
+  --primary: #1b2d4f;
+  --primary-dark: #121e35;
   --success: #057a55;
   --gold: #c9941f;
   --bg: #eef1f6;
@@ -1422,7 +1422,7 @@ main#app.ub-breit { max-width: 980px; }
   display: inline-block; font-size: 12px; font-weight: 700; color: var(--primary);
   border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;
 }
-/* ⚠️ `--primary` (#1a56a0) ist im Dunkelmodus nicht umdefiniert und kommt auf
+/* ⚠️ `--primary` (#1b2d4f) ist im Dunkelmodus nicht umdefiniert und kommt auf
    der dunklen Karte auf 2.01 – die Nummer waere kaum zu lesen. Gemessen am
    04.09.2026. Muss NACH den Grundregeln stehen: gleiche Spezifitaet, spaetere
    Regel gewinnt. Gleiche Aufhellung wie beim Statistik-Balken. */
@@ -1497,7 +1497,7 @@ main#app.ub-breit { max-width: 980px; }
 .es-stat-balken > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
 /* Die Zahl darf nie mitten im Betrag umbrechen. */
 .es-stat-wert { flex: 0 0 auto; font-size: 13px; font-weight: 700; white-space: nowrap; }
-/* ⚠️ `--primary` (#1a56a0) ist im Dunkelmodus NICHT umdefiniert und steht auf
+/* ⚠️ `--primary` (#1b2d4f) ist im Dunkelmodus NICHT umdefiniert und steht auf
    der Balkenspur (#334155) bei 1.42 – der Balken war schlicht nicht zu sehen.
    Gemessen am 2026-09-04. Dieselbe Aufhellung wie bei `.status-bezahlt`.
    ⚠️ Muss NACH der Grundregel stehen: gleiche Spezifitaet, da gewinnt die
