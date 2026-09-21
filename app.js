@@ -49,7 +49,8 @@ function escapeHtml(s) {
   );
 }
 
-const AVATAR_FARBEN = ["#1a56a0", "#057a55", "#c9941f", "#9333ea", "#dc2626", "#0891b2", "#db2777", "#ea580c"];
+// Weisse Initiale darauf: Gold als #8a6412, #c9941f misst nur 2,71 (Abnahme D 21.09.2026).
+const AVATAR_FARBEN = ["#1a56a0", "#057a55", "#8a6412", "#9333ea", "#dc2626", "#0891b2", "#db2777", "#ea580c"];
 function avatarFarbe(schluessel) {
   let h = 0;
   const s = String(schluessel || "");
