@@ -173,7 +173,7 @@ function esRenderKarte(z) {
         : ""}
 
       <div class="es-suche-zeile">
-        <input type="search" id="es-suche" class="eingabe es-suche" autocomplete="off"
+        <input type="search" id="es-suche" class="eingabe es-suche" autocomplete="off" aria-label="Speisekarte durchsuchen"
           placeholder="Suchen – Nummer, Gericht, Zutat" value="${escapeHtml(esSuchtext)}">
         ${suchtLaeuft ? `<button type="button" class="mini-btn" id="es-suche-weg" title="Suche zurücksetzen">✕</button>` : ""}
       </div>

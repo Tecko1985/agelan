@@ -511,7 +511,7 @@ function renderSpieltagDaten(z) {
   box.innerHTML = nummern
     .map((n) => `<div class="spieltag-datum-zeile">
       <span class="sd-name">Spieltag ${n + 1}</span>
-      <input type="date" class="eingabe" data-spieltag="${n}" value="${escapeHtml(daten[n] || "")}">
+      <input type="date" class="eingabe" data-spieltag="${n}" value="${escapeHtml(daten[n] || "")}" aria-label="Datum für Spieltag ${n + 1}">
     </div>`)
     .join("");
 }
