@@ -49,8 +49,9 @@ function escapeHtml(s) {
   );
 }
 
-// Weisse Initiale darauf: Gold als #8a6412, #c9941f misst nur 2,71 (Abnahme D 21.09.2026).
-const AVATAR_FARBEN = ["#1a56a0", "#057a55", "#8a6412", "#9333ea", "#dc2626", "#0891b2", "#db2777", "#ea580c"];
+// Weisse Initiale darauf, alle >= 4,5 (Abnahme D 21.09.2026): Gold #8a6412 (#c9941f 2,71),
+// Tuerkis #077f9c (#0891b2 3,68), Orange #ca4c0a (#ea580c 3,56).
+const AVATAR_FARBEN = ["#1a56a0", "#057a55", "#8a6412", "#9333ea", "#dc2626", "#077f9c", "#db2777", "#ca4c0a"];
 function avatarFarbe(schluessel) {
   let h = 0;
   const s = String(schluessel || "");
