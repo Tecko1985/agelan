@@ -6,6 +6,9 @@
   --primary-akzent: var(--primary);
   --success: #057a55;
   --gold: #c9941f;
+  /* Gold als SCHRIFT: #c9941f misst auf Weiss nur 2,71 (Abnahme D 21.09.2026).
+     Hell #8a6412 (Weiss 5,37, --bg 4,74); im Dunkelmodus reicht --gold selbst (5,39). */
+  --gold-text: #8a6412;
   --bg: #eef1f6;
   --card-bg: #ffffff;
   --border: #d1d5db;
@@ -25,6 +28,7 @@
     /* #1b2d4f kaeme auf --card-bg auf 1,07 und auf --bg auf 1,30 - der aktive
        Reiter, Ueberschriften und die Stepper-Zeichen verschwanden. */
     --primary-akzent: #7fb3f5;
+    --gold-text: var(--gold);
   }
 }
 
@@ -281,7 +285,7 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
 
 /* ---------- Sieger ---------- */
 .sieger-titel { font-size: clamp(24px, 7vw, 30px); }
-.sieger-name { font-size: 22px; font-weight: 700; color: var(--gold); margin-bottom: 24px; }
+.sieger-name { font-size: 22px; font-weight: 700; color: var(--gold-text); margin-bottom: 24px; }
 
 /* ---------- Modals ---------- */
 .modal-overlay {
@@ -457,7 +461,7 @@ main#app.ub-breit { max-width: 980px; }
   font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); text-align: center; padding: 3px 2px;
 }
-.sk-spurname.programm { color: var(--gold); }
+.sk-spurname.programm { color: var(--gold-text); }
 .sk-spuren { display: flex; gap: 2px; }
 .sk-zeitspalte .sk-spurkopf { border: none; background: none; }
 
@@ -487,7 +491,8 @@ main#app.ub-breit { max-width: 980px; }
 }
 .sk-slot.eigen { background: var(--success); }
 /* Programm optisch klar abgesetzt: es ist Vorgabe, keine Buchung. */
-.sk-slot.programm { background: var(--gold); }
+/* Dunkle Schrift wie bei .sk-marke.programm: Weiss auf Gold misst nur 2,71 (Abnahme D 21.09.2026). */
+.sk-slot.programm { background: var(--gold); color: #111827; }
 .sk-slot-zeit { font-size: 11px; opacity: 0.85; }
 .sk-slot-name { font-size: 13px; font-weight: 700; }
 .sk-slot-titel { font-size: 12px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -747,7 +752,7 @@ main#app.ub-breit { max-width: 980px; }
 .fk-zahlen { font-size: 14px; font-weight: 600; color: var(--primary-akzent); }
 .format-karte.aktiv .fk-zahlen { color: var(--primary-akzent); }
 .fk-zeile { font-size: 13px; color: var(--muted); line-height: 1.35; }
-.fk-warnung { font-size: 13px; color: var(--gold); line-height: 1.35; }
+.fk-warnung { font-size: 13px; color: var(--gold-text); line-height: 1.35; }
 
 @media (prefers-color-scheme: dark) {
   .fk-zahlen { color: #7dabe8; }
@@ -822,7 +827,7 @@ main#app.ub-breit { max-width: 980px; }
 .fr-liste-eintrag.abgeholt { opacity: 0.55; }
 .fr-liste-name { flex: 1 1 auto; font-weight: 600; }
 .fr-liste-positionen { font-size: 13px; color: var(--muted); }
-.fr-liste-notiz { font-size: 12px; color: var(--gold); }
+.fr-liste-notiz { font-size: 12px; color: var(--gold-text); }
 .fr-liste-abholen { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
 .fr-liste-abholen input { width: 18px; height: 18px; accent-color: var(--primary-akzent); }
 
