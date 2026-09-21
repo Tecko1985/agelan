@@ -1517,6 +1517,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.0",
+    groups: [
+      { title: "Dunkelmodus: blaue Schrift wieder lesbar", items: [
+          "Seit dem neuen, dunkleren Vereinsblau verschwanden im Dunkelmodus der aktive Reiter, die Überschriften der Karten und des Vorraums sowie die Plus- und Minus-Knöpfe der Frühstücksbestellung fast im Hintergrund.",
+          "Schrift, Rahmen und Haken in Vereinsblau stehen im Dunkelmodus jetzt in einem hellen Blau. Die blauen Knöpfe mit weißer Schrift bleiben, wie sie sind."
+      ]},
+    ],
+  },
+  {
     version: "7.9",
     groups: [
       { title: "Datenschutz-Hinweis: was die Veranstalter bei einer neuen Anmeldung erfahren", items: [

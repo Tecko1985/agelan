@@ -1,6 +1,9 @@
 :root {
   --primary: #1b2d4f;
   --primary-dark: #121e35;
+  /* Schrift, Linien, Rahmen und Haken in der Primaerfarbe. Flaechen mit weisser
+     Schrift nehmen weiter --primary. Im Dunkelmodus hell, siehe unten. */
+  --primary-akzent: var(--primary);
   --success: #057a55;
   --gold: #c9941f;
   --bg: #eef1f6;
@@ -19,6 +22,9 @@
     --border: #334155;
     --text: #e5e9f0;
     --muted: #94a3b8;
+    /* #1b2d4f kaeme auf --card-bg auf 1,07 und auf --bg auf 1,30 - der aktive
+       Reiter, Ueberschriften und die Stepper-Zeichen verschwanden. */
+    --primary-akzent: #7fb3f5;
   }
 }
 
@@ -141,15 +147,15 @@ h3 { margin: 18px 0 8px; }
   background: var(--card-bg);
   color: var(--text);
 }
-.eingabe:focus { outline: 2px solid var(--primary); }
+.eingabe:focus { outline: 2px solid var(--primary-akzent); }
 select.eingabe { appearance: none; -webkit-appearance: none; }
 
 .rating-zeile { display: flex; align-items: center; gap: 12px; }
-.rating-zeile input[type="range"] { flex: 1; accent-color: var(--primary); }
+.rating-zeile input[type="range"] { flex: 1; accent-color: var(--primary-akzent); }
 .rating-zahl { width: 96px; flex: 0 0 auto; text-align: center; }
 
 .radio-zeile { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text); margin: 8px 0; cursor: pointer; text-align: left; }
-.radio-zeile input { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary); }
+.radio-zeile input { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary-akzent); }
 .radio-zeile span { flex: 1; }
 .los-teamzahl { font-weight: 400; color: var(--muted); font-size: 13px; }
 
@@ -159,7 +165,7 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
 .btn-primary { background: var(--primary); color: #fff; }
 .btn-primary:active { background: var(--primary-dark); }
 .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
-.btn-secondary { background: var(--card-bg); color: var(--primary); border: 1px solid var(--primary); }
+.btn-secondary { background: var(--card-bg); color: var(--primary-akzent); border: 1px solid var(--primary-akzent); }
 .btn-link { background: none; color: var(--muted); text-decoration: underline; margin-top: 8px; }
 .btn-danger { background: var(--card-bg); color: #dc2626; border: 1px solid #dc2626; }
 .btn-danger:active { background: #dc2626; color: #fff; }
@@ -246,7 +252,7 @@ select.eingabe { appearance: none; -webkit-appearance: none; }
    bei langen Teamnamen nicht das Ergebnis nach unten drückt. */
 .spiel-zeit {
   display: inline-block; margin-left: 8px; white-space: nowrap;
-  font-size: 12px; font-weight: 600; color: var(--primary);
+  font-size: 12px; font-weight: 600; color: var(--primary-akzent);
 }
 .match-zeit { margin-top: 6px; font-size: 12px; }
 
@@ -317,7 +323,7 @@ nav.tabs button {
   border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0;
 }
 nav.tabs button:hover { background: var(--bg); }
-nav.tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+nav.tabs button.active { color: var(--primary-akzent); border-bottom-color: var(--primary-akzent); }
 /* „Einstellungen" steht rechts abgesetzt – Flotten-Konvention. Als CSS-Regel und
    nicht als style-Attribut am Knopf, damit die Handy-Regel weiter unten sie ohne
    !important zurücknehmen kann. */
@@ -327,7 +333,7 @@ nav.tabs button#nav-einstellungen { margin-left: auto; }
    "Essen", als wäre er ein weiterer Reiter. */
 nav.tabs button#nav-qr { display: flex; align-items: center; margin-left: 4px; }
 nav.tabs button#nav-einstellungen[hidden] + button#nav-qr { margin-left: auto; }
-nav.tabs button#nav-qr:hover { color: var(--primary); }
+nav.tabs button#nav-qr:hover { color: var(--primary-akzent); }
 /* ⚠️ Mit dem vierten Reiter „Einstellungen" wird die Leiste auf 375 px 385 px
    breit – und weil nav.tabs kein overflow setzt, scrollt die GANZE SEITE
    seitlich. Trifft nur Veranstalter, die als Einzige den vierten Reiter sehen.
@@ -353,15 +359,15 @@ nav.tabs button#nav-qr:hover { color: var(--primary); }
   background: var(--card-bg); border: 1px solid var(--border);
   border-radius: 12px; padding: 18px; margin-top: 20px; text-align: left;
 }
-.info-card h2 { font-size: 17px; margin: 0 0 10px; color: var(--primary); }
+.info-card h2 { font-size: 17px; margin: 0 0 10px; color: var(--primary-akzent); }
 .info-card p { color: var(--text); font-size: 14px; line-height: 1.55; margin: 0; }
 /* ⚠️ .version-badge ist für den BLAUEN Kopf gebaut: weiße Schrift auf 18 %
    Weiß. Auf einer hellen Karte ist es damit unsichtbar – steht im DOM, hat
    Text, sieht man nicht. Jede helle Umgebung braucht diese Umkehrung. */
 .info-card .version-badge,
-.karte-block .version-badge { background: var(--bg); border-color: var(--border); color: var(--primary); }
+.karte-block .version-badge { background: var(--bg); border-color: var(--border); color: var(--primary-akzent); }
 .changelog-entry { font-size: 14px; }
-.changelog-entry .cv { font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+.changelog-entry .cv { font-weight: 700; color: var(--primary-akzent); margin-bottom: 8px; }
 .changelog-entry .cgt { font-weight: 600; font-size: 13px; margin: 8px 0 4px; }
 .changelog-entry ul { margin: 0; padding-left: 20px; color: var(--text); line-height: 1.6; }
 
@@ -369,7 +375,7 @@ nav.tabs button#nav-qr:hover { color: var(--primary); }
    deshalb zugeklappt und darin scrollbar. Die Trennlinie zwischen den Blöcken
    sitzt oben statt unten, sonst hängt unter dem letzten eine Linie ins Leere. */
 .changelog-box > summary {
-  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--primary);
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--primary-akzent);
   padding: 8px 0; list-style: none;
 }
 .changelog-box > summary::-webkit-details-marker { display: none; }
@@ -603,7 +609,7 @@ main#app.ub-breit { max-width: 980px; }
   margin-bottom: 10px;
   overflow: hidden;
 }
-.turnier-karte:hover { border-color: var(--primary); }
+.turnier-karte:hover { border-color: var(--primary-akzent); }
 .turnier-karte.dabei { border-left: 4px solid var(--success); }
 
 /* Gleicher Aufbau wie die Kacheln des Vorraums: Symbol links, Text in der
@@ -641,7 +647,7 @@ main#app.ub-breit { max-width: 980px; }
    Vorraum das Schloss sitzt, und die Kachel bleibt flach. */
 .turnier-karte .tk-aktion {
   flex: 0 0 auto;
-  color: var(--primary);
+  color: var(--primary-akzent);
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
@@ -724,10 +730,10 @@ main#app.ub-breit { max-width: 980px; }
   font: inherit;
   cursor: pointer;
 }
-.format-karte:hover:not(:disabled) { border-color: var(--primary); }
+.format-karte:hover:not(:disabled) { border-color: var(--primary-akzent); }
 .format-karte.aktiv {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--primary);
+  border-color: var(--primary-akzent);
+  box-shadow: inset 0 0 0 1px var(--primary-akzent);
 }
 .format-karte.gesperrt { opacity: 0.55; cursor: not-allowed; }
 .fk-kopf {
@@ -737,9 +743,9 @@ main#app.ub-breit { max-width: 980px; }
   gap: 8px;
 }
 .fk-name { font-weight: 600; font-size: 15px; }
-.fk-haken { color: var(--primary); font-weight: 700; }
-.fk-zahlen { font-size: 14px; font-weight: 600; color: var(--primary); }
-.format-karte.aktiv .fk-zahlen { color: var(--primary); }
+.fk-haken { color: var(--primary-akzent); font-weight: 700; }
+.fk-zahlen { font-size: 14px; font-weight: 600; color: var(--primary-akzent); }
+.format-karte.aktiv .fk-zahlen { color: var(--primary-akzent); }
 .fk-zeile { font-size: 13px; color: var(--muted); line-height: 1.35; }
 .fk-warnung { font-size: 13px; color: var(--gold); line-height: 1.35; }
 
@@ -802,8 +808,8 @@ main#app.ub-breit { max-width: 980px; }
 .fr-paket-preis { font-size: 13px; color: var(--muted); }
 .fr-stepper { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .fr-stepper button {
-  width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--primary);
-  background: var(--card-bg); color: var(--primary); font-size: 18px; font-weight: 700; cursor: pointer; line-height: 1;
+  width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--primary-akzent);
+  background: var(--card-bg); color: var(--primary-akzent); font-size: 18px; font-weight: 700; cursor: pointer; line-height: 1;
 }
 .fr-stepper button:disabled { border-color: var(--border); color: var(--muted); cursor: not-allowed; }
 .fr-stepper-zahl { min-width: 18px; text-align: center; font-weight: 700; }
@@ -818,7 +824,7 @@ main#app.ub-breit { max-width: 980px; }
 .fr-liste-positionen { font-size: 13px; color: var(--muted); }
 .fr-liste-notiz { font-size: 12px; color: var(--gold); }
 .fr-liste-abholen { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
-.fr-liste-abholen input { width: 18px; height: 18px; accent-color: var(--primary); }
+.fr-liste-abholen input { width: 18px; height: 18px; accent-color: var(--primary-akzent); }
 
 .fr-einkaufsliste { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; }
 .fr-einkauf-zeile { display: flex; justify-content: space-between; font-size: 14px; }
@@ -851,7 +857,7 @@ main#app.ub-breit { max-width: 980px; }
 }
 .hub-box { width: 100%; max-width: 460px; text-align: center; }
 .hub-logo { font-size: 40px; line-height: 1; }
-.hub-titel { margin: 6px 0 2px; font-size: clamp(26px, 8vw, 34px); color: var(--primary); }
+.hub-titel { margin: 6px 0 2px; font-size: clamp(26px, 8vw, 34px); color: var(--primary-akzent); }
 .hub-untertitel { margin: 0 0 22px; color: var(--muted); font-size: 15px; }
 
 .hub-kachel {
@@ -869,7 +875,7 @@ main#app.ub-breit { max-width: 980px; }
   font: inherit;
   cursor: pointer;
 }
-.hub-kachel:hover { border-color: var(--primary); }
+.hub-kachel:hover { border-color: var(--primary-akzent); }
 .hub-kachel:active { background: var(--bg); }
 .hub-icon { font-size: 28px; line-height: 1; flex: 0 0 auto; }
 .hub-kachel-text { flex: 1 1 auto; min-width: 0; }
@@ -913,7 +919,7 @@ main#app.ub-breit { max-width: 980px; }
   text-align: center;
 }
 .pw-icon { font-size: 30px; line-height: 1; margin-bottom: 6px; }
-.pw-titel { margin: 0 0 6px; font-size: 19px; color: var(--primary); }
+.pw-titel { margin: 0 0 6px; font-size: 19px; color: var(--primary-akzent); }
 .pw-text { margin: 0 0 16px; font-size: 14px; color: var(--muted); line-height: 1.4; }
 .pw-eingabe {
   width: 100%;
@@ -925,7 +931,7 @@ main#app.ub-breit { max-width: 980px; }
   color: var(--text);
   margin-bottom: 10px;
 }
-.pw-eingabe:focus { outline: 2px solid var(--primary); }
+.pw-eingabe:focus { outline: 2px solid var(--primary-akzent); }
 .pw-knopf {
   width: 100%;
   padding: 12px;
@@ -1003,7 +1009,7 @@ main#app.ub-breit { max-width: 980px; }
   cursor: pointer;
 }
 .fr-abr-zeile.bezahlt { opacity: 0.55; text-decoration: line-through; }
-.fr-abr-zeile input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary); }
+.fr-abr-zeile input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-akzent); }
 .fr-abr-tag { flex: 0 0 auto; font-weight: 600; color: var(--muted); }
 .fr-abr-was { flex: 1 1 auto; min-width: 0; color: var(--muted); }
 .fr-abr-preis { flex: 0 0 auto; font-weight: 600; }
@@ -1088,7 +1094,7 @@ main#app.ub-breit { max-width: 980px; }
   padding: 6px 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-akzent);
 }
 .konto-hilfe-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
 .konto-hilfe-text p { margin: 4px 0 8px; }
@@ -1100,8 +1106,8 @@ main#app.ub-breit { max-width: 980px; }
 .konto-knopf-test {
   margin-top: 8px;
   background: var(--card-bg);
-  color: var(--primary);
-  border: 1px solid var(--primary);
+  color: var(--primary-akzent);
+  border: 1px solid var(--primary-akzent);
 }
 /* In der Konten-Liste steht ein Zeichen NUR bei denen OHNE ID. Bei allen
    anderen bliebe die Zeile sonst unnoetig lang - und sichtbar sein muessen
@@ -1232,9 +1238,9 @@ main#app.ub-breit { max-width: 980px; }
 }
 .hub-ds-text p { margin: 0 0 10px; }
 .hub-ds-text p:last-child { margin-bottom: 0; }
-.hub-ds-text a { color: var(--primary); }
+.hub-ds-text a { color: var(--primary-akzent); }
 .konto-streamer { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-.konto-streamer input { width: 17px; height: 17px; accent-color: var(--primary); }
+.konto-streamer input { width: 17px; height: 17px; accent-color: var(--primary-akzent); }
 .konto-streamer input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Zwei nahtlos aneinandergrenzende Termine sehen sonst wie EIN Block aus.
@@ -1273,7 +1279,7 @@ main#app.ub-breit { max-width: 980px; }
    was es dort nicht gibt – Speisekarte, Warenkorb, Status und Import.
    =========================================================================== */
 
-.es-abschnitt { font-size: 16px; margin: 0 0 10px; color: var(--primary); }
+.es-abschnitt { font-size: 16px; margin: 0 0 10px; color: var(--primary-akzent); }
 
 /* --- Speisekarte --- */
 .es-kategorie {
@@ -1292,14 +1298,14 @@ main#app.ub-breit { max-width: 980px; }
 /* 40 px, damit der Knopf am Handy sicher zu treffen ist. */
 .es-plus {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
-  border: 1px solid var(--primary); background: var(--card-bg);
-  color: var(--primary); font-size: 22px; line-height: 1; cursor: pointer;
+  border: 1px solid var(--primary-akzent); background: var(--card-bg);
+  color: var(--primary-akzent); font-size: 22px; line-height: 1; cursor: pointer;
 }
 .es-plus:active { background: var(--primary); color: #fff; }
 .es-plus:disabled { border-color: var(--border); color: var(--muted); cursor: not-allowed; }
 
 /* --- Warenkorb --- */
-.es-korb-karte { border: 2px solid var(--primary); }
+.es-korb-karte { border: 2px solid var(--primary-akzent); }
 .es-korb-leer { border-style: dashed; }
 .es-korb-zeile { padding: 10px 0; border-top: 1px solid var(--border); }
 .es-korb-zeile:first-of-type { border-top: none; }
@@ -1412,14 +1418,14 @@ main#app.ub-breit { max-width: 980px; }
    die auf „1…" zusammengedrueckt wird, ist als Nummer wertlos. */
 .es-gericht-nr {
   flex: 0 0 auto; min-width: 30px;
-  font-size: 13px; font-weight: 700; color: var(--primary);
+  font-size: 13px; font-weight: 700; color: var(--primary-akzent);
   text-align: center; white-space: nowrap;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 2px 6px;
 }
 /* Dieselbe Marke in den Verwaltungs- und Import-Listen, nur kleiner. */
 .es-pv-nr {
-  display: inline-block; font-size: 12px; font-weight: 700; color: var(--primary);
+  display: inline-block; font-size: 12px; font-weight: 700; color: var(--primary-akzent);
   border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;
 }
 /* ⚠️ `--primary` (#1b2d4f) ist im Dunkelmodus nicht umdefiniert und kommt auf
@@ -1593,7 +1599,7 @@ main#app.ub-breit { max-width: 980px; }
    Spezifitaet wie .hub-ds > summary::before – diese Regel MUSS danach stehen. */
 .hub-funktionen > summary::before { content: "ℹ️ "; }
 .changelog-group { display: flex; flex-direction: column; gap: 4px; }
-.changelog-group .cg-title { font-weight: 700; font-size: 14px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+.changelog-group .cg-title { font-weight: 700; font-size: 14px; color: var(--primary-akzent); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
 .changelog-group .cg-items { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--text); line-height: 1.6; }
 
 /* =========================================================================
