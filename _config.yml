@@ -18,3 +18,5 @@ exclude:
   - "pruefe-zeitplan.mjs"
   - "worker.js"
   - "database.rules.json"
+  # Nachgetragen 21.09.2026: Node-Pruefstand der Rules, keine Seite laedt ihn.
+  - "pflege/pruefe-rules.js"
