@@ -2441,7 +2441,12 @@ const APP_CHANGELOG = [
 const AGELAN_TAB_KEY = "agelan_tab";
 
 function activateTab(name) {
-  document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
+    // aria-current: Vorleseprogramme erkennen den aktiven Reiter nicht an der Klasse (Abnahme D 21.09.2026).
+    const an = b.dataset.tab === name;
+    b.classList.toggle("active", an);
+    if (an) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
   document.querySelectorAll(".tab-section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
   // Der Streamkalender braucht mehr Breite als die 560 px der Turnier-Screens
   // (style.css: main#app.sk-breit { max-width: 980px }). Der Schalter steht
