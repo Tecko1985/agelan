@@ -168,7 +168,7 @@
     <button id="pw-gate-btn" type="button" class="pw-knopf">Anmelden</button>
     <button id="pw-wechsel" type="button" class="pw-zurueck">Noch kein Konto? Hier anlegen</button>
     <button id="pw-gate-zurueck" type="button" class="pw-zurueck">← Zurück zur Übersicht</button>
-    <p id="pw-gate-msg" class="pw-meldung"></p>
+    <p id="pw-gate-msg" class="pw-meldung" role="alert"></p>
   </div>
 </div>
 
@@ -224,7 +224,7 @@
     <button id="konto-btn-test" type="button" class="pw-knopf konto-knopf-test" hidden>Testnachricht schicken</button>
     <p class="konto-hinweis" id="konto-test-hinweis" hidden>Kommt nichts an, stimmt entweder die ID nicht – oder du hast in Discord die Direktnachrichten von Servermitgliedern ausgeschaltet.</p>
 
-    <p id="konto-msg" class="pw-meldung"></p>
+    <p id="konto-msg" class="pw-meldung" role="status"></p>
     <button id="konto-zurueck" type="button" class="pw-zurueck">Schließen</button>
   </div>
 </div>
@@ -266,7 +266,7 @@
     <!-- ⚠️ Bleibt im Normalbetrieb LEER (Michel: das „live" kann raus). Es
          fuellt sich nur im Test-Modus mit „lokal (Test)" – ohne diese Warnung
          sieht eine Sitzung gegen die Mock-Datenbank aus wie die echte. -->
-    <span class="kopfzeile-status" id="sync-status" hidden></span>
+    <span class="kopfzeile-status" id="sync-status" role="status" hidden></span>
     <button class="btn-abbrechen" id="btn-admin-oeffnen" title="Veranstalter">⚙️</button>
   </div>
 </header>
