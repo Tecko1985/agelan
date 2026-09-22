@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=5.8">
+<link rel="stylesheet" href="style.css?v=5.9">
 </head>
 <body>
 
@@ -55,6 +55,15 @@
       <span class="hub-kachel-text">
         <span class="hub-name">Essen</span>
         <span class="hub-beschreibung">Warmes Essen vom Lieferanten – Karte ansehen, zusammenstellen, vorne bezahlen, abholen.</span>
+      </span>
+      <span class="hub-schloss" aria-hidden="true">🔒</span>
+    </button>
+
+    <button type="button" class="hub-kachel" data-hub-ziel="downloads">
+      <span class="hub-icon">📥</span>
+      <span class="hub-kachel-text">
+        <span class="hub-name">Downloads</span>
+        <span class="hub-beschreibung">Werkzeuge zum Herunterladen – z. B. der Klickzähler fürs 2vs2-Coop-Turnier.</span>
       </span>
       <span class="hub-schloss" aria-hidden="true">🔒</span>
     </button>
@@ -279,6 +288,7 @@
   <button data-tab="stream">Stream</button>
   <button data-tab="fruehstueck">Frühstück</button>
   <button data-tab="essen">Essen</button>
+  <button data-tab="downloads">Downloads</button>
   <!-- Nur fuer Veranstalter. Versteckt per hidden, eingeblendet in app.js,
        sobald das Konto das Merkmal traegt. -->
   <button data-tab="einstellungen" id="nav-einstellungen" hidden>Einstellungen</button>
@@ -1091,6 +1101,24 @@
 
  </div>
 
+ <!-- Downloads: kein eigener Firebase-Knoten, keine eigene Datei – rein
+      statischer Inhalt hinter der allgemeinen Anmeldung, genau wie die
+      Übersicht ohne den Live-Teil. Neue Dateien kommen dazu, ohne dass an
+      der Anmeldung oder an activateTab() etwas geändert werden muss. -->
+ <div class="tab-section" id="tab-downloads">
+  <div class="karte-block">
+    <h2>📥 Downloads</h2>
+    <p class="hinweis-text">Werkzeuge zum Herunterladen für die AgeLan.</p>
+
+    <div class="karte-block">
+      <h2>AoE2-Klickzähler (Spieler)</h2>
+      <p class="hinweis-text">Für das 2vs2-Coop-Turnier. Auf dem eigenen Rechner starten, bevor es losgeht.</p>
+      <a class="btn btn-primary btn-grow dl-link" href="downloads/AoE2Klickzaehler_Spieler.exe?v=1.0" download>⬇ AoE2Klickzaehler_Spieler.exe (10,2 MB)</a>
+      <p class="hinweis-text">Windows zeigt bei einer .exe von einer unbekannten Quelle evtl. eine Warnung („Windows hat den Computer geschützt“). Auf <b>Weitere Informationen</b> und dann <b>Trotzdem ausführen</b> tippen.</p>
+    </div>
+  </div>
+ </div>
+
  <div class="tab-section" id="tab-einstellungen">
    <div class="karte-block">
      <h2>Angemeldete Nutzer</h2>
@@ -1313,7 +1341,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.3',
-    'app.js?v=3.59',
+    'app.js?v=3.60',
     'stream-service.js?v=2.1',
     'stream-app.js?v=2.4',
     'fruehstueck-service.js?v=1.10',
@@ -1339,7 +1367,7 @@
   // Welchen Bereich hat der Klick im Vorraum gemeint? Nach der Anmeldung soll
   // die App genau dort aufgehen und nicht auf dem Turnier-Tab.
   var zielTab = null;
-  var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück', essen: 'Essen' };
+  var ZIEL_NAMEN = { turnier: 'Turnier', stream: 'Stream', fruehstueck: 'Frühstück', essen: 'Essen', downloads: 'Downloads' };
   var frei = false;
   var modusNeu = false;   // false = anmelden, true = Konto anlegen
 
@@ -1835,7 +1863,7 @@
     { title: "Was die AgeLan-Seite ist", items: [
         "Alles zur LAN an einem Ort: Turniere, Sendeplan, Frühstück und warmes Essen.",
         "Jede:r legt sich ein eigenes Konto mit Namen und Passwort an; ein gemeinsames Passwort gibt es nicht.",
-        "Der Vorraum mit den vier Kacheln ist die Übersicht — der Titel oben links führt jederzeit dorthin zurück."
+        "Der Vorraum mit den fünf Kacheln ist die Übersicht — der Titel oben links führt jederzeit dorthin zurück."
     ]},
     { title: "Turnier", items: [
         "Mehrere Turniere laufen nebeneinander; die Liste zeigt, was gerade offen ist.",
@@ -1858,6 +1886,9 @@
         "Warmes Essen vom Lieferanten: Karte ansehen, Essen zusammenstellen, vorne bezahlen, abholen.",
         "Sonderwünsche lassen sich je Gericht mitgeben.",
         "Aus allen Bestellungen wird eine Sammelbestellung an den Lieferanten."
+    ]},
+    { title: "Downloads", items: [
+        "Werkzeuge zum Herunterladen für die Veranstaltung, z. B. der Klickzähler fürs 2vs2-Coop-Turnier."
     ]},
     { title: "Mein Konto", items: [
         "Oben rechts steht der eigene Name; ein Tipp darauf öffnet „Mein Konto“.",

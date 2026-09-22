@@ -1526,6 +1526,10 @@ main#app.ub-breit { max-width: 980px; }
 /* Der mailto-Weg ist ein <a>, sieht aber aus wie ein Knopf. */
 .es-mail-link { display: inline-block; text-align: center; text-decoration: none; }
 
+/* --- Downloads --- */
+/* Der Download-Weg ist ebenfalls ein <a>, sieht aber aus wie ein Knopf. */
+.dl-link { display: inline-block; text-align: center; text-decoration: none; }
+
 /* --- Import --- */
 /* ⚠️ Textareas nie unter 16px: sonst zoomt iOS beim Antippen die ganze Seite. */
 .es-import-feld, .es-hinweis-feld { font-size: 16px; line-height: 1.5; resize: vertical; }

@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.1",
+    groups: [
+      { title: "Neuer Bereich: Downloads", items: [
+          "Fünfte Kachel im Vorraum – Werkzeuge zum Herunterladen für die Veranstaltung.",
+          "Als erste Datei drin: der AoE2-Klickzähler (Spieler) fürs 2vs2-Coop-Turnier."
+      ]},
+    ],
+  },
+  {
     version: "8.0",
     groups: [
       { title: "Dunkelmodus: blaue Schrift wieder lesbar", items: [
