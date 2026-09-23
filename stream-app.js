@@ -29,6 +29,11 @@ let skDialogSlotId = null;    // null = neue Belegung, sonst die bearbeitete
 let skDialogNurLesen = false;
 let skProgrammDialogId = null;
 let skProgrammNurLesen = false;
+// Zeitfenster, die der Veranstalter gerade umstellt, aber noch nicht
+// gespeichert hat (Datum -> { von, bis }). ⚠️ skRenderAdmin baut die Liste bei
+// JEDER Live-Änderung neu – ohne diesen Entwurf spränge die Auswahl zurück, und
+// „Zeiten speichern“ schriebe den alten Wert mit „Gespeichert.“.
+let skFensterEntwurf = {};
 
 // --- kleine Helfer ---------------------------------------------------------
 function skEl(id) {
@@ -421,8 +426,9 @@ function skRenderAdmin(z) {
   z.tage.forEach((t) => {
     const zeile = skEl("sk-fenster-liste").querySelector('[data-tag="' + t.datum + '"]');
     if (!zeile) return;
-    skFuelleZeiten(zeile.querySelector(".sk-fenster-von"), 0, 1440 - SK_SCHRITT_UI, t.von);
-    skFuelleZeiten(zeile.querySelector(".sk-fenster-bis-sel"), SK_SCHRITT_UI, streamService.MAX_BIS, t.bis);
+    const entwurf = skFensterEntwurf[t.datum];
+    skFuelleZeiten(zeile.querySelector(".sk-fenster-von"), 0, 1440 - SK_SCHRITT_UI, entwurf ? entwurf.von : t.von);
+    skFuelleZeiten(zeile.querySelector(".sk-fenster-bis-sel"), SK_SCHRITT_UI, streamService.MAX_BIS, entwurf ? entwurf.bis : t.bis);
   });
 }
 
@@ -1012,6 +1018,15 @@ function skWireEvents() {
     if (res.erfolg) skEl("sk-admin-pin").value = "";
   });
 
+  skEl("sk-fenster-liste").addEventListener("change", (e) => {
+    const zeile = e.target && e.target.closest ? e.target.closest(".sk-fenster-zeile") : null;
+    if (!zeile) return;
+    skFensterEntwurf[zeile.getAttribute("data-tag")] = {
+      von: zeile.querySelector(".sk-fenster-von").value,
+      bis: zeile.querySelector(".sk-fenster-bis-sel").value,
+    };
+  });
+
   skEl("sk-btn-fenster-speichern").addEventListener("click", async () => {
     const liste = Array.prototype.map.call(
       skEl("sk-fenster-liste").querySelectorAll(".sk-fenster-zeile"),
@@ -1023,7 +1038,10 @@ function skWireEvents() {
     );
     const res = await streamService.setzeTagesfenster(liste);
     skZeigeFehler("sk-admin-panel-fehler", res.erfolg ? "" : res.fehler);
-    if (res.erfolg) skZeigeFehler("sk-admin-panel-fehler", "Gespeichert.");
+    if (res.erfolg) {
+      skFensterEntwurf = {};
+      skZeigeFehler("sk-admin-panel-fehler", "Gespeichert.");
+    }
   });
 
   skEl("sk-btn-leeren").addEventListener("click", async () => {

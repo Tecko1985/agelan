@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.8",
+    groups: [
+      { title: "Stream: Zeitfenster springen beim Umstellen nicht mehr zurück", items: [
+          "Trug sich jemand in den Plan ein, während der Veranstalter die Tages-Zeitfenster umstellte, sprang die gerade gewählte Uhrzeit zurück – und „Zeiten speichern“ schrieb den alten Wert mit der Meldung „Gespeichert.“.",
+          "Die Auswahl bleibt jetzt stehen, bis gespeichert ist."
+      ]},
+    ],
+  },
+  {
     version: "8.7",
     groups: [
       { title: "Frühstück: Paket löschen klappt auch, wenn jemand nur dieses Paket bestellt hat", items: [
