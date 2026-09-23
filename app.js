@@ -1519,6 +1519,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.6",
+    groups: [
+      { title: "Turnier: ✎-Korrektur im K.-o. zieht die nächste Runde nach", items: [
+          "Hat der Veranstalter ein K.-o.-Ergebnis mit ✎ umgedreht, zeigte die Karte den neuen Sieger – in der nächsten Runde (und im Spiel um Platz 3 oder im Verliererbaum) stand aber weiter der alte.",
+          "Die Folgespiele bekommen jetzt die richtigen Teams, solange sie noch nicht gespielt sind. Ist das Folgespiel schon gemeldet oder gespielt, lehnt die App die Korrektur mit einer Erklärung ab, statt sie still halb auszuführen.",
+          "Wird das Finale nach Turnierende korrigiert, steht danach der richtige Turniersieger fest."
+      ]},
+    ],
+  },
+  {
     version: "8.5",
     groups: [
       { title: "Frühstück: bezahlte Bestellung bleibt, wie sie bezahlt wurde", items: [

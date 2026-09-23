@@ -1652,11 +1652,69 @@ async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
   if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
   const v = validiereSaetze(saetzeA, saetzeB, bestOfFuer(spiel, letzterZustand.meta));
   if (!v.ok) return { erfolg: false, fehler: v.fehler };
-  await db.ref(turnierBasis() + "/spiele/" + spielId).update({
-    saetzeA: v.a, saetzeB: v.b, status: "bestaetigt", gemeldetVon: "admin",
-  });
+  const updates = {};
+  updates["spiele/" + spielId + "/saetzeA"] = v.a;
+  updates["spiele/" + spielId + "/saetzeB"] = v.b;
+  updates["spiele/" + spielId + "/status"] = "bestaetigt";
+  updates["spiele/" + spielId + "/gemeldetVon"] = "admin";
+  // ⚠️ Korrektur an einem schon bestätigten K.-o.-Spiel mit NEUEM Sieger: die
+  // Folgespiele sind längst mit dem alten Sieger (und Verlierer) angelegt, und
+  // die Progression legt eine vorhandene Runde nie neu an. Ohne Nachzug zeigte
+  // die Karte den neuen Sieger, im Finale stünde weiter der alte.
+  const alterSieger = spiel.phase === "ko" && spiel.status === "bestaetigt" && spiel.teamB ? koSieger(spiel) : null;
+  const neuerSieger = v.a > v.b ? spiel.teamA : spiel.teamB;
+  if (alterSieger && neuerSieger !== alterSieger) {
+    const folge = koKorrekturFolgen(spiel, alterSieger, koVerlierer(spiel), letzterZustand.meta);
+    if (folge.fehler) return { erfolg: false, fehler: folge.fehler };
+    Object.assign(updates, folge.updates);
+  }
+  await db.ref(turnierBasis()).update(updates);
   await pruefeKoProgression();
   return { erfolg: true };
+}
+
+// Liegt `s` im K.-o.-Ablauf NACH dem korrigierten Spiel `kor`? Im Gewinnerbaum
+// hat noch niemand verloren – jedes Spiel im Verliererbaum oder Finale mit
+// einem der beiden ist also später. Im Verliererbaum ist der Gewinnerbaum
+// Vergangenheit. Einfaches K.-o.: höhere Runde (Platz 3 trägt die Finalrunde).
+function koIstSpaeter(kor, s, doppel) {
+  if (s.id === kor.id || s.phase !== "ko") return false;
+  if (!doppel) return (s.runde || 0) > (kor.runde || 0);
+  const bk = kor.bracket || "w";
+  const bs = s.bracket || "w";
+  if (bk === "w") return bs !== "w" || (s.runde || 0) > (kor.runde || 0);
+  if (bk === "l") return bs === "f" || (bs === "l" && (s.runde || 0) > (kor.runde || 0));
+  return bs === "f" && (s.runde || 0) > (kor.runde || 0);
+}
+
+// Was eine Korrektur mit neuem Sieger nach sich zieht: in allen späteren, noch
+// nicht gespielten Spielen tauschen alter Sieger und alter Verlierer die Plätze.
+// Ist ein späteres Spiel schon gemeldet oder gespielt, wird abgelehnt – dort
+// hätten sonst die falschen Teams ein Ergebnis. Ein Entscheidungsspiel hängt am
+// Ausgang des großen Finales und wird verworfen; die Progression legt es neu
+// an, falls es gebraucht wird. War das Turnier schon beendet, läuft es wieder
+// als K.-o. weiter, damit der Sieger neu bestimmt wird.
+function koKorrekturFolgen(kor, alterSieger, alterVerlierer, meta) {
+  const doppel = metaKoTyp(meta) === "doppel";
+  const betrifft = (s) => [s.teamA, s.teamB].some((t) => t && (t === alterSieger || t === alterVerlierer));
+  const spaeter = spielListe().filter((s) => koIstSpaeter(kor, s, doppel) && betrifft(s));
+  const durchgereicht = (s) => s.gemeldetVon === "freilos" || s.gemeldetVon === "leer";
+  const gespielt = spaeter.filter((s) => s.status !== "offen" && !durchgereicht(s));
+  if (gespielt.length) {
+    return { fehler: "Das Folgespiel ist schon gemeldet oder gespielt – dort stünden nach der Korrektur die falschen Teams. Ein gemeldetes Folgespiel erst mit „Widersprechen“ zurücksetzen; ist es schon bestätigt, lässt sich dieses Ergebnis nicht mehr ändern." };
+  }
+  const tausch = (t) => (t === alterSieger ? alterVerlierer : t === alterVerlierer ? alterSieger : t);
+  const updates = {};
+  spaeter.forEach((s) => {
+    if (s.entscheidung) { updates["spiele/" + s.id] = null; return; }
+    if (s.teamA) updates["spiele/" + s.id + "/teamA"] = tausch(s.teamA);
+    if (s.teamB) updates["spiele/" + s.id + "/teamB"] = tausch(s.teamB);
+  });
+  if (meta && (meta.siegerTeamId || meta.phase === "beendet")) {
+    updates["meta/phase"] = "ko";
+    updates["meta/siegerTeamId"] = null;
+  }
+  return { updates };
 }
 
 // --- K.o.-Auslosung (Admin) -----------------------------------------------
