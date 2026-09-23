@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.17",
+    groups: [
+      { title: "Anmeldung bleibt bei einer Serverstörung erhalten", items: [
+          "Antwortete der Server beim Öffnen der Seite mit einem Fehler (etwa einer Störungsseite), wurde man abgemeldet und musste sich neu anmelden.",
+          "Abgemeldet wird jetzt nur noch, wenn der Server ausdrücklich sagt, dass es das Konto nicht mehr gibt. Bei einer Störung geht es weiter wie bei einem kurzen Netzausfall."
+      ]},
+    ],
+  },
+  {
     version: "8.16",
     groups: [
       { title: "Übersicht: Orga-Kachel auch für Veranstalter per PIN", items: [

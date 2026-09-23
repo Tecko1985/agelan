@@ -1341,7 +1341,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.4',
-    'app.js?v=3.75',
+    'app.js?v=3.76',
     'stream-service.js?v=2.3',
     'stream-app.js?v=2.8',
     'fruehstueck-service.js?v=1.12',
@@ -1805,8 +1805,11 @@
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'konto-pruefen', token: konto.token })
     }).then(function (resp) {
-      return resp.json().catch(function () { return {}; });
-    }).then(function (b) {
+      return resp.json().catch(function () { return {}; }).then(function (b) {
+        return { status: resp.status, httpOk: resp.ok, b: b };
+      });
+    }).then(function (r) {
+      var b = r.b;
       if (b && b.ok) {
         // ⚠️ Name UND Veranstalter-Stand kommen frisch vom Server: ein entzogenes
         // Recht muss sofort wirken, nicht erst wenn das Token in 120 Tagen abläuft.
@@ -1833,10 +1836,15 @@
           kontoAnzeigen(konto);
         }
         freigeben();
-      } else {
+      } else if (r.httpOk && b && b.ok === false) {
         // Konto gibt es nicht mehr: Anmeldung wegräumen, Vorraum zeigen.
+        // ⚠️ NUR bei der ausdrücklichen Antwort {ok:false} (200). Ein 5xx, eine
+        // Fehlerseite von Cloudflare oder ein 429 heißt „Server gerade nicht
+        // da“, nicht „Konto weg“ – dann gilt dasselbe wie beim Netzfehler unten.
         kontoSchreiben(null);
         kontoAnzeigen(null);
+      } else {
+        freigeben();
       }
     }).catch(function () {
       freigeben();
