@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.14",
+    groups: [
+      { title: "Übersicht: Frühstück und Stream wie in den Bereichen selbst", items: [
+          "War die Frühstücks-Annahme nur zugedreht, meldete die Übersicht „Für alle Tage ist der Bestellschluss vorbei“. Jetzt steht dort „Die Bestellannahme ist gerade geschlossen“ – wie im Frühstück selbst.",
+          "Laufen zwei Streams gleichzeitig, nennt die Übersicht jetzt beide statt nur den ersten."
+      ]},
+    ],
+  },
+  {
     version: "8.13",
     groups: [
       { title: "Stream: Veranstalter ohne 🎥 können fremde Einträge wirklich korrigieren", items: [

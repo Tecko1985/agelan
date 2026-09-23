@@ -141,12 +141,18 @@ function ubKachelStream() {
   if (jetzt === null) {
     inhalt = ubLeer("Heute ist kein Veranstaltungstag.");
   } else {
-    const laeuft = z.slots.find((s) => s.absVon <= jetzt && s.absBis > jetzt);
+    // ⚠️ ALLE laufenden, nicht nur der erste: zwei gleichzeitige Einträge kann
+    // die Prüfung beim Speichern nicht verhindern (zwei Geräte im selben
+    // Moment), und der Kalender zeigt sie nebeneinander. Hier fiel einer weg.
+    const laufende = z.slots.filter((s) => s.absVon <= jetzt && s.absBis > jetzt).sort((a, b) => a.absVon - b.absVon);
+    const laeuft = laufende[0] || null;
     const naechster = z.slots.filter((s) => s.absVon > jetzt).sort((a, b) => a.absVon - b.absVon)[0];
 
     if (laeuft) {
-      inhalt += ubZeile("live", laeuft.streamer + (laeuft.titel ? " – " + laeuft.titel : ""),
-        "noch " + ubDauer(laeuft.absBis - jetzt), "ub-live");
+      laufende.forEach((l) => {
+        inhalt += ubZeile("live", l.streamer + (l.titel ? " – " + l.titel : ""),
+          "noch " + ubDauer(l.absBis - jetzt), "ub-live");
+      });
     } else {
       inhalt += ubZeile("", "Gerade sendet niemand", "", "ub-still");
     }
@@ -342,7 +348,12 @@ function ubKachelFruehstueck() {
   let inhalt = "";
 
   if (!naechster) {
-    inhalt = ubLeer("Für alle Tage ist der Bestellschluss vorbei.");
+    // ⚠️ Zwei Gründe, zwei Sätze – wie frWarumZu im Frühstück selbst: ist nur
+    // der Schalter zu, kommt der Bestellschluss erst noch.
+    const nochZeit = z.tage.some((t) => t.zeitOffen);
+    inhalt = ubLeer(!z.schalterAn && nochZeit
+      ? "Die Bestellannahme ist gerade geschlossen."
+      : "Für alle Tage ist der Bestellschluss vorbei.");
   } else {
     const eigene = naechster.bestellungen.find((b) => b.istEigene);
     inhalt += ubZeile(naechster.label, eigene ? "Du hast bestellt" : "Du hast noch nicht bestellt",
