@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.4",
+    groups: [
+      { title: "Stream: gezogene Uhrzeit bleibt im Dialog erhalten", items: [
+          "Nach dem Verschieben mit der Maus liegt ein Eintrag oft auf einer Fünf-Minuten-Zeit wie 20:05. Beim nächsten „Ändern“ stand der Beginn dann auf dem Tagesbeginn, und „Speichern“ hat ihn so übernommen.",
+          "Die Auswahl zeigt jetzt genau die gespeicherte Zeit an – auch im Dialog für Programmpunkte."
+      ]},
+    ],
+  },
+  {
     version: "8.3",
     groups: [
       { title: "Stream: Verschieben behält „kein Streamer nötig“", items: [

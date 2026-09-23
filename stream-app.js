@@ -50,8 +50,20 @@ function skZeigeView(id) {
 function skFuelleZeiten(select, von, bis, wert) {
   if (!select) return;
   const teile = [];
+  // ⚠️ Das Ziehen rastet auf 5 Minuten (SK_ZIEH_SCHRITT). Liegt der gespeicherte
+  // Wert zwischen zwei Viertelstunden, bekommt er eine eigene Option – sonst
+  // fiele die Auswahl auf den ersten Eintrag, und „Speichern“ schriebe den
+  // Tagesbeginn statt der gezogenen Zeit.
+  const eigen = wert != null && isFinite(Number(wert)) ? Number(wert) : null;
+  const eigenFehlt = eigen !== null && eigen >= von && eigen <= bis && (eigen - von) % SK_SCHRITT_UI !== 0;
   for (let m = von; m <= bis; m += SK_SCHRITT_UI) {
+    if (eigenFehlt && eigen < m && eigen > m - SK_SCHRITT_UI) {
+      teile.push('<option value="' + eigen + '">' + streamService.zeitLabelLang(eigen) + "</option>");
+    }
     teile.push('<option value="' + m + '">' + streamService.zeitLabelLang(m) + "</option>");
+  }
+  if (eigenFehlt && eigen > von + Math.floor((bis - von) / SK_SCHRITT_UI) * SK_SCHRITT_UI) {
+    teile.push('<option value="' + eigen + '">' + streamService.zeitLabelLang(eigen) + "</option>");
   }
   select.innerHTML = teile.join("");
   if (wert != null) select.value = String(wert);
