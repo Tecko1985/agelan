@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.13",
+    groups: [
+      { title: "Stream: Veranstalter ohne 🎥 können fremde Einträge wirklich korrigieren", items: [
+          "Veranstalter und Orga ohne Streamer-Haken bekamen fremde Streams zum Bearbeiten angeboten – Speichern, Löschen und Verschieben scheiterten dann mit „Nur freigegebene Streamer …“.",
+          "Fremde Einträge korrigiert jetzt, wer den Plan verwaltet, auch ohne 🎥. Selbst eintragen bleibt an den Haken gebunden."
+      ]},
+    ],
+  },
+  {
     version: "8.12",
     groups: [
       { title: "Turnier: Doppel-K.-o. aus der Formatwahl kommt beim Auslosen an", items: [

@@ -392,7 +392,13 @@ function skGetZustand() {
   const slots = skSlotListe(skRoh.slots, tage);
   const programm = skProgrammListe(skRoh.programm, tage);
   const admin = skIstAdmin();
-  slots.forEach((s) => { s.darfBearbeiten = admin || s.istEigener; });
+  // ⚠️ Fremde Einträge korrigiert der Veranstalter (Verwalten, skIstAdmin) –
+  // auch ohne 🎥. Eigene bearbeitet, wer eintragen darf. Vorher stand hier
+  // `admin || eigen`, der Dienst prüfte beim Speichern aber zuerst den
+  // Streamer-Haken: ein Veranstalter ohne 🎥 bekam fremde Einträge offen
+  // angeboten, und Speichern/Löschen/Ziehen scheiterten dann.
+  const eintragen = skDarfEintragen();
+  slots.forEach((s) => { s.darfBearbeiten = admin || (s.istEigener && eintragen); });
   programm.forEach((p) => {
     p.darfBearbeiten = admin;
     p.offeneMinuten = p.streamerNoetig ? skLueckenMinuten(p.absVon, p.absBis, slots) : 0;
@@ -649,6 +655,12 @@ async function skSetzeTagesfenster(liste) {
   return { erfolg: true };
 }
 
+function skKeinRechtText(slot) {
+  return slot.istEigener
+    ? "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel."
+    : "Das ist der Eintrag von jemand anderem.";
+}
+
 async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
   // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
@@ -678,16 +690,13 @@ async function skBelegeZeit({ datum, von, bis, streamer, titel, notiz }) {
 
 async function skAendereSlot(id, { datum, von, bis, streamer, titel, notiz }) {
   await skAuthBereit;
-  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
-  // Veranstalter. Genau derselbe Ausdruck steuert die Anzeige des Knopfes.
-  if (!skDarfEintragen()) {
-    return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
-  }
+  // Rechte hängen an darfBearbeiten (siehe skGetZustand): fremde Einträge der
+  // Veranstalter, eigene wer eintragen darf.
   const z = skGetZustand();
   if (!z.vorhanden) return { erfolg: false, fehler: "Kein Streamplan vorhanden." };
   const alt = z.slots.find((s) => s.id === id);
   if (!alt) return { erfolg: false, fehler: "Diese Belegung gibt es nicht mehr." };
-  if (!alt.darfBearbeiten) return { erfolg: false, fehler: "Das ist der Eintrag von jemand anderem." };
+  if (!alt.darfBearbeiten) return { erfolg: false, fehler: skKeinRechtText(alt) };
 
   const geprueft = skPruefeBelegung(z, { datum, von, bis, streamer, titel, notiz }, id);
   if (!geprueft.erfolg) return geprueft;
@@ -792,15 +801,11 @@ async function skLoescheProgramm(id) {
 
 async function skLoescheSlot(id) {
   await skAuthBereit;
-  // ⚠️ Eintragen darf nur, wer als Streamer freigegeben ist – oder der
-  // Veranstalter. Genau derselbe Ausdruck steuert die Anzeige des Knopfes.
-  if (!skDarfEintragen()) {
-    return { erfolg: false, fehler: "Nur freigegebene Streamer koennen sich eintragen. Melde dich bei Michel." };
-  }
+  // Rechte hängen an darfBearbeiten (siehe skGetZustand).
   const z = skGetZustand();
   const slot = z.slots.find((s) => s.id === id);
   if (!slot) return { erfolg: false, fehler: "Diese Belegung gibt es nicht mehr." };
-  if (!slot.darfBearbeiten) return { erfolg: false, fehler: "Das ist der Eintrag von jemand anderem." };
+  if (!slot.darfBearbeiten) return { erfolg: false, fehler: skKeinRechtText(slot) };
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS + "/slots/" + id).remove());
   if (!geschrieben.erfolg) return geschrieben;
   return { erfolg: true };
