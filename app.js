@@ -418,8 +418,15 @@ function renderTeams(z) {
         .flatMap((t) => t.mitgliederUids.map((uid) => ({ uid, name: spielerNameVon(z, uid), team: t.name })))
         .map((o) => `<option value="${escapeHtml(o.uid)}">${escapeHtml(o.name)} — ${escapeHtml(o.team)}</option>`)
         .join("");
-      document.getElementById("tausch-a").innerHTML = optionen;
-      document.getElementById("tausch-b").innerHTML = optionen;
+      // ⚠️ Jede Anmeldung, jede Elo-Änderung zeichnet hier neu. Ohne das Merken
+      // sprang eine halb getroffene Auswahl (erst A, dann B) auf den ersten
+      // Eintrag zurück, und „Tauschen“ tauschte die Falschen.
+      ["tausch-a", "tausch-b"].forEach((id) => {
+        const sel = document.getElementById(id);
+        const vorher = sel.value;
+        sel.innerHTML = optionen;
+        if (vorher && Array.prototype.some.call(sel.options, (o) => o.value === vorher)) sel.value = vorher;
+      });
     }
 
     document.getElementById("los-teamzahl").textContent = "(" + z.teams.length + " " + wort + ")";
@@ -1523,6 +1530,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.20",
+    groups: [
+      { title: "Teams tauschen: Auswahl springt nicht mehr zurück", items: [
+          "Meldete sich jemand an oder änderte sein Elo, während der Veranstalter zwei Leute zum Tauschen auswählte, sprang die schon getroffene Auswahl auf den ersten Namen zurück.",
+          "Die Auswahl bleibt jetzt stehen, solange es die Person noch gibt."
+      ]},
+    ],
+  },
   {
     version: "8.19",
     groups: [
