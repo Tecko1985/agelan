@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.10",
+    groups: [
+      { title: "Essen: Einstellungen gehen beim Weitertippen nicht mehr verloren", items: [
+          "Wer in den Essens-Einstellungen erst den Lieferanten änderte und dann ins nächste Feld wechselte, fand nach spätestens 30 Sekunden wieder den alten Lieferanten im Feld – und „Speichern“ übernahm ihn mit „Gespeichert.“.",
+          "Ab der ersten Änderung bleiben jetzt alle Einstellungsfelder so, wie du sie getippt hast, bis gespeichert ist."
+      ]},
+    ],
+  },
+  {
     version: "8.9",
     groups: [
       { title: "Stream: gelöschter Plan hinterlässt keinen PIN, der den neuen sperrt", items: [

@@ -9,6 +9,11 @@ let esZustand = null;
 let esBearbeitetesGerichtId = null;  // null = das Formular legt an, sonst ändert es dieses Gericht
 let esImportVorschau = null;         // Ergebnis von parseImport(), wartet auf „Übernehmen"
 let esMailAuswahl = "bezahlt";       // welche Bestellungen in die Sammelmail gehen
+// Ab der ersten Eingabe in einem der Einstellungsfelder gehören ALLE acht dem
+// Veranstalter, bis gespeichert ist (wie frEinstellungenBeruehrt beim Frühstück).
+let esEinstellungenBeruehrt = false;
+const ES_EIN_FELDER = ["es-ein-titel", "es-ein-lieferant", "es-ein-email", "es-ein-besteller",
+  "es-ein-telefon", "es-ein-hinweis", "es-ein-von", "es-ein-bis"];
 const esOffeneBestellungen = new Set();  // aufgeklappte Bestellungen im Admin-Bereich
 // Aufgeklappte Sammelbestellungen. ⚠️ Beim Laden LEER: alles ist zugeklappt,
 // und nur was der Veranstalter selbst aufklappt, landet hier. Bis zum
@@ -1299,9 +1304,13 @@ async function esFuehreImportAus(ersetzen) {
 function esRenderEinstellungen(z) {
   // ⚠️ Nur befüllen, wenn das Feld gerade nicht bearbeitet wird – sonst
   // überschreibt ein Live-Update (irgendwer bestellt) die halb getippte Eingabe.
+  // ⚠️ Der Fokus allein reicht nicht: wer nach dem Lieferanten ins Telefonfeld
+  // wechselt, hat den Lieferanten nicht mehr im Fokus – der 30-s-Takt schrieb
+  // den alten Wert zurück, und „Speichern“ übernahm ihn mit „Gespeichert.“.
+  // Deshalb der Merker über alle acht Felder.
   const setze = (id, wert) => {
     const el = esEl(id);
-    if (el && document.activeElement !== el) el.value = wert || "";
+    if (el && !esEinstellungenBeruehrt && document.activeElement !== el) el.value = wert || "";
   };
   setze("es-ein-titel", z.meta.titel);
   setze("es-ein-lieferant", z.meta.lieferantName);
@@ -1383,6 +1392,11 @@ function esWireEvents() {
     }
   });
 
+  ES_EIN_FELDER.forEach((id) => {
+    const el = esEl(id);
+    if (el) el.addEventListener("input", () => { esEinstellungenBeruehrt = true; });
+  });
+
   esEl("es-ein-annahme").addEventListener("change", async () => {
     const res = await essenService.setzeAnnahme(esEl("es-ein-annahme").checked);
     esZeigeFehler("es-ein-fehler", res.erfolg ? "" : res.fehler);
@@ -1400,6 +1414,9 @@ function esWireEvents() {
       annahmeVon: esMinutenAusZeit(esEl("es-ein-von").value),
       annahmeBis: esMinutenAusZeit(esEl("es-ein-bis").value),
     });
+    // Erst wenn es wirklich drin steht, darf das nächste Update die Felder
+    // wieder befüllen. Bei einem Fehler bleibt der Entwurf stehen.
+    if (res.erfolg) esEinstellungenBeruehrt = false;
     esZeigeFehler("es-ein-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) esZeigeFehler("es-ein-fehler", "Gespeichert.");
   });
