@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.9",
+    groups: [
+      { title: "Stream: gelöschter Plan hinterlässt keinen PIN, der den neuen sperrt", items: [
+          "Löschte ein Veranstalter den Streamplan, ohne dessen PIN auf seinem Gerät eingegeben zu haben, blieb der alte PIN im Hintergrund hinterlegt. Ein neuer Plan mit neuem PIN entstand trotzdem – auf jedem anderen Gerät hieß es dann „PIN stimmt nicht“, der alte PIN funktionierte.",
+          "Das Löschen versucht es jetzt auch mit dem auf dem Gerät gemerkten PIN und sagt es ausdrücklich, wenn der alte PIN stehen bleibt. Ein neuer Plan entsteht nur, wenn sein PIN wirklich gespeichert werden konnte – sonst mit einer Meldung, welcher PIN noch gilt."
+      ]},
+    ],
+  },
+  {
     version: "8.8",
     groups: [
       { title: "Stream: Zeitfenster springen beim Umstellen nicht mehr zurück", items: [

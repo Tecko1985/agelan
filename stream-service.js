@@ -522,6 +522,33 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
   try { pinH = await pinHash(SK_PID, pin); }
   catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht sichern." }; }
 
+  // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank (wie beim Frühstück).
+  // Liegt noch der Hash eines früheren Plans (Löschen ohne PIN-Beweis konnte
+  // ihn nicht austragen), weist die Regel das Überschreiben ab. Stand der
+  // Schreibvorgang HINTER dem Plan, gab es danach einen Plan mit neuem PIN im
+  // Browser, aber altem Hash in der Datenbank – auf jedem anderen Gerät hieß es
+  // „PIN stimmt nicht“, und der ALTE PIN funktionierte. Jetzt entsteht in dem
+  // Fall kein Plan, und die Meldung sagt warum.
+  // Der PIN selbst kommt nirgends in die Datenbank - nur sein Hash, und zwar in
+  // den Knoten ohne Leserecht.
+  const hashRef = db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash");
+  let hashGeschrieben = false;
+  try {
+    await hashRef.set(pinH);
+    hashGeschrieben = true;
+  } catch (e) {
+    // Ist es der Hash zu GENAU DIESEM PIN, gelingt der Beweis – dann weiter.
+    if (!(await skBeweisePin(pin))) {
+      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einem früheren Streamplan noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
+    }
+  }
+  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
+  // Zurücknehmen des Hashes sie. Die Regel verlangt sie auch später beim
+  // PIN-Wechsel und beim Löschen. Ein Fehlschlag hier ist Nebensache.
+  if (hashGeschrieben) {
+    try { await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, pinH); } catch (e) { /* siehe oben */ }
+  }
+
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS).update({
     meta: {
       titel: t,
@@ -533,12 +560,14 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
       standardBis: b,
     },
   }));
-  if (!geschrieben.erfolg) return geschrieben;
-  // Der PIN selbst kommt nirgends in die Datenbank - nur sein Hash, und zwar in
-  // den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel verlangt
-  // sie spaeter beim PIN-Wechsel und beim Loeschen.
-  await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").set(pinH);
-  await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, pinH);
+  if (!geschrieben.erfolg) {
+    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
+    // blockiert er den nächsten Anlauf mit einem anderen PIN.
+    if (hashGeschrieben) {
+      try { await hashRef.remove(); } catch (e2) { /* derselbe PIN kommt trotzdem durch */ }
+    }
+    return geschrieben;
+  }
   skPinOk = true;
   try {
     localStorage.setItem(SK_PIN_KEY, pin);
@@ -796,10 +825,37 @@ async function skLoeschePlan() {
   if (!geschrieben.erfolg) return geschrieben;
   // Geheimnis zuerst, Beweisablage danach: die Regel laesst das Loeschen des
   // Hashes nur zu, solange der Beweis noch daneben liegt.
-  try { await db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash").remove(); } catch (e) {}
+  const hashWeg = await skEntferneHash();
   try { await db.ref(SK_PROBE_PFAD + "/" + SK_PID + "/" + skEigeneUid).remove(); } catch (e) {}
   skPinOk = false;
+  if (!hashWeg) {
+    // ⚠️ Nicht schweigen: sonst scheitert der nächste Plan mit einer Meldung,
+    // die niemand mit diesem Löschen in Verbindung bringt.
+    return {
+      erfolg: true,
+      warnung: "Der Streamplan ist gelöscht. Sein PIN ließ sich aber nicht austragen – ein neuer Streamplan geht deshalb nur mit demselben PIN wie bisher.",
+    };
+  }
   return { erfolg: true };
+}
+
+// Hash austragen. Ohne Beweis (z. B. Veranstalter über Konto, PIN nie auf
+// diesem Gerät eingegeben) lehnt die Regel ab – dann mit dem gemerkten PIN
+// beweisen und nochmal. Gleiche Mechanik wie frEntferneHash.
+async function skEntferneHash() {
+  const ref = db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash");
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) { /* ohne Beweis abgewiesen – unten nachholen */ }
+  const pin = skGespeicherterPin();
+  if (!pin || !(await skBeweisePin(pin))) return false;
+  try {
+    await ref.remove();
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // ⚠️ Seit 2026-09-15 ASYNCHRON: geprueft wird gegen den Server, nicht mehr

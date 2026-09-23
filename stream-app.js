@@ -864,7 +864,7 @@ function skWireEvents() {
       von: skEl("sk-neu-von").value,
       bis: skEl("sk-neu-bis").value,
       adminPin: skEl("sk-neu-pin").value,
-    });
+    }).catch((e) => ({ erfolg: false, fehler: "Anlegen hat nicht geklappt: " + ((e && e.message) || e) }));
     skZeigeFehler("sk-neu-fehler", res.erfolg ? "" : res.fehler);
   });
 
@@ -1052,8 +1052,16 @@ function skWireEvents() {
 
   skEl("sk-btn-plan-loeschen").addEventListener("click", async () => {
     if (!confirm("Den kompletten Streamplan löschen? Alle Einträge und die Zeitfenster sind dann weg. Das lässt sich nicht rückgängig machen.")) return;
-    const res = await streamService.loeschePlan();
+    let res;
+    try {
+      res = await streamService.loeschePlan();
+    } catch (e) {
+      res = { erfolg: false, fehler: "Löschen hat nicht geklappt: " + ((e && e.message) || e) };
+    }
     skZeigeFehler("sk-admin-panel-fehler", res.erfolg ? "" : res.fehler);
+    // ⚠️ Die Warnung auf den Anlege-Schirm, nicht in den Admin-Kasten: der
+    // verschwindet mit dem Plan, und die Meldung gleich mit.
+    if (res.warnung) skZeigeFehler("sk-neu-fehler", res.warnung);
   });
 
   // Die Breitenklasse "sk-breit" setzt seit dem 05.09.2026 activateTab() in
