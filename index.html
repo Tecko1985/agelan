@@ -1341,7 +1341,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.4',
-    'app.js?v=3.76',
+    'app.js?v=3.77',
     'stream-service.js?v=2.3',
     'stream-app.js?v=2.8',
     'fruehstueck-service.js?v=1.12',
@@ -1549,6 +1549,13 @@
           var konto = { nickname: b.nickname, token: b.token, admin: !!b.admin, streamer: !!b.streamer, orga: !!b.orga, discordId: b.discordId || '' };
           kontoSchreiben(konto);
           kontoAnzeigen(konto);
+          // ⚠️ Falsches Veranstalter-Passwort beim Anlegen: der Server legt still
+          // ein normales Konto an (das Konto ist ja gewollt). Ohne diesen Satz
+          // merkte man es nur am 👤 statt ⭐ in der Kopfzeile. Die Prüfung steht
+          // im Client, damit sie mit jeder Worker-Fassung greift.
+          if (modusNeu && veranstalterFeld.value && !b.admin) {
+            window.alert('Dein Konto ist angelegt – aber das Veranstalter-Passwort stimmte nicht. Du bist als normale:r Teilnehmer:in angemeldet. Brauchst du Veranstalter-Rechte, kann dir jemand aus der Orga in der Kontenliste den 🛠-Haken setzen.');
+          }
           msg.style.color = '#5a6b82';
           msg.textContent = 'Einen Moment …';
           freigeben(function () { discordErinnern(konto); });

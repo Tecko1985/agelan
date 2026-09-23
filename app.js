@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.18",
+    groups: [
+      { title: "Konto anlegen: falsches Veranstalter-Passwort wird gemeldet", items: [
+          "Wer beim Anlegen ein falsches Veranstalter-Passwort eingetragen hatte, bekam ohne jeden Hinweis ein normales Konto – erkennbar nur am 👤 statt ⭐ in der Kopfzeile.",
+          "Jetzt sagt ein Hinweis, dass das Konto zwar angelegt ist, das Veranstalter-Passwort aber nicht stimmte."
+      ]},
+    ],
+  },
+  {
     version: "8.17",
     groups: [
       { title: "Anmeldung bleibt bei einer Serverstörung erhalten", items: [
