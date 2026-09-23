@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.15",
+    groups: [
+      { title: "Übersicht: Zahl der offenen Bestellungen passt zum Betrag", items: [
+          "Die Orga-Kachel zählte bei „noch zu kassieren“ auch Orga-Essen als offene Bestellung mit, der Betrag daneben aber nicht – etwa „9,50 € · 2 offene Bestellungen“ bei nur einer zahlenden.",
+          "Gezählt wird jetzt dieselbe Auswahl wie beim Betrag."
+      ]},
+    ],
+  },
+  {
     version: "8.14",
     groups: [
       { title: "Übersicht: Frühstück und Stream wie in den Bereichen selbst", items: [

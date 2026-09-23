@@ -323,8 +323,12 @@ function ubKachelOrga() {
   }
 
   if (z.offeneCent) {
+    // ⚠️ Dieselbe Auswahl wie offeneCent im Dienst (neu UND nicht Orga) – mit
+    // zaehler.neu stand „9,50 € · 2 offene Bestellungen“, obwohl eine davon ein
+    // Orga-Essen ist, für das nie jemand zahlt.
+    const offen = z.bestellungen.filter((b) => b.status === "neu" && !b.orga).length;
     inhalt += ubZeile("Kasse", essenService.centLabel(z.offeneCent) + " noch zu kassieren",
-      z.zaehler.neu + " offene " + (z.zaehler.neu === 1 ? "Bestellung" : "Bestellungen"), "ub-warn");
+      offen + " offene " + (offen === 1 ? "Bestellung" : "Bestellungen"), "ub-warn");
   }
 
   if (z.stapel.length) {
