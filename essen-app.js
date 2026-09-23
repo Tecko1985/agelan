@@ -12,6 +12,19 @@ let esMailAuswahl = "bezahlt";       // welche Bestellungen in die Sammelmail ge
 // Ab der ersten Eingabe in einem der Einstellungsfelder gehören ALLE acht dem
 // Veranstalter, bis gespeichert ist (wie frEinstellungenBeruehrt beim Frühstück).
 let esEinstellungenBeruehrt = false;
+// Solange der Veranstalter im Mailtext etwas geändert hat: { basis } = der
+// erzeugte Text, auf dem die Änderung beruht. ⚠️ Dann zeichnet ein Live-Update
+// (30-s-Takt, fremde Bestellung) den Kasten NICHT neu – sonst wäre die Änderung
+// weg, obwohl der Hinweis darunter zusagt, dass sie mitgeht.
+let esMailBearbeitet = null;
+
+// Vor einem Ansichtswechsel im Mail-Kasten: geänderten Text nicht still verwerfen.
+function esMailVerwerfen() {
+  if (!esMailBearbeitet) return true;
+  if (!confirm("Deine Änderungen am E-Mail-Text gehen dabei verloren. Trotzdem wechseln?")) return false;
+  esMailBearbeitet = null;
+  return true;
+}
 const ES_EIN_FELDER = ["es-ein-titel", "es-ein-lieferant", "es-ein-email", "es-ein-besteller",
   "es-ein-telefon", "es-ein-hinweis", "es-ein-von", "es-ein-bis"];
 const esOffeneBestellungen = new Set();  // aufgeklappte Bestellungen im Admin-Bereich
@@ -784,6 +797,7 @@ function esRenderAdminBestellungen(z) {
   });
   box.querySelectorAll("[data-es-runde-mail]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!esMailVerwerfen()) return;
       esMailAuswahl = "runde:" + btn.dataset.esRundeMail;
       esRenderSammelmail(esZustand);
       esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
@@ -859,6 +873,7 @@ function esRenderAdminBestellungen(z) {
   });
   box.querySelectorAll("[data-es-mail]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!esMailVerwerfen()) return;
       esMailAuswahl = "einzeln:" + btn.dataset.esMail;
       esRenderSammelmail(esZustand);
       esEl("es-sammelmail").scrollIntoView({ block: "start", behavior: "smooth" });
@@ -992,6 +1007,15 @@ function esMailBestellungen(z) {
 
 function esRenderSammelmail(z) {
   const box = esEl("es-sammelmail");
+  // Geänderter Mailtext: nicht neu zeichnen (siehe esMailBearbeitet). Nur sagen,
+  // wenn sich die Bestellungen darunter inzwischen geändert haben.
+  if (esMailBearbeitet && esEl("es-mail-text")) {
+    const jetzt = essenService.bestelltext(esMailBestellungen(z), z.meta).text;
+    const hinweis = esEl("es-mail-veraltet");
+    if (hinweis) hinweis.style.display = jetzt === esMailBearbeitet.basis ? "none" : "";
+    return;
+  }
+  esMailBearbeitet = null;
   // ⚠️ Die einzeln gewählte Bestellung kann inzwischen weg sein (gelöscht oder
   // vom Besteller storniert). Dann zurück auf den Sammelweg, statt einen leeren
   // Kasten mit dem Namen eines Geistes zu zeigen.
@@ -1072,6 +1096,8 @@ function esRenderSammelmail(z) {
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>
       <textarea id="es-mail-text" class="eingabe es-mail-text" rows="12" spellcheck="false">${escapeHtml(brief.text)}</textarea>
+      <p class="hinweis-text" id="es-mail-veraltet" style="display:none">⚠️ An den Bestellungen hat sich seit deiner Änderung am Text etwas geändert.
+        <button type="button" class="mini-btn" id="es-btn-mail-neu">Text neu erzeugen</button></p>
       <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen der Besteller stehen bewusst nicht drin. Bei Gerichten, von denen welche auf die Organisation gehen, steht dabei, wie viele – und was dafür wirklich zu zahlen ist.</p>
 
       <div class="es-mail-knoepfe">
@@ -1097,9 +1123,33 @@ function esRenderSammelmail(z) {
 
   box.querySelectorAll('input[name="es-mailwahl"]').forEach((r) => {
     r.addEventListener("change", () => {
+      if (!esMailVerwerfen()) {
+        box.querySelectorAll('input[name="es-mailwahl"]').forEach((x) => { x.checked = x.value === esMailAuswahl; });
+        return;
+      }
       esMailAuswahl = r.value;
       esRenderSammelmail(esZustand);
     });
+  });
+
+  const textFeld = esEl("es-mail-text");
+  if (textFeld) textFeld.addEventListener("input", () => {
+    if (!esMailBearbeitet) esMailBearbeitet = { basis: brief.text };
+  });
+  const neuBtn = esEl("es-btn-mail-neu");
+  if (neuBtn) neuBtn.addEventListener("click", () => {
+    if (!esMailVerwerfen()) return;
+    esRenderSammelmail(esZustand);
+  });
+  // ⚠️ Der Link wird beim KLICK aus dem Textfeld gebaut, nicht beim Zeichnen
+  // aus brief.text – sonst ginge eine Änderung am Text nie in die Mail.
+  const mailLink = esEl("es-mail-link");
+  if (mailLink) mailLink.addEventListener("click", () => {
+    const feld = esEl("es-mail-text");
+    if (!feld) return;
+    mailLink.href = "mailto:" + encodeURIComponent(brief.empfaenger) +
+      "?subject=" + encodeURIComponent(brief.betreff) +
+      "&body=" + encodeURIComponent(feld.value);
   });
 
   const kopieren = esEl("es-btn-kopieren");
@@ -1107,6 +1157,7 @@ function esRenderSammelmail(z) {
 
   const zurueckBtn = esEl("es-btn-alle-zeigen");
   if (zurueckBtn) zurueckBtn.addEventListener("click", () => {
+    if (!esMailVerwerfen()) return;
     esMailAuswahl = "bezahlt";
     esRenderSammelmail(esZustand);
   });
@@ -1118,6 +1169,7 @@ function esRenderSammelmail(z) {
   // von hier aus nicht zu sehen.
   const naechsteBtn = esEl("es-btn-naechste");
   if (naechsteBtn) naechsteBtn.addEventListener("click", () => {
+    if (!esMailVerwerfen()) return;
     // Steht im Stapel nur Unbezahltes, sonst landet man auf einem leeren Kasten.
     esMailAuswahl = esZustand.stapel.some((b) => b.status === "bezahlt") ? "bezahlt" : "offen";
     esRenderSammelmail(esZustand);
@@ -1134,6 +1186,10 @@ function esRenderSammelmail(z) {
     // stünde dort weiter „Nur die Bestellung von …" mit einer Bestellung, die
     // schon durch ist. Genau so beim Bauen gesehen.
     esMailAuswahl = "bezahlt";
+    // Die Mail ist raus – ein geänderter Text hat damit seinen Zweck erfüllt und
+    // darf das Neuzeichnen nach dem Schreiben nicht mehr aufhalten.
+    const bearbeitetVorher = esMailBearbeitet;
+    esMailBearbeitet = null;
     // Ein Aufruf für beide Fälle: eine einzelne Bestellung ist eine
     // Sammelbestellung mit genau einer Zeile. Zwei Wege wären zwei Stellen, an
     // denen die Runde entstehen kann – und eine davon würde irgendwann anders
@@ -1141,7 +1197,9 @@ function esRenderSammelmail(z) {
     const res = await essenService.schickeRunde(ids);
     if (!res.erfolg) {
       esMailAuswahl = vorher;   // hat nicht geklappt, also zurück in die alte Sicht
-      esRenderSammelmail(esZustand);
+      // Der geänderte Text steht noch im Feld – nicht durch Neuzeichnen verwerfen.
+      esMailBearbeitet = bearbeitetVorher;
+      if (!esMailBearbeitet) esRenderSammelmail(esZustand);
       esZeigeFehler("es-mail-fehler", res.fehler);
     }
   });

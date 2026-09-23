@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.11",
+    groups: [
+      { title: "Essen: geänderter Mailtext kommt in der Mail an", items: [
+          "Der Text der Sammelbestellung ließ sich zwar ändern, „E-Mail öffnen“ schickte aber immer den ursprünglichen Text – und nach spätestens 30 Sekunden war die Änderung auch aus dem Feld verschwunden.",
+          "„E-Mail öffnen“ nimmt jetzt genau den Text aus dem Feld. Er bleibt stehen, bis du wechselst; kommt inzwischen eine Bestellung dazu, steht ein Hinweis mit „Text neu erzeugen“ darunter."
+      ]},
+    ],
+  },
+  {
     version: "8.10",
     groups: [
       { title: "Essen: Einstellungen gehen beim Weitertippen nicht mehr verloren", items: [
