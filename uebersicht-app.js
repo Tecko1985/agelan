@@ -292,9 +292,12 @@ function ubKachelLieferungen() {
 // wer was isst und wer noch schuldet, geht die übrigen Teilnehmer nichts an.
 // Die Kachel wird für alle anderen gar nicht erst gebaut, nicht bloß versteckt.
 function ubKachelOrga() {
-  if (!ubIstVeranstalter()) return "";
   const z = ubZustand("essen");
   if (!z || !z.vorhanden) return "";
+  // ⚠️ Veranstalter ist auch, wer im Essen per PIN oder als Ersteller (hostId)
+  // Veranstalter ist – nicht nur ein Konto mit ⭐/🛠. Die Essensbestellung selbst
+  // zeigt ihm Namen und Beträge ohnehin; nur hier fehlte die Kachel.
+  if (!ubIstVeranstalter() && !z.istAdmin) return "";
 
   let inhalt = "";
 

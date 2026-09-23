@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.16",
+    groups: [
+      { title: "Übersicht: Orga-Kachel auch für Veranstalter per PIN", items: [
+          "Wer die Essensbestellung per PIN oder als ihr Ersteller verwaltet, aber kein ⭐/🛠-Konto hat, sah in der Übersicht die Kachel „Für die Orga“ nicht.",
+          "Sie erscheint jetzt für alle, die in der Essensbestellung Veranstalter sind – für alle anderen weiterhin gar nicht."
+      ]},
+    ],
+  },
+  {
     version: "8.15",
     groups: [
       { title: "Übersicht: Zahl der offenen Bestellungen passt zum Betrag", items: [
