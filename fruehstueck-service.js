@@ -692,6 +692,8 @@ function frWarumZu(z, tag) {
 // Eine Bestellung wird immer komplett geschrieben: positionen ersetzt, nicht
 // gemischt. Ein „update" mit nur den geänderten Zählern ließe Reste von
 // Paketen stehen, die gerade auf 0 gestellt wurden.
+const FR_SCHON_BEZAHLT = "Diese Bestellung ist schon bezahlt. Zum Ändern oder Stornieren muss der Veranstalter zuerst den Haken „bezahlt“ herausnehmen.";
+
 async function frBestelle(datum, { name, positionen, notiz }) {
   await frAuthBereit;
   const z = frGetZustand();
@@ -724,6 +726,17 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   });
 
   const pfad = FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid;
+  // ⚠️ Eine bezahlte Bestellung ist ein Beleg: ändert sich ihr Betrag, stünde
+  // in der Abrechnung „offen 0,00 €“ neben einer höheren Summe (oder das Geld
+  // wäre ohne Eintrag kassiert). Deshalb nur zulassen, solange der Betrag
+  // gleich bleibt (z. B. Notiz geändert) – sonst erst den Haken lösen.
+  const bisher = tag.meineBestellung;
+  if (bisher && bisher.bezahlt) {
+    const neuSumme = Object.keys(sauber).reduce((s, pid) => s + sauber[pid] * feste[pid].preisCent, 0);
+    if (!stueck || neuSumme !== bisher.summeCent) {
+      return { erfolg: false, fehler: FR_SCHON_BEZAHLT };
+    }
+  }
   if (!stueck) {
     // Nichts ausgewählt heißt: abbestellen. Ein leerer Knoten wäre in der
     // Einkaufsliste ein Name ohne Ware.
@@ -735,7 +748,6 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   // – aber abgeholt/bezahlt sind Haken des VERANSTALTERS und dürfen nicht bei
   // jeder Änderung des Bestellers zurückfallen. Deshalb den bisherigen Stand
   // mitschreiben statt ihn auf false zu setzen.
-  const bisher = tag.meineBestellung;
   await db.ref(pfad).set({
     name: n,
     positionen: sauber,
@@ -758,6 +770,9 @@ async function frStorniere(datum) {
   if (!tag) return { erfolg: false, fehler: "Diesen Morgen gibt es nicht." };
   if (!tag.offen && !z.istAdmin) {
     return { erfolg: false, fehler: frWarumZu(z, tag) };
+  }
+  if (tag.meineBestellung && tag.meineBestellung.bezahlt) {
+    return { erfolg: false, fehler: FR_SCHON_BEZAHLT };
   }
   await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid).remove();
   return { erfolg: true };

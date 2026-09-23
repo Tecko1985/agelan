@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.5",
+    groups: [
+      { title: "Frühstück: bezahlte Bestellung bleibt, wie sie bezahlt wurde", items: [
+          "Wer nach dem Bezahlen selbst mehr bestellt hat, stand in der Abrechnung mit der höheren Summe, aber „offen 0,00 €“ – der Aufpreis ging unter.",
+          "Eine bezahlte Bestellung lässt sich jetzt nur noch ändern oder stornieren, nachdem der Veranstalter den Haken „bezahlt“ herausgenommen hat. Eine Notiz ohne neuen Betrag geht weiter."
+      ]},
+    ],
+  },
+  {
     version: "8.4",
     groups: [
       { title: "Stream: gezogene Uhrzeit bleibt im Dialog erhalten", items: [
