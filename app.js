@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.3",
+    groups: [
+      { title: "Stream: Verschieben behält „kein Streamer nötig“", items: [
+          "Wer einen Programmpunkt ohne Streamer-Bedarf mit der Maus verschoben hat, fand ihn danach wieder als „Streamer nötig“ im Plan – mit Warnung in der Kopfzeile.",
+          "Der Haken bleibt beim Verschieben jetzt so, wie er gesetzt war."
+      ]},
+    ],
+  },
+  {
     version: "8.2",
     groups: [
       { title: "Downloads", items: [

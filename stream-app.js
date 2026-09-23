@@ -707,6 +707,9 @@ async function skZiehEnde(e) {
     notiz: zieh.eintrag.notiz,
   };
   if (!zieh.istProgramm) werte.streamer = zieh.eintrag.streamer;
+  // ⚠️ Ohne diese Zeile macht skPruefeProgramm aus dem fehlenden Feld
+  // „Streamer nötig“ (undefined !== false) – ein Zug würde den Haken still setzen.
+  if (zieh.istProgramm) werte.streamerNoetig = zieh.eintrag.streamerNoetig !== false;
 
   const res = zieh.istProgramm
     ? await streamService.aendereProgramm(zieh.id, werte)
