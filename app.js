@@ -1519,6 +1519,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.2",
+    groups: [
+      { title: "Downloads", items: [
+          "AoE2-Klickzähler (Spieler) durch die neue Fassung vom 23.09. ersetzt."
+      ]},
+    ],
+  },
+  {
     version: "8.1",
     groups: [
       { title: "Neuer Bereich: Downloads", items: [
