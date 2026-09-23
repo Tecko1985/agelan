@@ -446,7 +446,13 @@ function frRenderPaketeVerwalten(z) {
   box.querySelectorAll("[data-fr-runter]").forEach((b) => b.addEventListener("click", () => fruehstueckService.verschiebePaket(b.dataset.frRunter, 1)));
   box.querySelectorAll("[data-fr-loeschen]").forEach((b) => b.addEventListener("click", async () => {
     if (!confirm("Dieses Paket wirklich löschen? Bestehende Bestellungen dieses Pakets fallen dabei weg.")) return;
-    await fruehstueckService.loeschePaket(b.dataset.frLoeschen);
+    let res;
+    try {
+      res = await fruehstueckService.loeschePaket(b.dataset.frLoeschen);
+    } catch (e) {
+      res = { erfolg: false, fehler: "Löschen hat nicht geklappt: " + ((e && e.message) || e) };
+    }
+    frZeigeFehler("fr-pak-fehler", res && !res.erfolg ? res.fehler : "");
   }));
   box.querySelectorAll("[data-fr-bearbeiten]").forEach((b) => b.addEventListener("click", () => {
     const p = frZustand.pakete.find((x) => x.id === b.dataset.frBearbeiten);

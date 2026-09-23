@@ -1519,6 +1519,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.7",
+    groups: [
+      { title: "Frühstück: Paket löschen klappt auch, wenn jemand nur dieses Paket bestellt hat", items: [
+          "Hatte jemand ausschließlich das Paket bestellt, das gelöscht werden sollte, blieb das Paket einfach stehen – ohne Meldung.",
+          "Solche Bestellungen fallen jetzt ganz weg (wie der Rückfrage-Dialog ankündigt), das Paket verschwindet. Geht beim Löschen doch etwas schief, steht der Grund unter der Paketliste."
+      ]},
+    ],
+  },
+  {
     version: "8.6",
     groups: [
       { title: "Turnier: ✎-Korrektur im K.-o. zieht die nächste Runde nach", items: [

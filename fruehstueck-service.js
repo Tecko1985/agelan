@@ -650,10 +650,18 @@ async function frLoeschePaket(id) {
   updates["pakete/" + id] = null;
   z.tage.forEach((tag) => {
     tag.bestellungen.forEach((b) => {
-      if (b.positionen.some((pos) => pos.paketId === id)) {
-        updates["bestellungen/" + tag.datum + "/" + b.uid + "/positionen/" + id] = null;
-        updates["bestellungen/" + tag.datum + "/" + b.uid + "/preise/" + id] = null;
+      if (!b.positionen.some((pos) => pos.paketId === id)) return;
+      // ⚠️ War das Paket die einzige Position, wäre die Bestellung danach leer –
+      // und eine Bestellung ohne `positionen` weist die Regel ab
+      // (hasChildren(['name','positionen'])). Dann scheiterte das GANZE
+      // Multi-Pfad-Update, das Paket bliebe stehen. Solche Bestellungen fallen
+      // deshalb komplett weg; der Dialog kündigt genau das an.
+      if (b.positionen.every((pos) => pos.paketId === id)) {
+        updates["bestellungen/" + tag.datum + "/" + b.uid] = null;
+        return;
       }
+      updates["bestellungen/" + tag.datum + "/" + b.uid + "/positionen/" + id] = null;
+      updates["bestellungen/" + tag.datum + "/" + b.uid + "/preise/" + id] = null;
     });
   });
   await db.ref(FR_BASIS).update(updates);
