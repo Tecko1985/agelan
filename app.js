@@ -434,6 +434,11 @@ function renderTeams(z) {
     document.getElementById("los-weiter-gesamt-feld").style.display = z.istSchweizer && z.hatKoRunde ? "" : "none";
     document.getElementById("los-finalfeld").style.display = z.hatKoRunde ? "" : "none";
     document.getElementById("los-kotyp-feld").style.display = z.hatKoRunde ? "" : "none";
+    // ⚠️ Die K.-o.-Art aus der Formatwahl in der Lobby (meta.koTyp) vorbelegen –
+    // einmal je Team-Phase, wie die übrigen Auslosungs-Felder unten. Sonst stand
+    // hier fest „einfach“, und „Auslosen“ schrieb das über ein gewähltes „Doppel“.
+    // Vor dem Lesen unten, damit Hinweis und Zeilen gleich zum Wert passen.
+    if (!losFelderInit) document.getElementById("los-kotyp").value = z.koTyp === "doppel" ? "doppel" : "einfach";
     // Im Doppel-K.-o. ergibt sich Platz 3 aus dem Verliererbaum.
     const doppelKo = document.getElementById("los-kotyp").value === "doppel";
     document.getElementById("los-platz3-zeile").style.display = z.hatKoRunde && !doppelKo ? "" : "none";
@@ -1518,6 +1523,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.12",
+    groups: [
+      { title: "Turnier: Doppel-K.-o. aus der Formatwahl kommt beim Auslosen an", items: [
+          "Wer in der Lobby „Doppel-K.-o.“ festgelegt hatte, fand beim Auslosen das Feld „K.-o.-Runde“ trotzdem auf „Einfach“ – ein Klick auf „Auslosen“ machte daraus ein einfaches K.-o.",
+          "Das Feld übernimmt jetzt die Wahl aus der Lobby und lässt sich dort weiter ändern."
+      ]},
+    ],
+  },
   {
     version: "8.11",
     groups: [
