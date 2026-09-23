@@ -1989,7 +1989,7 @@ function zpPruefeEinstellungen(opt) {
   return "";
 }
 
-// Alle noch nicht bestätigten Spiele der Reihe nach terminieren.
+// Alle noch offenen (weder gemeldeten noch bestätigten) Spiele der Reihe nach terminieren.
 // ⚠️ Bestätigte Spiele bleiben unangetastet: der Knopf ist auch das Werkzeug
 // zum NACHplanen, wenn der Ablauf hinterherhinkt. Wer Gespieltes verschöbe,
 // machte aus dem Ablauf eine Fälschung.
@@ -2000,7 +2000,9 @@ async function erzeugeZeitplan(optionen) {
   const fehler = zpPruefeEinstellungen(opt);
   if (fehler) return { erfolg: false, fehler };
 
-  const offen = spielListe().filter((s) => s.status !== "bestaetigt" && !zpIstFreilos(s));
+  // ⚠️ Nur „offen“: ein gemeldetes Spiel ist gespielt, nur noch nicht bestätigt –
+  // es in die Zukunft zu schieben blockierte dort einen Platz.
+  const offen = spielListe().filter((s) => s.status === "offen" && !zpIstFreilos(s));
   if (!offen.length) return { erfolg: false, fehler: "Es gibt gerade kein Spiel, das terminiert werden könnte." };
 
   const plan = berechneZeitplan(offen, opt);

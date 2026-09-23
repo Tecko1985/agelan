@@ -1524,6 +1524,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.19",
+    groups: [
+      { title: "Zeitplan: Nachplanen lässt gemeldete Spiele in Ruhe", items: [
+          "Beim Nachplanen bekamen auch Spiele eine neue Zeit, deren Ergebnis schon gemeldet, aber noch nicht bestätigt war – sie wurden in die Zukunft geschoben und blockierten dort einen Platz.",
+          "Terminiert werden jetzt nur noch Spiele, die wirklich noch offen sind."
+      ]},
+    ],
+  },
+  {
     version: "8.18",
     groups: [
       { title: "Konto anlegen: falsches Veranstalter-Passwort wird gemeldet", items: [
