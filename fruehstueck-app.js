@@ -60,6 +60,10 @@ function frRender(z) {
   // sonst einfach der erste Morgen des Plans.
   if (!frAktiverTag || !z.tage.some((t) => t.datum === frAktiverTag)) {
     const offener = z.tage.find((t) => t.offen);
+    // ⚠️ Fällt der gewählte Morgen weg (Veranstalter kürzt), gehört der Entwurf
+    // nicht auf den nächsten Morgen – sonst wurde er dort still bestellt. Wie
+    // beim Tag-Chip: neuer Morgen, neuer Entwurf (Bugjagd 25.09.d T5b).
+    if (frAktiverTag) frEntwurf = null;
     frAktiverTag = (offener || z.tage[0] || {}).datum || null;
   }
 
