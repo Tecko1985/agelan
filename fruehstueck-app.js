@@ -143,6 +143,12 @@ function frRenderTagInhalt(z) {
   frEntwurfAuffrischen(tag);
 
   const bearbeitbar = tag.offen || z.istAdmin;
+  // ⚠️ Bezahlt friert die Menge ein – das lehnt der Dienst ohnehin ab
+  // (FR_SCHON_BEZAHLT). Stepper und Stornieren gar nicht erst anbieten, sonst
+  // steht nach der Ablehnung die ungespeicherte Menge neben „gespeichert“
+  // (Bugjagd 25.09.d T5b-4). Die Notiz bleibt änderbar, solange der Betrag gleich ist.
+  const bezahltFest = !!(tag.meineBestellung && tag.meineBestellung.bezahlt);
+  const stepperAn = bearbeitbar && !bezahltFest;
   // ⚠️ Unten steht bewusst tag.zeitOffen und nicht tag.offen: tag.offen
   // enthält auch den Schalter des Veranstalters. Mit tag.offen stand bei
   // zugedrehter Annahme bei JEDEM Morgen „Bestellschluss war", obwohl er erst
@@ -175,16 +181,17 @@ function frRenderTagInhalt(z) {
               ? ` <span class="fr-summe-leer">(bestellt zu ${fruehstueckService.centLabel(belegPreis(p.id))})</span>` : ""}</div>
           </div>
           <div class="fr-stepper">
-            <button type="button" data-fr-weniger="${p.id}" ${!bearbeitbar || anzahl <= 0 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(p.name)}">−</button>
+            <button type="button" data-fr-weniger="${p.id}" ${!stepperAn || anzahl <= 0 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(p.name)}">−</button>
             <span class="fr-stepper-zahl">${anzahl}</span>
-            <button type="button" data-fr-mehr="${p.id}" ${!bearbeitbar || anzahl >= fruehstueckService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(p.name)}">+</button>
+            <button type="button" data-fr-mehr="${p.id}" ${!stepperAn || anzahl >= fruehstueckService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(p.name)}">+</button>
           </div>
         </div>`;
       }).join("")
     : `<p class="fr-leer-hinweis">Noch keine Pakete angelegt.</p>`;
 
   const eigeneAnzeige = tag.meineBestellung
-    ? `<p class="fr-eigene-hinweis">Deine Bestellung ist gespeichert${tag.meineBestellung.abgeholt ? " – als abgeholt markiert" : ""}.</p>`
+    ? `<p class="fr-eigene-hinweis">Deine Bestellung ist gespeichert${tag.meineBestellung.abgeholt ? " – als abgeholt markiert" : ""}${bezahltFest ? " und bezahlt" : ""}.</p>` +
+      (bezahltFest ? `<p class="hinweis-text">Bezahlt – Menge ändern oder stornieren geht erst, wenn der Veranstalter den Haken „bezahlt“ wieder herausnimmt.</p>` : "")
     : "";
 
   box.innerHTML = `
@@ -219,7 +226,7 @@ function frRenderTagInhalt(z) {
         <input type="text" id="fr-best-notiz" class="eingabe" maxlength="200" autocomplete="off" value="${escapeHtml(frEntwurf.notiz || "")}">
 
         <button class="btn btn-primary btn-grow" id="fr-btn-bestellen">${tag.meineBestellung ? "Bestellung aktualisieren" : "Bestellen"}</button>
-        ${tag.meineBestellung ? `<button class="btn btn-link" id="fr-btn-stornieren">Bestellung stornieren</button>` : ""}
+        ${tag.meineBestellung && !bezahltFest ? `<button class="btn btn-link" id="fr-btn-stornieren">Bestellung stornieren</button>` : ""}
         <p class="hinweis-text fehler" id="fr-best-fehler"></p>
       ` : ""}
 
@@ -264,7 +271,18 @@ async function frSpeichereBestellung(tag) {
     positionen: frEntwurf.positionen,
     notiz: frEntwurf.notiz || "",
   });
-  if (!res.erfolg) { frZeigeFehler("fr-best-fehler", res.fehler); return; }
+  if (!res.erfolg) {
+    // Abgelehnt, weil inzwischen bezahlt: den Entwurf verwerfen, sonst steht
+    // nach dem nächsten Takt die abgelehnte Menge neben „gespeichert“.
+    const jetzt = fruehstueckService.getZustand();
+    const t = jetzt.vorhanden ? jetzt.tage.find((x) => x.datum === tag.datum) : null;
+    if (t && t.meineBestellung && t.meineBestellung.bezahlt) {
+      frEntwurf = null;
+      frNachSchreibenZeichnen();
+    }
+    frZeigeFehler("fr-best-fehler", res.fehler);
+    return;
+  }
   frEntwurf = null;
   frNachSchreibenZeichnen();
 }
