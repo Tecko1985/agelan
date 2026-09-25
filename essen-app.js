@@ -127,6 +127,7 @@ function esRender(z) {
   // Neuzeichnen risse ihm den Cursor aus dem Feld. Ist der Korb leer, gibt es
   // nichts zu verlieren.
   if (!esEntwurf.positionen.length) esRenderKorb();
+  else esKorbPreiseAuffrischen();
   esRenderMeine(z);
   esRenderAdmin(z);
 }
@@ -321,6 +322,21 @@ function esAendereAnzahl(lid, delta) {
     const preis = zeile.querySelector(".es-korb-preis");
     if (preis && gericht) preis.textContent = essenService.centLabel(gericht.preisCent * pos.anzahl);
   }
+  const summe = esEl("es-korb-summe");
+  if (summe) summe.textContent = essenService.centLabel(esKorbSummeCent());
+}
+
+// Preise im gefüllten Korb nachziehen, OHNE neu zu zeichnen (siehe esRender).
+// ⚠️ Sonst zeigte der Korb nach einer Preisänderung weiter den alten Betrag,
+// abgeschickt wurde aber mit dem neuen Kartenpreis (Bugjagd 25.09.d T5a, K1).
+function esKorbPreiseAuffrischen() {
+  if (!esZustand) return;
+  esEntwurf.positionen.forEach((pos) => {
+    const zeile = document.querySelector('[data-es-zeile="' + pos.lid + '"]');
+    const preis = zeile && zeile.querySelector(".es-korb-preis");
+    const gericht = esZustand.karte.find((g) => g.id === pos.gerichtId);
+    if (preis && gericht) preis.textContent = essenService.centLabel(gericht.preisCent * pos.anzahl);
+  });
   const summe = esEl("es-korb-summe");
   if (summe) summe.textContent = essenService.centLabel(esKorbSummeCent());
 }
