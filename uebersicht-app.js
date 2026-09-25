@@ -112,6 +112,15 @@ function ubJetztStand(z) {
 
 // --- Bausteine --------------------------------------------------------------
 
+// Liegt heute nach dem letzten Veranstaltungstag? (Die Nacht nach dem letzten
+// Tag zählt ubJetztStand noch dazu, dort ist jetzt !== null.)
+function ubNachDerVeranstaltung(z) {
+  if (!z || !z.tage || !z.tage.length) return false;
+  const d = new Date();
+  const heute = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return heute > z.tage[z.tage.length - 1].datum;
+}
+
 // Alle Einträge mit dem frühesten Beginn (nach Beginn sortiert, gleiche zuerst).
 function ubAlleErsten(liste) {
   if (!liste.length) return [];
@@ -202,8 +211,12 @@ function ubKachelStream() {
   // ⚠️ Die offenen Programmpunkte sind der Grund, warum es das Häkchen gibt:
   // hier ist die Nachfassliste. Vergangene bleiben draußen – daran ist nichts
   // mehr zu retten, und eine Liste voller Vorwürfe liest niemand mehr.
+  // ⚠️ Außerhalb der Veranstaltungstage ist jetzt === null – VOR der
+  // Veranstaltung ist alles noch zu retten, DANACH nichts mehr. Bis 25.09.2026
+  // stand nach dem letzten Tag wieder die ganze Liste da (Bugjagd 25.09.d T5b).
+  const vorbei = jetzt === null && ubNachDerVeranstaltung(z);
   const offen = z.programm
-    .filter((p) => p.streamerFehlt && (jetzt === null || p.absBis > jetzt))
+    .filter((p) => p.streamerFehlt && !vorbei && (jetzt === null || p.absBis > jetzt))
     .sort((a, b) => a.absVon - b.absVon);
   if (offen.length) {
     inhalt += '<div class="ub-block ub-block-warn">' +
