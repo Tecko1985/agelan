@@ -17,13 +17,28 @@ let esEinstellungenBeruehrt = false;
 // (30-s-Takt, fremde Bestellung) den Kasten NICHT neu – sonst wäre die Änderung
 // weg, obwohl der Hinweis darunter zusagt, dass sie mitgeht.
 let esMailBearbeitet = null;
+// Sobald „E-Mail öffnen“ oder „Text kopieren“ geklickt ist: { basis } wie oben.
+// ⚠️ Ab da ist der Kasten eingefroren wie bei einem geänderten Text. „Ist raus“
+// hält sonst die Auswahl des LETZTEN Neuzeichnens fest – und das kann nach
+// einem Live-Update (Kasse hakt ab, Besteller ändert) etwas anderes sein als
+// das, was in der Mail stand (Bugjagd 25.09.d T5a-1a).
+let esMailGeoeffnet = null;
 
 // Vor einem Ansichtswechsel im Mail-Kasten: geänderten Text nicht still verwerfen.
 function esMailVerwerfen() {
-  if (!esMailBearbeitet) return true;
-  if (!confirm("Deine Änderungen am E-Mail-Text gehen dabei verloren. Trotzdem wechseln?")) return false;
+  if (esMailBearbeitet && !confirm("Deine Änderungen am E-Mail-Text gehen dabei verloren. Trotzdem wechseln?")) return false;
   esMailBearbeitet = null;
+  esMailGeoeffnet = null;
   return true;
+}
+
+// Was von einer Bestellung in der Mail steht: Gerichte, Mengen, Preise,
+// Sonderwünsche und ob sie auf die Organisation geht. ⚠️ Nicht nur
+// `aktualisiertAm` vergleichen – das zeigt nur, dass geschrieben wurde, nicht
+// ob sich am Mailtext etwas ändert, und fehlt bei Altbestand ganz.
+function esMailFingerabdruck(b) {
+  return JSON.stringify([!!b.orga, (b.positionen || []).map((p) =>
+    [p.nummer, p.name, p.preisCent, p.anzahl, p.sonderwunsch])]);
 }
 const ES_EIN_FELDER = ["es-ein-titel", "es-ein-lieferant", "es-ein-email", "es-ein-besteller",
   "es-ein-telefon", "es-ein-hinweis", "es-ein-von", "es-ein-bis"];
@@ -1007,15 +1022,18 @@ function esMailBestellungen(z) {
 
 function esRenderSammelmail(z) {
   const box = esEl("es-sammelmail");
-  // Geänderter Mailtext: nicht neu zeichnen (siehe esMailBearbeitet). Nur sagen,
-  // wenn sich die Bestellungen darunter inzwischen geändert haben.
-  if (esMailBearbeitet && esEl("es-mail-text")) {
+  // Geänderter oder schon geöffneter Mailtext: nicht neu zeichnen (siehe
+  // esMailBearbeitet, esMailGeoeffnet). Nur sagen, wenn sich die Bestellungen
+  // darunter inzwischen geändert haben.
+  const eingefroren = esMailBearbeitet || esMailGeoeffnet;
+  if (eingefroren && esEl("es-mail-text")) {
     const jetzt = essenService.bestelltext(esMailBestellungen(z), z.meta).text;
     const hinweis = esEl("es-mail-veraltet");
-    if (hinweis) hinweis.style.display = jetzt === esMailBearbeitet.basis ? "none" : "";
+    if (hinweis) hinweis.style.display = jetzt === eingefroren.basis ? "none" : "";
     return;
   }
   esMailBearbeitet = null;
+  esMailGeoeffnet = null;
   // ⚠️ Die einzeln gewählte Bestellung kann inzwischen weg sein (gelöscht oder
   // vom Besteller storniert). Dann zurück auf den Sammelweg, statt einen leeren
   // Kasten mit dem Namen eines Geistes zu zeigen.
@@ -1096,7 +1114,7 @@ function esRenderSammelmail(z) {
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>
       <textarea id="es-mail-text" class="eingabe es-mail-text" rows="12" spellcheck="false">${escapeHtml(brief.text)}</textarea>
-      <p class="hinweis-text" id="es-mail-veraltet" style="display:none">⚠️ An den Bestellungen hat sich seit deiner Änderung am Text etwas geändert.
+      <p class="hinweis-text" id="es-mail-veraltet" style="display:none">⚠️ An den Bestellungen hat sich etwas geändert, seit dieser Text erzeugt wurde.
         <button type="button" class="mini-btn" id="es-btn-mail-neu">Text neu erzeugen</button></p>
       <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen der Besteller stehen bewusst nicht drin. Bei Gerichten, von denen welche auf die Organisation gehen, steht dabei, wie viele – und was dafür wirklich zu zahlen ist.</p>
 
@@ -1143,17 +1161,24 @@ function esRenderSammelmail(z) {
   });
   // ⚠️ Der Link wird beim KLICK aus dem Textfeld gebaut, nicht beim Zeichnen
   // aus brief.text – sonst ginge eine Änderung am Text nie in die Mail.
+  // ⚠️ Ab hier ist der Text beim Lieferanten (oder auf dem Weg dorthin): den
+  // Kasten einfrieren, damit „Ist raus“ genau diese Auswahl festhält. Bei einer
+  // schon verschickten Runde gibt es nichts festzuhalten, dort bleibt alles live.
+  const merkeGeoeffnet = () => {
+    if (!runde && !esMailGeoeffnet) esMailGeoeffnet = { basis: brief.text };
+  };
   const mailLink = esEl("es-mail-link");
   if (mailLink) mailLink.addEventListener("click", () => {
     const feld = esEl("es-mail-text");
     if (!feld) return;
+    merkeGeoeffnet();
     mailLink.href = "mailto:" + encodeURIComponent(brief.empfaenger) +
       "?subject=" + encodeURIComponent(brief.betreff) +
       "&body=" + encodeURIComponent(feld.value);
   });
 
   const kopieren = esEl("es-btn-kopieren");
-  if (kopieren) kopieren.addEventListener("click", () => esKopiereMailText());
+  if (kopieren) kopieren.addEventListener("click", () => { merkeGeoeffnet(); esKopiereMailText(); });
 
   const zurueckBtn = esEl("es-btn-alle-zeigen");
   if (zurueckBtn) zurueckBtn.addEventListener("click", () => {
@@ -1180,7 +1205,22 @@ function esRenderSammelmail(z) {
   if (alleBtn) alleBtn.addEventListener("click", async () => {
     const vorher = esMailAuswahl;
     const ids = auswahl.map((b) => b.id);
-    if (!einzeln && !confirm("Diese " + ids.length + " Bestellungen als eine Sammelbestellung festhalten?")) return;
+    // ⚠️ `auswahl` ist der Stand, aus dem der Text im Kasten entstand. Hat sich
+    // eine dieser Bestellungen seitdem geändert oder ist sie aus dem Stapel
+    // verschwunden, entspräche die Runde nicht mehr der Mail – dann sagen,
+    // welche, und nachfragen. Was seitdem neu dazukam, bleibt einfach im Stapel.
+    const aktuell = new Map(((esZustand && esZustand.ohneRunde) || []).map((b) => [b.id, b]));
+    const abweichend = [];
+    auswahl.forEach((b) => {
+      const neu = aktuell.get(b.id);
+      if (!neu) abweichend.push("• " + b.name + ": nicht mehr im Stapel");
+      else if (esMailFingerabdruck(neu) !== esMailFingerabdruck(b)) abweichend.push("• " + b.name + ": seit dem Text geändert");
+    });
+    if (abweichend.length) {
+      if (!confirm("Seit dem Mailtext hat sich etwas geändert:\n" + abweichend.join("\n") +
+          "\n\nDie Sammelbestellung wiche dann von der Mail ab. Trotzdem so festhalten?\n" +
+          "(Abbrechen, dann „Text neu erzeugen“ und die Änderung dem Lieferanten nachschicken.)")) return;
+    } else if (!einzeln && !confirm("Diese " + ids.length + " Bestellungen als eine Sammelbestellung festhalten?")) return;
     // ⚠️ Die Ansicht VOR dem Schreiben zurückstellen. Das Schreiben löst über
     // Firebase sofort ein Neuzeichnen aus – käme die Umstellung erst danach,
     // stünde dort weiter „Nur die Bestellung von …" mit einer Bestellung, die
@@ -1189,7 +1229,9 @@ function esRenderSammelmail(z) {
     // Die Mail ist raus – ein geänderter Text hat damit seinen Zweck erfüllt und
     // darf das Neuzeichnen nach dem Schreiben nicht mehr aufhalten.
     const bearbeitetVorher = esMailBearbeitet;
+    const geoeffnetVorher = esMailGeoeffnet;
     esMailBearbeitet = null;
+    esMailGeoeffnet = null;
     // Ein Aufruf für beide Fälle: eine einzelne Bestellung ist eine
     // Sammelbestellung mit genau einer Zeile. Zwei Wege wären zwei Stellen, an
     // denen die Runde entstehen kann – und eine davon würde irgendwann anders
@@ -1199,7 +1241,8 @@ function esRenderSammelmail(z) {
       esMailAuswahl = vorher;   // hat nicht geklappt, also zurück in die alte Sicht
       // Der geänderte Text steht noch im Feld – nicht durch Neuzeichnen verwerfen.
       esMailBearbeitet = bearbeitetVorher;
-      if (!esMailBearbeitet) esRenderSammelmail(esZustand);
+      esMailGeoeffnet = geoeffnetVorher;
+      if (!esMailBearbeitet && !esMailGeoeffnet) esRenderSammelmail(esZustand);
       esZeigeFehler("es-mail-fehler", res.fehler);
     }
   });
