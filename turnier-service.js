@@ -2409,9 +2409,13 @@ async function doppelKoSchritt(zustand, spiele) {
   const entscheidung = finalSpiele.find((s) => s.runde === 1) || null;
   const wbFinale = runde(gewinner, W - 1);
   const lbFinale = lbRunden > 0 ? runde(verlierer, lbRunden - 1) : [];
+  // ⚠️ Bei genau zwei Teams im K.-o. gibt es keinen Verliererbaum (W = 1). Das
+  // große Finale ist dann das Rückspiel gegen den Verlierer des einzigen Spiels –
+  // sonst hieß es „X vs Freilos“, der Verlierer war nach EINER Niederlage raus und
+  // die Vorschau versprach eine Partie mehr, als gespielt wurde (Bugjagd 25.09.d T5-4).
   if (!grossesEins && fertig(wbFinale) && (lbRunden === 0 || fertig(lbFinale))) {
     updates["spiele/f_r0_p0"] = macheKoSpiel(
-      "f", 0, 0, koSieger(wbFinale[0]), lbRunden ? koSieger(lbFinale[0]) : null, { istFinale: true }
+      "f", 0, 0, koSieger(wbFinale[0]), lbRunden ? koSieger(lbFinale[0]) : koVerlierer(wbFinale[0]), { istFinale: true }
     );
   }
 
