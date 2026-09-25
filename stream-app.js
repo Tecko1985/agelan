@@ -76,6 +76,21 @@ function skFuelleZeiten(select, von, bis, wert) {
   if (!select.value && select.options.length) select.selectedIndex = 0;
 }
 
+// Welcher VERANSTALTUNGSTAG läuft gerade? ⚠️ Um 1 Uhr nachts ist das noch der
+// Vortag, wenn sein Fenster über Mitternacht reicht (bis > 1440) – der Kalender
+// sprang sonst nachts auf den Kalendertag statt auf den laufenden LAN-Tag
+// (Bugjagd 25.09.d T5b). Gleiche Regel wie ubJetztStand in der Übersicht.
+function skLanTagJetzt(z) {
+  const jetzt = new Date();
+  const minute = jetzt.getHours() * 60 + jetzt.getMinutes();
+  const g = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate() - 1);
+  const gestern = g.getFullYear() + "-" + String(g.getMonth() + 1).padStart(2, "0") + "-" + String(g.getDate()).padStart(2, "0");
+  const tagGestern = skTagVon(z, gestern);
+  if (tagGestern && minute + 1440 <= tagGestern.bis) return gestern;
+  const heute = streamService.heuteIso();
+  return skTagVon(z, heute) ? heute : null;
+}
+
 function skTagVon(z, datum) {
   return z.tage.find((t) => t.datum === datum) || null;
 }
@@ -93,8 +108,7 @@ function skRender(z) {
   // Aktiver Tag: beim ersten Rendern der heutige, wenn er im Plan liegt –
   // sonst der erste. Eine spätere Auswahl bleibt bestehen, solange es den Tag gibt.
   if (!skAktiverTag || !skTagVon(z, skAktiverTag)) {
-    const heute = streamService.heuteIso();
-    skAktiverTag = (skTagVon(z, heute) ? heute : z.tage[0].datum);
+    skAktiverTag = skLanTagJetzt(z) || z.tage[0].datum;
   }
   skZeigeView("sk-plan");
   skRenderPlan(z);
