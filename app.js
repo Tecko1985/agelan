@@ -329,13 +329,25 @@ function renderLobby(z) {
   document.getElementById("lobby-zaehler").textContent = z.spieler.length + " Angemeldete";
 
   const liste = document.getElementById("lobby-spielerliste");
+  // ⚠️ Zurücknehmen: die eigene Anmeldung selbst („Abmelden“), fremde nur der
+  // Veranstalter (🗑). Bis zum 25.09.2026 gab es dafür keinen Knopf, meldeAb()
+  // war nie verdrahtet (Bugjagd 25.09.d T5-7). Die Klicks laufen über einen
+  // Horcher an der Liste (wireEvents), nicht je Zeile.
+  const anmeldung = z.phase === "anmeldung";
   liste.innerHTML = z.spieler
     .map((s) => {
-      const ich = s.id === z.eigeneUid ? ' <span class="spieler-badge">(du)</span>' : "";
+      const eigen = s.id === z.eigeneUid;
+      const ich = eigen ? ' <span class="spieler-badge">(du)</span>' : "";
+      const knopf = !anmeldung ? ""
+        : eigen
+        ? `<button type="button" class="mini-btn" data-lobby-abmelden="1">Abmelden</button>`
+        : z.istAdmin
+        ? `<button type="button" class="mini-btn" data-lobby-entfernen="${escapeHtml(s.id)}" title="Aus der Anmeldung nehmen" aria-label="${escapeHtml(s.name)} aus der Anmeldung nehmen">🗑</button>`
+        : "";
       return `<li>
         <span class="spieler-avatar" style="background:${avatarFarbe(s.id)}">${escapeHtml(initiale(s.name))}</span>
         <span class="spieler-name">${escapeHtml(s.name)}${ich}</span>
-        <span class="spieler-badge">${Number(s.rating) || 0}</span>
+        <span class="spieler-badge">${Number(s.rating) || 0}</span>${knopf}
       </li>`;
     })
     .join("");
@@ -1224,12 +1236,40 @@ function wireEvents() {
 
   // Login absenden
   document.getElementById("btn-login-bestaetigen").addEventListener("click", async () => {
-    const res = await turnierService.tritBei({
+    const eingabe = {
       name: document.getElementById("login-name").value,
       rating: document.getElementById("login-rating").value,
-    });
+    };
+    let res = await turnierService.tritBei(eingabe);
+    // Gleicher Name schon angemeldet: meist dieselbe Person auf einem zweiten
+    // Gerät. Nur auf ausdrückliches Ja ein zweites Mal eintragen.
+    if (!res.erfolg && res.doppelt) {
+      if (!confirm(res.fehler + "\n\nBist du das auf einem anderen Gerät, brauchst du dich nicht noch einmal anzumelden. Ist es jemand anderes mit gleichem Namen, dann trotzdem anmelden?")) {
+        zeigeFehler("login-fehler", res.fehler + " Nicht noch einmal angemeldet.");
+        return;
+      }
+      res = await turnierService.tritBei(Object.assign({ trotzdem: true }, eingabe));
+    }
     if (res.erfolg) willMitmachen = false;
     zeigeFehler("login-fehler", res.erfolg ? "" : res.fehler);
+  });
+
+  // Lobby: eigene Anmeldung zurücknehmen / als Veranstalter eine fremde herausnehmen
+  document.getElementById("lobby-spielerliste").addEventListener("click", async (e) => {
+    const ab = e.target.closest("[data-lobby-abmelden]");
+    const weg = e.target.closest("[data-lobby-entfernen]");
+    if (!ab && !weg) return;
+    let res;
+    if (ab) {
+      if (!confirm("Deine Anmeldung zu diesem Turnier zurücknehmen?")) return;
+      res = await turnierService.meldeAb();
+    } else {
+      const uid = weg.dataset.lobbyEntfernen;
+      const sp = (zustand && zustand.spieler || []).find((x) => x.id === uid);
+      if (!confirm((sp ? "„" + sp.name + "“" : "Diese Anmeldung") + " aus dem Turnier nehmen?")) return;
+      res = await turnierService.entferneSpieler(uid);
+    }
+    zeigeFehler("lobby-fehler", res.erfolg ? "" : res.fehler);
   });
 
   // Lobby: als Veranstalter selbst mitspielen

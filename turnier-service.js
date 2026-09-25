@@ -1034,7 +1034,7 @@ async function authentifiziereAlsAdmin(pin) {
 }
 
 // --- Spieler-Login / Rating -----------------------------------------------
-async function tritBei({ name, rating }) {
+async function tritBei({ name, rating, trotzdem }) {
   await authBereit;
   if (!letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
   if (letzterZustand.meta.phase !== "anmeldung") return { erfolg: false, fehler: "Die Anmeldung ist bereits geschlossen." };
@@ -1042,6 +1042,19 @@ async function tritBei({ name, rating }) {
   const r = Math.round(Number(rating));
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
     return { erfolg: false, fehler: `Das 1vs1-Elo muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
+  }
+  // ⚠️ Die Anmeldung hängt an der anonymen Kennung des GERÄTS. Wer sich am Handy
+  // angemeldet hat, sieht am PC wieder „Einschreiben“ – ein Klick, und derselbe
+  // Name steht zweimal im Turnier (Bugjagd 25.09.d T5-7). Deshalb erst nachfragen;
+  // zwei verschiedene Leute mit gleichem Namen gehen mit `trotzdem` weiter durch.
+  const gleich = name.trim().toLowerCase();
+  const schonDa = Object.entries(letzterZustand.spieler || {})
+    .find(([uid, sp]) => uid !== eigeneUid && sp && String(sp.name || "").trim().toLowerCase() === gleich);
+  if (schonDa && !trotzdem) {
+    return {
+      erfolg: false, doppelt: true,
+      fehler: "„" + name.trim() + "“ ist schon angemeldet – vielleicht von einem anderen Gerät aus.",
+    };
   }
   await db.ref(turnierBasis() + "/spieler/" + eigeneUid).set({
     name: name.trim(),
@@ -1096,6 +1109,24 @@ async function meldeAb() {
     return { erfolg: false, fehler: "Abmelden nicht mehr möglich." };
   }
   await db.ref(turnierBasis() + "/spieler/" + eigeneUid).remove();
+  return { erfolg: true };
+}
+
+// Der Veranstalter nimmt eine fremde Anmeldung heraus: vertippt, doppelt
+// angemeldet, kommt nicht. Bis zum 25.09.2026 ging das nur über „Turnier
+// löschen“ – und damit waren alle Anmeldungen weg (Bugjagd 25.09.d T5-7).
+// ⚠️ Nur in der Phase „anmeldung“: danach hängen Teams und Spiele an der uid,
+// und ein Loch darin ließe Mannschaften mit einem Geist zurück.
+async function entferneSpieler(uid) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!letzterZustand || !letzterZustand.meta || letzterZustand.meta.phase !== "anmeldung") {
+    return { erfolg: false, fehler: "Herausnehmen geht nur, solange die Anmeldung läuft." };
+  }
+  if (!uid || !letzterZustand.spieler || !Object.prototype.hasOwnProperty.call(letzterZustand.spieler, uid)) {
+    return { erfolg: false, fehler: "Diese Anmeldung gibt es nicht mehr." };
+  }
+  await db.ref(turnierBasis() + "/spieler/" + uid).remove();
   return { erfolg: true };
 }
 
@@ -2784,6 +2815,7 @@ const turnierService = {
   tritBei,
   aktualisiereRating,
   meldeAb,
+  entferneSpieler,
   bildeTeams,
   tauscheSpieler,
   loseTurnier,
