@@ -517,7 +517,22 @@ function frRenderPaketeVerwalten(z) {
   }));
 }
 
+// ⚠️ Doppelklick-Sperre: bis Firebase bestätigt, legte ein zweiter Klick ein
+// zweites Paket an (Bugjagd 25.09.d T5b).
+let frPaketLaeuft = false;
 async function frSpeicherePaket() {
+  if (frPaketLaeuft) return;
+  frPaketLaeuft = true;
+  frEl("fr-btn-pak-anlegen").disabled = true;
+  try {
+    await frSpeicherePaketJetzt();
+  } finally {
+    frPaketLaeuft = false;
+    frEl("fr-btn-pak-anlegen").disabled = false;
+  }
+}
+
+async function frSpeicherePaketJetzt() {
   const werte = {
     name: frEl("fr-pak-name").value,
     beschreibung: frEl("fr-pak-beschreibung").value,

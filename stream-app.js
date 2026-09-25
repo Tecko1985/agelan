@@ -956,7 +956,14 @@ function skWireEvents() {
     skFuelleZeiten(skEl("sk-prg-bis"), von + SK_SCHRITT_UI, tag.bis, Math.max(bisAlt, von + SK_SCHRITT_UI));
   });
 
+  // ⚠️ Doppelklick-Sperre: Firebase bestätigt erst nach dem Netz, bis dahin
+  // legte ein zweiter Klick einen zweiten Eintrag an (Bugjagd 25.09.d T5b).
+  let prgLaeuft = false;
   skEl("sk-prg-speichern").addEventListener("click", async () => {
+    if (prgLaeuft) return;
+    prgLaeuft = true;
+    skEl("sk-prg-speichern").disabled = true;
+    try {
     const werte = {
       datum: skEl("sk-prg-tag").value,
       von: skEl("sk-prg-von").value,
@@ -970,6 +977,10 @@ function skWireEvents() {
       : await streamService.legeProgrammAn(werte);
     if (res.erfolg) skSchliesseProgrammDialog();
     else skZeigeFehler("sk-prg-fehler", res.fehler);
+    } finally {
+      prgLaeuft = false;
+      skEl("sk-prg-speichern").disabled = false;
+    }
   });
 
   skEl("sk-prg-loeschen").addEventListener("click", async () => {
@@ -1006,7 +1017,12 @@ function skWireEvents() {
   });
   skEl("sk-dlg-bis").addEventListener("change", skAktualisiereParallelHinweis);
 
+  let dlgLaeuft = false;   // Doppelklick-Sperre wie beim Programm
   skEl("sk-dlg-speichern").addEventListener("click", async () => {
+    if (dlgLaeuft) return;
+    dlgLaeuft = true;
+    skEl("sk-dlg-speichern").disabled = true;
+    try {
     const werte = {
       datum: skEl("sk-dlg-tag").value,
       von: skEl("sk-dlg-von").value,
@@ -1020,6 +1036,10 @@ function skWireEvents() {
       : await streamService.belegeZeit(werte);
     if (res.erfolg) skSchliesseDialog();
     else skZeigeFehler("sk-dlg-fehler", res.fehler);
+    } finally {
+      dlgLaeuft = false;
+      skEl("sk-dlg-speichern").disabled = false;
+    }
   });
 
   skEl("sk-dlg-loeschen").addEventListener("click", async () => {
