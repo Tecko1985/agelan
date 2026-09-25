@@ -75,6 +75,15 @@ function ubDauer(minuten) {
 // Absolute Minute seit Plan-Start – dieselbe Rechnung wie im Streamkalender,
 // damit „Do 25:00" und „Fr 1:00" derselbe Zeitpunkt bleiben.
 function ubJetztAbsolut(z) {
+  const stand = ubJetztStand(z);
+  return stand ? stand.abs : null;
+}
+
+// Wie ubJetztAbsolut, liefert aber auch den VERANSTALTUNGSTAG dazu. ⚠️ Um 1 Uhr
+// nachts ist das noch der Vortag (sein Fenster reicht über Mitternacht); aus
+// Math.floor(abs / 1440) wurde dort der NÄCHSTE Tag – und am letzten Tag gar
+// keiner, die Kopfzeile blieb leer (Bugjagd 25.09.d T5b).
+function ubJetztStand(z) {
   if (!z || !z.vorhanden || !z.tage.length) return null;
   const jetzt = new Date();
   const heute = jetzt.getFullYear() + "-" +
@@ -83,7 +92,6 @@ function ubJetztAbsolut(z) {
   const minute = jetzt.getHours() * 60 + jetzt.getMinutes();
 
   const tagHeute = z.tage.find((t) => t.datum === heute);
-  if (tagHeute) return tagHeute.index * 1440 + minute;
 
   // ⚠️ Vor Mitternacht hinaus: es ist 1 Uhr nachts, der Plan kennt diesen
   // Kalendertag nicht, aber der Vortag läuft noch bis 2:00 (= 1560). Ohne
@@ -93,9 +101,12 @@ function ubJetztAbsolut(z) {
     String(gestern.getMonth() + 1).padStart(2, "0") + "-" +
     String(gestern.getDate()).padStart(2, "0");
   const tagGestern = z.tage.find((t) => t.datum === gesternIso);
+  // ⚠️ Das Fenster des Vortags geht vor: um 1 Uhr nachts läuft noch „gestern“,
+  // auch wenn der Kalendertag selbst schon im Plan steht.
   if (tagGestern && minute + 1440 <= tagGestern.bis) {
-    return tagGestern.index * 1440 + minute + 1440;
+    return { abs: tagGestern.index * 1440 + minute + 1440, tag: tagGestern };
   }
+  if (tagHeute) return { abs: tagHeute.index * 1440 + minute, tag: tagHeute };
   return null;
 }
 
@@ -410,9 +421,9 @@ function ubRender() {
   const unter = ubEl("ub-untertitel");
   if (titel) titel.textContent = (sz && sz.vorhanden && sz.meta.titel) ? sz.meta.titel : "Übersicht";
   if (unter) {
-    const jetzt = ubJetztAbsolut(sz);
-    if (sz && sz.vorhanden && jetzt !== null) {
-      const tag = sz.tage[Math.floor(jetzt / 1440)];
+    const stand = ubJetztStand(sz);
+    if (sz && sz.vorhanden && stand) {
+      const tag = stand.tag;
       unter.textContent = tag
         ? "Tag " + (tag.index + 1) + " von " + sz.tage.length + " · " + tag.label
         : "";
