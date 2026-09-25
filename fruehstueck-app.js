@@ -266,6 +266,17 @@ async function frSpeichereBestellung(tag) {
   });
   if (!res.erfolg) { frZeigeFehler("fr-best-fehler", res.fehler); return; }
   frEntwurf = null;
+  frNachSchreibenZeichnen();
+}
+
+// ⚠️ Nach „Bestellen“/„Stornieren“ SOFORT neu zeichnen. Firebase meldet den
+// eigenen Schreibvorgang schon während set()/remove() an die Horcher – das
+// Neuzeichnen lief also, BEVOR frEntwurf hier auf null ging. Danach zeigten
+// Stepper und Felder auf einen Entwurf, den es nicht mehr gab: „+“ warf, eine
+// getippte Notiz war nach dem Takt weg, „Bestellung aktualisieren“ meldete
+// „keine Verbindung“, bis zu 30 s lang (Bugjagd 25.09.d T5b-3).
+function frNachSchreibenZeichnen() {
+  frRender(fruehstueckService.getZustand());
 }
 
 async function frStorniereBestellung(tag) {
@@ -273,6 +284,7 @@ async function frStorniereBestellung(tag) {
   const res = await fruehstueckService.storniere(tag.datum);
   if (!res.erfolg) { frZeigeFehler("fr-best-fehler", res.fehler); return; }
   frEntwurf = null;
+  frNachSchreibenZeichnen();
 }
 
 // --- Admin: Einkaufsliste + Bestellerliste je Tag ---------------------------
