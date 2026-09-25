@@ -1578,6 +1578,45 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.21",
+    groups: [
+      { title: "Essen: Fehler vor der AGE LAN behoben", items: [
+          "„Ist raus“ hält genau die Bestellungen fest, die in der geöffneten oder kopierten Mail standen. Hat sich seitdem eine davon geändert, fragt die App nach.",
+          "Stellt der Veranstalter eine Bestellung auf „zahlt“ oder „geht aufs Haus“, bleibt das auch, wenn der Besteller sie danach ändert.",
+          "Beim Speichern der Einstellungen werden Änderungen von einem anderen Gerät nicht mehr mit alten Werten überschrieben – beim Frühstück ebenso.",
+          "Der Korb zeigt nach einer Preisänderung den neuen Preis; „Ändern“ fragt nach, bevor ein gefüllter Korb ersetzt wird.",
+          "Die Sammelmail trennt Stücke mit unterschiedlicher Bestellnummer; eine gleichzeitig doppelt angelegte, leere Lieferung wird nicht mehr angezeigt.",
+          "„Bescheid geben“ gibt es nur mit Veranstalter- oder Orga-Konto; mit dem PIN allein steht dort, warum nicht.",
+          "Die eigene Bestellung steht auch auf einem zweiten Gerät mit demselben Konto unter „Meine“.",
+          "Richtige Gründe: „schon beim Lieferanten bestellt“ statt „bezahlt“, „Orga-Essen noch nicht freigegeben“ statt „Da fehlt noch Geld“.",
+          "Das Recht über den PIN gilt nur für die Essensbestellung, für die er eingegeben wurde.",
+          "Das Sonderwunsch-Feld vergrößert am iPhone nicht mehr die Seite."
+      ]},
+      { title: "Frühstück: Fehler vor der AGE LAN behoben", items: [
+          "Nach einer Preisänderung zeigt die Karte den Betrag der eigenen Bestellung wie Kasse und Abrechnung und sagt, dass sich der Preis geändert hat.",
+          "Die Zahl der Morgen lässt sich nicht mehr kürzen, solange am wegfallenden Morgen bestellt ist.",
+          "Nach „Bestellen“ oder „Stornieren“ reagiert die Seite sofort wieder.",
+          "Eine bezahlte Bestellung sperrt Menge und Stornieren, mit Hinweis auf den Haken des Veranstalters.",
+          "Beim Tippen in Notiz oder Namen bleibt der Cursor im Feld; ein Doppelklick auf „Paket hinzufügen“ legt nur ein Paket an."
+      ]},
+      { title: "Turnier: Setzung, Wertung und Anmeldung", items: [
+          "K.-o. nach Gruppen: in der ersten Runde trifft niemand auf jemanden aus der eigenen Gruppe, wenn es sich vermeiden lässt.",
+          "Wertung „Direktes Duell“: bei mehreren Punktgleichen entscheidet eine Mini-Tabelle der Spiele untereinander – auch bei einem Dreier-Kreis eindeutig.",
+          "Schweizer System: kein Wiedersehen, solange es eine Paarung ohne gibt.",
+          "Die eigene Anmeldung lässt sich mit „Abmelden“ zurücknehmen, der Veranstalter nimmt Anmeldungen per 🗑 heraus. Meldet sich derselbe Name von einem zweiten Gerät an, fragt die App nach.",
+          "Doppel-K.-o. mit zwei Teams: das große Finale ist ein echtes Rückspiel.",
+          "Der Zeitplan kann über Mitternacht gehen (z. B. 18:00 bis 02:00).",
+          "„Nur zuschauen“ bleibt in der Lobby; „Offene Spiele auswürfeln“ lässt gemeldete Ergebnisse stehen."
+      ]},
+      { title: "Stream, Übersicht und Start", items: [
+          "Die Übersicht nennt alle parallelen Programmpunkte und alle gleichzeitig beginnenden Streams, zeigt nach Mitternacht den laufenden Veranstaltungstag und nach der Veranstaltung keine alte Nachfassliste mehr.",
+          "Der Streamkalender öffnet nachts den laufenden Veranstaltungstag, das Tagesende steht immer in der Ende-Liste, und ein Doppelklick legt nichts doppelt an.",
+          "Ein eigener Eintrag ohne 🎥 sagt, dass der Haken fehlt; ohne Eintrag-Recht öffnet ein Klick in die freie Spur keinen Dialog mehr.",
+          "Lädt die Seite wegen des Netzes nicht vollständig, erscheint oben eine Leiste mit „Neu laden“."
+      ]},
+    ],
+  },
+  {
     version: "8.20",
     groups: [
       { title: "Teams tauschen: Auswahl springt nicht mehr zurück", items: [
