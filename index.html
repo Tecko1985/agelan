@@ -1427,9 +1427,35 @@
       s.onerror = function () {
         msg.style.color = '#c0392b';
         msg.textContent = 'Die Seite konnte nicht vollständig geladen werden.';
+        ladeFehlerZeigen();
       };
       document.body.appendChild(s);
     })();
+  }
+
+  // ⚠️ #pw-gate-msg allein reicht nicht: wer ein gemerktes Konto hat, sieht den
+  // Dialog nie – die Meldung stand unsichtbar darin, und der Vorraum sah aus,
+  // als ginge alles, nur die Reiter blieben leer (Bugjagd 25.09.d T5-5). Deshalb
+  // eine eigene Leiste ganz oben mit „Neu laden“. Neu laden statt Nachladen:
+  // schon geladene Skripte ein zweites Mal einzuhängen, zerlegte den geteilten
+  // Scope (doppelte const).
+  function ladeFehlerZeigen() {
+    if (document.getElementById('lade-fehler')) return;
+    var leiste = document.createElement('div');
+    leiste.id = 'lade-fehler';
+    leiste.setAttribute('role', 'alert');
+    leiste.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;background:#fdecea;color:#7f1d1d;' +
+      'border-bottom:2px solid #c0392b;padding:10px 16px;font-size:15px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;';
+    var text = document.createElement('span');
+    text.textContent = 'Die Seite konnte nicht vollständig geladen werden – meist ist das Netz kurz weg.';
+    var knopf = document.createElement('button');
+    knopf.type = 'button';
+    knopf.textContent = 'Neu laden';
+    knopf.style.cssText = 'padding:6px 14px;border-radius:999px;border:1px solid #c0392b;background:#fff;color:#7f1d1d;font-weight:600;cursor:pointer;';
+    knopf.addEventListener('click', function () { location.reload(); });
+    leiste.appendChild(text);
+    leiste.appendChild(knopf);
+    document.body.appendChild(leiste);
   }
 
   // ⚠️ Der Vorraum wird NICHT aus dem DOM entfernt, nur versteckt: er ist das
