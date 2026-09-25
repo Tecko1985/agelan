@@ -2535,8 +2535,12 @@ async function entferneTestspieler() {
 // Die Gewinnchance kommt aus der ELO-Formel über den Team-Ratings: das stärkere
 // Team gewinnt häufiger, aber nicht immer – ohne Überraschungen wäre die
 // Gruppentabelle am Ende bloß die Setzliste und der Test wenig aussagekräftig.
+// ⚠️ Nur wirklich OFFENE Spiele. Ein gemeldetes Ergebnis wartet auf die
+// Bestätigung des Gegners – der Test-Knopf ersetzte es sonst durch Zufall,
+// obwohl Knopf und Rückfrage nur von „offenen“ Spielen sprechen (Bugjagd
+// 25.09.d T5-9).
 function simulierbareSpiele() {
-  return spielListe().filter((s) => s.status !== "bestaetigt" && s.teamA && s.teamB);
+  return spielListe().filter((s) => s.status !== "bestaetigt" && s.status !== "gemeldet" && s.teamA && s.teamB);
 }
 
 async function simuliereOffeneSpiele() {

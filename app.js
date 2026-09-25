@@ -1300,7 +1300,7 @@ function wireEvents() {
   // lassen sich nur über "Turnier zurücksetzen" wieder loswerden.
   const simuliere = async (fehlerId) => {
     const offen = zustand ? zustand.offeneSpieleAnzahl : 0;
-    if (!confirm(`${offen} offene(s) Spiel(e) mit Zufallsergebnissen füllen? Bereits bestätigte Ergebnisse bleiben stehen; die ausgewürfelten bekommst du nur über „Turnier zurücksetzen" wieder weg.`)) return;
+    if (!confirm(`${offen} offene(s) Spiel(e) mit Zufallsergebnissen füllen? Gemeldete und bestätigte Ergebnisse bleiben stehen; die ausgewürfelten bekommst du nur über „Turnier zurücksetzen" wieder weg.`)) return;
     const res = await turnierService.simuliereOffeneSpiele();
     zeigeFehler(fehlerId, res.erfolg ? "" : res.fehler);
   };
