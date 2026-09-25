@@ -1620,6 +1620,24 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.23",
+    groups: [
+      { title: "Essen: Telefon und Lieferanten-Mail nur für die Verwaltung", items: [
+          "Telefonnummer des Bestellers und Mail des Lieferanten liegen getrennt von der Bestellliste. Sobald die neuen Datenbank-Regeln eingespielt sind, kann nur noch die Verwaltung sie lesen; vorhandene Angaben zieht die App beim nächsten Öffnen durch die Verwaltung selbst um.",
+          "Lässt die Datenbank das Ändern oder Stornieren einer Bestellung von einem zweiten Gerät desselben Kontos nicht zu, sagt die App, dass es auf dem ersten Gerät oder über die Orga geht."
+      ]},
+    ],
+  },
+  {
+    version: "8.22",
+    groups: [
+      { title: "Bedienung ohne Maus", items: [
+          "Die Fenster Ergebnis melden, Veranstalter, Zeitplan, Zeit belegen und Programmpunkt schließen per Escape. Ein Vorleseprogramm erkennt sie als Fenster; der Fokus springt beim Öffnen hinein und beim Schließen zurück.",
+          "Die Fehlermeldung in der Anmeldeliste eines Turniers wird vorgelesen."
+      ]},
+    ],
+  },
+  {
     version: "8.21",
     groups: [
       { title: "Essen: Fehler vor der AGE LAN behoben", items: [
