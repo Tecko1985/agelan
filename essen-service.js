@@ -1330,7 +1330,7 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     return { erfolg: false, fehler: "Das ist nicht deine Bestellung." };
   }
   if (bisher && !bisher.aenderbar && !z.istAdmin) {
-    return { erfolg: false, fehler: "Die Bestellung ist bezahlt und lässt sich nicht mehr ändern. Sag dem Veranstalter Bescheid." };
+    return { erfolg: false, fehler: esWarumFest(bisher) + " und lässt sich nicht mehr ändern. Sag dem Veranstalter Bescheid." };
   }
   if (!bisher && !z.annahmeOffen && !z.istAdmin) {
     // Warum zu ist, muss dranstehen – „geschlossen" ohne Grund laesst niemanden
@@ -1411,6 +1411,16 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
   return { erfolg: true, id };
 }
 
+// Warum eine Bestellung eingefroren ist. ⚠️ Nicht immer „bezahlt“: auch eine
+// unbezahlte, die schon in einer Sammelbestellung beim Lieferanten steckt, ist
+// fest – dort „ist bezahlt“ zu melden, schickte den Besteller mit einer
+// falschen Begründung weg (Bugjagd 25.09.d T5a).
+function esWarumFest(b) {
+  return b && b.status === "neu" && b.inRunde
+    ? "Die Bestellung ist schon beim Lieferanten bestellt"
+    : "Die Bestellung ist bezahlt";
+}
+
 async function esStorniere(bestellungId) {
   await esAuthBereit;
   const z = esGetZustand();
@@ -1418,7 +1428,7 @@ async function esStorniere(bestellungId) {
   if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
   if (!b.istEigene && !z.istAdmin) return { erfolg: false, fehler: "Das ist nicht deine Bestellung." };
   if (!b.aenderbar && !z.istAdmin) {
-    return { erfolg: false, fehler: "Die Bestellung ist bezahlt. Der Veranstalter muss sie entfernen." };
+    return { erfolg: false, fehler: esWarumFest(b) + ". Der Veranstalter muss sie entfernen." };
   }
   const updates = {};
   updates["bestellungen/" + bestellungId] = null;
