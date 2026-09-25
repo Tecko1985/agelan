@@ -38,6 +38,10 @@ function setzeVeranstalterFrei(frei) {
 
 let zustand = null;
 let willMitmachen = false;   // lokaler UI-Zustand: "Jetzt anmelden" geklickt
+// „Nur zuschauen“ geklickt: bleibt in der Lobby. ⚠️ Nur per showScreen() sprang
+// die nächste fremde Anmeldung über render() zurück auf den Startschirm
+// (Bugjagd 25.09.d T5-8). Zurückgesetzt beim Turnierwechsel.
+let willZuschauen = false;
 let meldeSpielId = null;     // aktuell im Melde-Dialog bearbeitetes Spiel
 let meldeAdminModus = false; // Melde-Dialog als Admin-Korrektur?
 let losFelderInit = false;   // Auslosungs-Felder je Team-Phase einmal mit Vorschlag füllen
@@ -85,7 +89,7 @@ function bestimmeScreen(z) {
   if (!z.turnierId || !z.vorhanden) return "screen-auswahl";
   if (z.phase === "anmeldung") {
     if (willMitmachen && !z.eigenerSpieler) return "screen-login";
-    if (z.eigenerSpieler || z.istAdmin) return "screen-lobby";
+    if (z.eigenerSpieler || z.istAdmin || willZuschauen) return "screen-lobby";
     return "screen-start";
   }
   return { teams: "screen-teams", gruppen: "screen-gruppen", ko: "screen-ko", beendet: "screen-beendet" }[z.phase] || "screen-start";
@@ -1208,12 +1212,14 @@ function wireEvents() {
     const karte = e.target.closest("[data-turnier]");
     if (!karte) return;
     willMitmachen = false;
+    willZuschauen = false;
     turnierService.waehleTurnier(karte.dataset.turnier);
   });
 
   // Zurück in die Turnierliste
   document.getElementById("btn-turnier-wechseln").addEventListener("click", () => {
     willMitmachen = false;
+    willZuschauen = false;
     turnierService.waehleTurnier(null);
   });
 
@@ -1226,8 +1232,8 @@ function wireEvents() {
   document.getElementById("btn-nur-zuschauen").addEventListener("click", () => {
     // In der Anmeldephase gibt es nur die Lobby-Liste zu sehen.
     willMitmachen = false;
-    showScreen("screen-lobby");
-    renderLobby(zustand);
+    willZuschauen = true;
+    render(zustand);
   });
   document.getElementById("btn-login-zurueck").addEventListener("click", () => {
     willMitmachen = false;
@@ -1503,6 +1509,7 @@ function wireEvents() {
     const res = await turnierService.loescheTurnier();
     if (!res.erfolg) return zeigeFehler("admin-panel-fehler", res.fehler);
     willMitmachen = false;
+    willZuschauen = false;
     schliesseAdmin();
   });
 
