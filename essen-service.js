@@ -1371,12 +1371,14 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
   }
 
   // Gehört die Bestellung zur Organisation? Das Merkmal folgt der PERSON, die
-  // sie abgibt.
-  // ⚠️ Bearbeitet der Veranstalter eine fremde Bestellung, zählt weiter der
-  // Stand von dort – sonst würde jede Korrektur an einer fremden Bestellung
-  // dessen eigenes Orga-Merkmal darauf übertragen und sie stillschweigend
-  // kostenlos machen.
-  const orgaJetzt = bisher && !bisher.istEigene
+  // sie abgibt – aber nur beim ersten Abschicken.
+  // ⚠️ Danach gilt der Stand der Bestellung, bei JEDER Änderung, auch der
+  // eigenen. Er kann eine Korrektur des Veranstalters sein (esSetzeOrga:
+  // „das zahlst du selbst“ / „geht aufs Haus“), und die darf nicht verschwinden,
+  // nur weil der Besteller einen Sonderwunsch ergänzt (Bugjagd 25.09.d T5a-1b).
+  // Bearbeitet der Veranstalter eine fremde Bestellung, überträgt sich so auch
+  // nie sein eigenes Merkmal darauf.
+  const orgaJetzt = bisher
     ? bisher.orga
     : (typeof kontoIstOrga === "function" && kontoIstOrga());
 
