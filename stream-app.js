@@ -27,6 +27,7 @@ let skZustand = null;
 let skAktiverTag = null;      // Datum des am Handy sichtbaren Tages
 let skDialogSlotId = null;    // null = neue Belegung, sonst die bearbeitete
 let skDialogNurLesen = false;
+let skDialogEigenGesperrt = false;   // eigener Eintrag, aber ohne 🎥-Recht (nur lesen)
 let skProgrammDialogId = null;
 let skProgrammNurLesen = false;
 // Zeitfenster, die der Veranstalter gerade umstellt, aber noch nicht
@@ -446,6 +447,10 @@ function skOeffneDialog(slotId, vorbelegung) {
   const slot = slotId ? z.slots.find((s) => s.id === slotId) : null;
   skDialogSlotId = slot ? slot.id : null;
   skDialogNurLesen = !!slot && !slot.darfBearbeiten;
+  // ⚠️ Nur-Lesen hat zwei Gründe: fremder Eintrag ODER eigener, aber der
+  // Streamer-Haken 🎥 fehlt. Im zweiten Fall stand bis 25.09.2026 „Diesen
+  // Eintrag hat jemand anders gemacht.“ (Bugjagd 25.09.d T5b).
+  skDialogEigenGesperrt = !!slot && skDialogNurLesen && !!slot.istEigener;
 
   const datum = slot ? slot.datum : ((vorbelegung && vorbelegung.datum) || skAktiverTag);
   const tag = skTagVon(z, datum) || z.tage[0];
@@ -491,7 +496,9 @@ function skAktualisiereParallelHinweis() {
   const el = skEl("sk-dlg-hinweis");
   if (!el) return;
   if (skDialogNurLesen) {
-    el.textContent = "Diesen Eintrag hat jemand anders gemacht.";
+    el.textContent = skDialogEigenGesperrt
+      ? "Das ist dein Eintrag – ändern oder löschen geht nur mit dem Streamer-Haken 🎥. Melde dich bei Michel."
+      : "Diesen Eintrag hat jemand anders gemacht.";
     return;
   }
   const andere = streamService.paralleleZu({
