@@ -479,8 +479,12 @@ async function tokenSchluessel(env) {
 
 // ⚠️ Das Admin-Merkmal steht MIT im signierten Token, ist also nicht faelschbar.
 // Der Client darf ihm deshalb glauben - er kann es nicht selbst setzen.
-async function tokenBauen(env, nick, admin, streamer, orga) {
-  const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000 };
+// ⚠️ Abnahme 25.09.e B2-11: `t` = angelegtAm des Kontos. Ein Token gehoert damit zu GENAU
+// einem Konto, nicht zu einem Namen: wurde das Konto geloescht und unter demselben Namen
+// neu angelegt, passt das alte Token nicht mehr (siehe tokenPasstZuKonto). Vorher gab
+// konto-pruefen dem alten Token sogar ein frisches mit den Rechten des Nachfolgers.
+async function tokenBauen(env, nick, admin, streamer, orga, angelegtAm) {
+  const nutzlast = { n: nick, e: Date.now() + TOKEN_TAGE * 86400000, t: Number(angelegtAm) || 0 };
   if (admin) nutzlast.a = 1;
   if (streamer) nutzlast.s = 1;
   // ⚠️ `orga` entscheidet ueber Geld (wer beim Essen nichts zahlt) und gehoert
@@ -513,10 +517,17 @@ async function tokenLesen(env, token) {
     if (!ok) return null;
     const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
     if (!nutzlast || !nutzlast.n || !(nutzlast.e > Date.now())) return null;
-    return { nick: nutzlast.n, admin: nutzlast.a === 1, streamer: nutzlast.s === 1, orga: nutzlast.o === 1 };
+    return { nick: nutzlast.n, admin: nutzlast.a === 1, streamer: nutzlast.s === 1, orga: nutzlast.o === 1,
+             t: typeof nutzlast.t === "number" ? nutzlast.t : null };
   } catch (e) {
     return null;
   }
+}
+
+// B2-11: passt das (gueltig signierte) Token zu DIESEM Konto? Alte Token ohne `t` (vor dem
+// 26.09.2026 ausgestellt) gelten als abgelaufen - einmal neu anmelden.
+function tokenPasstZuKonto(gelesen, konto) {
+  return !!gelesen && !!konto && typeof gelesen.t === "number" && gelesen.t === (Number(konto.angelegtAm) || 0);
 }
 
 async function kontoAnlegen(request, body, env, cors, ctx) {
@@ -563,6 +574,7 @@ async function kontoAnlegen(request, body, env, cors, ctx) {
     ? (await veranstalterOk(request, body, env)).ok
     : false;
 
+  const angelegtAm = Date.now();   // B2-11: steht auch im Token
   await env.KONTEN.put(schluessel, JSON.stringify({
     nick: geprueft.nick,
     pw: await passwortHashen(passwort),
@@ -570,7 +582,7 @@ async function kontoAnlegen(request, body, env, cors, ctx) {
     streamer: false,   // vergibt der Veranstalter, siehe konto-streamer
     orga: false,       // vergibt der Veranstalter, siehe konto-orga
     discordId: discord.id,   // "" = nicht hinterlegt, jederzeit nachtragbar
-    angelegtAm: Date.now(),
+    angelegtAm: angelegtAm,
   }));
 
   // ⚠️ ERST nach dem Schreiben, und bewusst ohne await: das Konto steht schon,
@@ -599,7 +611,7 @@ async function kontoAnlegen(request, body, env, cors, ctx) {
     // geschickt. In die KONTEN-LISTE fuer den Veranstalter gehoert sie nicht,
     // dort steht nur, OB eine hinterlegt ist.
     discordId: discord.id,
-    token: await tokenBauen(env, geprueft.nick, istAdmin, false, istAdmin),
+    token: await tokenBauen(env, geprueft.nick, istAdmin, false, istAdmin, angelegtAm),
   }, 200, cors);
 }
 
@@ -649,7 +661,7 @@ async function kontoLogin(request, body, env, cors) {
     streamer: !!konto.streamer,
     orga: !!konto.orga || !!konto.admin,
     discordId: konto.discordId || "",
-    token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer, !!konto.orga || !!konto.admin),
+    token: await tokenBauen(env, konto.nick, !!konto.admin, !!konto.streamer, !!konto.orga || !!konto.admin, konto.angelegtAm),
   }, 200, cors);
 }
 
@@ -669,18 +681,22 @@ async function kontoPruefen(body, env, cors) {
   let streamer = false;
   let orga = false;
   let discordId = "";
+  let angelegtAm = 0;
   try {
     const k = JSON.parse(roh);
+    angelegtAm = Number(k.angelegtAm) || 0;
     admin = !!k.admin;
     streamer = !!k.streamer;
     orga = !!k.orga;
     discordId = k.discordId || "";
   } catch (e) { /* kaputter Eintrag gilt als ohne Rechte */ }
   orga = orga || admin;   // Veranstalter gehoeren immer dazu
+  // B2-11: gleicher Name, aber ein NEUES Konto -> das alte Token gilt nicht mehr.
+  if (!tokenPasstZuKonto(gelesen, { angelegtAm: angelegtAm })) return json({ ok: false }, 200, cors);
 
   // Weicht der Stand vom Token ab, bekommt der Client ein frisches.
   const abweichend = admin !== gelesen.admin || streamer !== gelesen.streamer || orga !== gelesen.orga;
-  const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer, orga) : null;
+  const token = abweichend ? await tokenBauen(env, gelesen.nick, admin, streamer, orga, angelegtAm) : null;
   // ⚠️ Die ID muss bei JEDEM Start mitkommen, nicht nur beim Anmelden. Wer sie
   // an einem Geraet nachtraegt, soll sie am naechsten auch sehen - sonst
   // behauptet das zweite Geraet, es sei nichts hinterlegt, und der Mensch
@@ -725,6 +741,7 @@ async function kontoAdmin(request, body, env, cors) {
     return json({ error: "Das Konto ist beschädigt." }, 500, cors);
   }
 
+  if (!tokenPasstZuKonto(gelesen, konto)) return json({ error: "Du bist nicht angemeldet." }, 403, cors);   // B2-11
   konto.admin = anschalten;
   await env.KONTEN.put(schluessel, JSON.stringify(konto));
   const orgaJetzt = !!konto.orga || anschalten;
@@ -734,7 +751,7 @@ async function kontoAdmin(request, body, env, cors) {
     admin: anschalten,
     streamer: !!konto.streamer,
     orga: orgaJetzt,
-    token: await tokenBauen(env, konto.nick, anschalten, !!konto.streamer, orgaJetzt),
+    token: await tokenBauen(env, konto.nick, anschalten, !!konto.streamer, orgaJetzt, konto.angelegtAm),
   }, 200, cors);
 }
 
@@ -828,7 +845,7 @@ async function veranstalterOk(request, body, env) {
       if (roh) {
         try {
           const k = JSON.parse(roh);
-          if (k.admin || k.orga) return { ok: true };
+          if ((k.admin || k.orga) && tokenPasstZuKonto(gelesen, k)) return { ok: true };   // B2-11
         } catch (e) { /* kaputter Eintrag zaehlt nicht */ }
       }
     }
@@ -913,6 +930,8 @@ async function kontoLoeschen(request, body, env, cors) {
     for (const k of seite.keys) { await env.KONTEN.delete(k.name); anzahl++; }
     cursor = seite.list_complete ? null : seite.cursor;
   } while (cursor);
+  // B2-11: neuer Signierschluessel -> JEDES bisher ausgestellte Token ist ungueltig.
+  await env.KONTEN.delete("_tokenSecret");
   return json({ ok: true, geloescht: anzahl }, 200, cors);
 }
 
@@ -928,6 +947,7 @@ async function eigenesKonto(body, env) {
   if (!roh) return { fehler: "Dieses Konto gibt es nicht mehr.", status: 404 };
   try {
     const konto = JSON.parse(roh);
+    if (!tokenPasstZuKonto(gelesen, konto)) return { fehler: "Nicht angemeldet.", status: 403 };   // B2-11
     return { konto: konto, schluessel: nickSchluessel(gelesen.nick) };
   } catch (e) {
     return { fehler: "Der Konto-Eintrag ist beschädigt.", status: 500 };
