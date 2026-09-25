@@ -1514,6 +1514,10 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
   // ⚠️ set() statt update(): weggenommene Positionen müssen wirklich
   // verschwinden. Der Status wird dabei mitgeschrieben, nicht zurückgesetzt –
   // er gehört dem Veranstalter, nicht dem Besteller.
+  // ⚠️ Abnahme 25.09.e (E5): mit den neuen Regeln haengt eine Bestellung an der uid DES GERAETS,
+  // das sie abgegeben hat. „Meine“ erkennt die App auch am Kontonamen (zweites Geraet) - dort
+  // lehnt die Datenbank das Aendern ab. Das sagen, statt die Ablehnung durchfallen zu lassen.
+  try {
   await db.ref(ES_BASIS + "/bestellungen/" + id).set({
     uid: bisher ? bisher.uid : esEigeneUid,
     name: n,
@@ -1530,6 +1534,9 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     erstelltAm: bisher ? bisher.erstelltAm : firebase.database.ServerValue.TIMESTAMP,
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
   });
+  } catch (e) {
+    return { erfolg: false, fehler: esSchreibFehler(bisher, z) };
+  }
   try {
     localStorage.setItem(ES_NAME_KEY, n);
   } catch (e) { /* privater Modus */ }
@@ -1558,8 +1565,21 @@ async function esStorniere(bestellungId) {
   const updates = {};
   updates["bestellungen/" + bestellungId] = null;
   esRundeAufraeumen(updates, b.rundeId, bestellungId);
-  await db.ref(ES_BASIS).update(updates);
+  try {
+    await db.ref(ES_BASIS).update(updates);
+  } catch (e) {
+    return { erfolg: false, fehler: esSchreibFehler(b, z) };   // E5, siehe esBestelle
+  }
   return { erfolg: true };
+}
+
+// E5: warum die Datenbank eine Bestellung abgelehnt hat - die haeufigste Ursache ist ein
+// zweites Geraet mit demselben Konto (neue Regeln binden an die uid des abgebenden Geraets).
+function esSchreibFehler(bestellung, z) {
+  if (bestellung && bestellung.uid && bestellung.uid !== esEigeneUid && !(z && z.istAdmin)) {
+    return "Diese Bestellung wurde auf einem anderen Gerät abgegeben. Ändern oder stornieren geht dort – oder über die Orga.";
+  }
+  return "Das ließ sich gerade nicht speichern. Bitte versuch es noch einmal.";
 }
 
 // Verlässt eine Bestellung ihre Runde und war sie die letzte darin, muss die
