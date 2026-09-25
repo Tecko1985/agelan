@@ -445,6 +445,11 @@ function skOeffneDialog(slotId, vorbelegung) {
   if (!z || !z.vorhanden) return;
 
   const slot = slotId ? z.slots.find((s) => s.id === slotId) : null;
+  // ⚠️ Neu belegen nur mit Eintrag-Recht – wie beim Programm. Der Knopf ist
+  // ohne Recht versteckt, aber ein Klick in die freie Stream-Spur öffnete sonst
+  // einen offenen Dialog, dessen Speichern erst am Dienst scheiterte (Bugjagd
+  // 25.09.d T5b).
+  if (!slot && !z.darfEintragen) return;
   skDialogSlotId = slot ? slot.id : null;
   skDialogNurLesen = !!slot && !slot.darfBearbeiten;
   // ⚠️ Nur-Lesen hat zwei Gründe: fremder Eintrag ODER eigener, aber der
