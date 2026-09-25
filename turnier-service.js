@@ -1459,11 +1459,40 @@ function bisherigePaarungen(spiele) {
   return gespielt;
 }
 
-// Greedy von oben nach unten: der oder die Erste bekommt den nächsten noch
-// freien Gegner, gegen den noch nicht gespielt wurde. Findet sich keiner, wird
-// als letztes Mittel eine Wiederholung erlaubt – lieber ein zweites Duell als
-// eine Runde, die gar nicht zustande kommt.
+// Von oben nach unten: der oder die Erste bekommt den nächsten noch freien
+// Gegner, gegen den noch nicht gespielt wurde – aber nur, wenn sich der Rest
+// danach auch noch ohne Wiedersehen paaren lässt (Tiefensuche mit Rücksetzen).
+// ⚠️ Rein greedy blieben sonst für die letzten zwei oft nur Gegner, die sich
+// schon kannten, obwohl es eine Paarung ganz ohne Wiedersehen gab (Bugjagd
+// 25.09.d T5-3: bei 5 Teilnehmenden in 87 von 120 Turnieren). Erst wenn es
+// keine gibt, wird als letztes Mittel eine Wiederholung erlaubt – lieber ein
+// zweites Duell als eine Runde, die gar nicht zustande kommt.
+// ⚠️ Die Suche hat eine Obergrenze an Schritten; reicht sie nicht, gilt der
+// alte Greedy-Weg. Bei den üblichen Größen ist sie nach wenigen Schritten fertig.
+const SCHWEIZER_SUCHE_MAX = 20000;
 function schweizerPaare(reihenfolge, gespielt) {
+  const kennt = (a, b) => !!(gespielt[a] && gespielt[a][b]);
+  if (reihenfolge.length % 2 === 0) {
+    let schritte = 0;
+    const suche = (offen) => {
+      if (!offen.length) return [];
+      if (++schritte > SCHWEIZER_SUCHE_MAX) return null;
+      const a = offen[0];
+      for (let i = 1; i < offen.length; i++) {
+        if (kennt(a, offen[i])) continue;
+        const rest = suche(offen.slice(1, i).concat(offen.slice(i + 1)));
+        if (rest) return [[a, offen[i]]].concat(rest);
+        if (schritte > SCHWEIZER_SUCHE_MAX) return null;
+      }
+      return null;
+    };
+    const ohne = suche(reihenfolge);
+    if (ohne) return { paare: ohne, freilos: null, ohneWiedersehen: true };
+  }
+  return Object.assign(schweizerPaareGreedy(reihenfolge, gespielt), { ohneWiedersehen: false });
+}
+
+function schweizerPaareGreedy(reihenfolge, gespielt) {
   const offen = reihenfolge.slice();
   const paare = [];
   while (offen.length > 1) {
@@ -1477,14 +1506,15 @@ function schweizerPaare(reihenfolge, gespielt) {
 }
 
 // Freilos an die/den Letzte:n, die/der noch keins hatte – sonst sammelt immer
-// dieselbe Person die Geschenkpunkte.
-function schweizerFreilosKandidat(reihenfolge, tabelle) {
+// dieselbe Person die Geschenkpunkte. Geliefert werden alle Berechtigten in der
+// Reihenfolge des Vorrangs: von unten nach oben, nur wer noch keins hatte
+// (hatten alle eins: alle).
+function schweizerFreilosKandidaten(reihenfolge, tabelle) {
   const hatteFreilos = {};
   tabelle.forEach((z) => { if (z.freilose > 0) hatteFreilos[z.teamId] = true; });
-  for (let i = reihenfolge.length - 1; i >= 0; i--) {
-    if (!hatteFreilos[reihenfolge[i]]) return reihenfolge[i];
-  }
-  return reihenfolge[reihenfolge.length - 1];
+  const vonUnten = reihenfolge.slice().reverse();
+  const ohne = vonUnten.filter((id) => !hatteFreilos[id]);
+  return ohne.length ? ohne : vonUnten;
 }
 
 function schweizerRundenSpiele(runde, paare, freilos, meta) {
@@ -1574,9 +1604,26 @@ async function naechsteSchweizerRunde() {
 
   const reihenfolge = tabelle.map((z) => z.teamId);
   const ungerade = reihenfolge.length % 2 === 1;
-  const freilos = ungerade ? schweizerFreilosKandidat(reihenfolge, tabelle) : null;
-  const zuPaaren = ungerade ? reihenfolge.filter((id) => id !== freilos) : reihenfolge;
-  const { paare } = schweizerPaare(zuPaaren, bisherigePaarungen(spiele));
+  const kennt = bisherigePaarungen(spiele);
+  // ⚠️ Bei ungerader Zahl entscheidet auch das Freilos, ob es ohne Wiedersehen
+  // geht. Deshalb der Reihe nach die Berechtigten durchprobieren (Vorrang wie
+  // bisher: von unten, wer noch keins hatte) und den ersten nehmen, bei dem der
+  // Rest ohne Wiedersehen aufgeht. Geht es mit keinem, bleibt es beim ersten.
+  let freilos = null;
+  let paare = null;
+  if (ungerade) {
+    const kandidaten = schweizerFreilosKandidaten(reihenfolge, tabelle);
+    for (const k of kandidaten) {
+      const versuch = schweizerPaare(reihenfolge.filter((id) => id !== k), kennt);
+      if (versuch.ohneWiedersehen) { freilos = k; paare = versuch.paare; break; }
+    }
+    if (!paare) {
+      freilos = kandidaten[0];
+      paare = schweizerPaare(reihenfolge.filter((id) => id !== freilos), kennt).paare;
+    }
+  } else {
+    paare = schweizerPaare(reihenfolge, kennt).paare;
+  }
 
   const neue = schweizerRundenSpiele(gespielt, paare, freilos, meta);
   const updates = {};
