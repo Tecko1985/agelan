@@ -394,8 +394,19 @@ function esPositionenListe(positionenRoh) {
   return liste;
 }
 
+// Der Name des angemeldeten Kontos, klein geschrieben – oder "".
+function esKontoNameKlein() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    return k && k.nickname ? String(k.nickname).trim().toLowerCase() : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function esBestellungenListe(bestellungenRoh) {
   const liste = [];
+  const kontoName = esKontoNameKlein();
   Object.entries(bestellungenRoh || {}).forEach(([id, b]) => {
     const positionen = esPositionenListe(b && b.positionen);
     if (!positionen.length) return;   // eine Bestellung ohne Positionen ist keine
@@ -436,7 +447,13 @@ function esBestellungenListe(bestellungenRoh) {
       zahltCent: orga ? 0 : summeCent,
       erstelltAm: esZahl(b && b.erstelltAm, 0),
       aktualisiertAm: esZahl(b && b.aktualisiertAm, 0),
-      istEigene: esText(b && b.uid, 60) === esEigeneUid,
+      // ⚠️ Auch unter demselben KONTO auf einem zweiten Gerät: die anonyme
+      // Firebase-Kennung ist je Gerät anders, und am Handy stand sonst die
+      // eigene Bestellung vom Laptop nicht unter „Meine“ und ließ sich weder
+      // ändern noch stornieren (Bugjagd 25.09.d T5a, wie T5-7). Der Name ist
+      // bei Angemeldeten der Kontoname, und der ist in der Veranstaltung eindeutig.
+      istEigene: esText(b && b.uid, 60) === esEigeneUid ||
+        (!!kontoName && (esText(b && b.name, 40) || "").trim().toLowerCase() === kontoName),
       // ⚠️ Bezahlt heißt eingefroren. Wer bezahlt hat, darf seine Bestellung
       // nicht mehr umbauen – sonst wäre der kassierte Betrag ein anderer als
       // der bestellte. Ab da ändert nur noch der Veranstalter. Den endgültigen
