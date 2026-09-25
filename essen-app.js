@@ -593,10 +593,11 @@ function esRundeHtml(r) {
         </div>
         ${note.length ? `<p class="hinweis-text es-geldnote">${note.join(" ")}</p>` : ""}
         ${esBescheidHtml(r)}
+        ${!r.fertig && !esDarfBescheid() ? `<p class="hinweis-text">📣 Bescheid per Discord geht nur mit einem Veranstalter- oder Orga-Konto (⭐/🛠) – mit dem PIN allein lehnt der Bot ab.</p>` : ""}
         <div class="es-best-aktionen es-runde-knoepfe">
           <button type="button" class="mini-btn" data-es-runde-mail="${escapeHtml(r.id)}"
             title="Den Text dieser Sammelbestellung noch einmal ansehen">✉ Mailtext</button>
-          ${r.fertig ? "" : `<button type="button" class="mini-btn" data-es-runde-bescheid="${escapeHtml(r.id)}"
+          ${r.fertig || !esDarfBescheid() ? "" : `<button type="button" class="mini-btn" data-es-runde-bescheid="${escapeHtml(r.id)}"
             title="${r.bescheidAm
               ? "Noch einmal anstupsen – wer schon abgeholt hat, bekommt nichts"
               : "Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt"}">📣 ${r.bescheidAm ? "Nochmal Bescheid" : "Bescheid geben"}</button>`}
@@ -654,6 +655,13 @@ function esBescheidHtml(r) {
 //
 // \u26a0\ufe0f Der Client schickt NAMEN, keine Discord-IDs - die kennt er gar nicht und
 // soll er auch nicht kennen. Nachgeschlagen wird im Worker.
+// ⚠️ Den Discord-Versand nimmt der Worker nur von einem ⭐- oder 🛠-Konto an
+// (veranstalterOk). Wer per PIN oder als Anleger Veranstalter ist, bekam den
+// Knopf trotzdem und danach „Nur der Veranstalter.“ in Rot (Bugjagd 25.09.d T5a-3a).
+function esDarfBescheid() {
+  return typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
+}
+
 async function esBescheidGeben(runde, knopf) {
   // Dieselbe Person kann mehrere Bestellungen in einer Lieferung haben; der
   // Worker wirft Doppelte weg, aber die Zahl in der R\u00fcckfrage muss schon hier
