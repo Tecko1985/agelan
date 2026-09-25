@@ -1759,13 +1759,58 @@ async function starteKoAuslosung() {
   }
   if (qualifizierte.length < 2) return { erfolg: false, fehler: "Zu wenige qualifizierte Teilnehmer." };
 
-  const ersteRunde = koErsteRunde(qualifizierte.map((q) => q.teamId));
+  const ersteRunde = koErsteRunde(koSeedsOhneGruppenduell(qualifizierte));
   const updates = {};
   Object.keys(ersteRunde).forEach((sid) => { updates["spiele/" + sid] = ersteRunde[sid]; });
   updates["meta/phase"] = "ko";
   await db.ref(turnierBasis()).update(updates);
   await pruefeKoProgression(); // falls Freilose sofort die nächste Runde erlauben
   return { erfolg: true };
+}
+
+// Setzliste für die erste K.-o.-Runde nach einer Gruppenphase: platz-major wie
+// eingesammelt, aber ohne ein Wiedersehen aus derselben Gruppe in Runde 1.
+// ⚠️ Das Über-Kreuz-Setzen allein trennt Gruppen nur bei 2, 4, 8 … Gruppen. Bei
+// 3 Gruppen × 2 Weiterkommenden (der Vorschlag der App für 9–12 Teams) traf der
+// Sieger C auf den Zweiten C, der ihn gerade in der Gruppe gespielt hatte
+// (Bugjagd 25.09.d T5-1). Deshalb: in jedem Paar aus derselben Gruppe tauscht
+// der schwächer Gesetzte den Platz mit dem nächstgelegenen Setzplatz eines
+// ANDEREN echten Spiels, sofern danach beide Paare gemischt sind.
+// ⚠️ Getauscht wird nur zwischen echten Spielen, nie mit einem Freilos-Platz –
+// ein Freilos gehört dem Besten, nicht dem, der zufällig passt. Jeder Tausch
+// löst genau einen Konflikt und schafft keinen neuen, also endet die Schleife.
+// Lässt es sich nicht vermeiden (z. B. nur eine Gruppe), bleibt es beim Setzen.
+function koSeedsOhneGruppenduell(qualifizierte) {
+  const ids = qualifizierte.map((q) => q.teamId);
+  const gruppe = qualifizierte.map((q) => q.gruppenIndex);
+  const n = ids.length;
+  if (new Set(gruppe).size < 2) return ids;
+  const groesse = naechsteZweierpotenz(n);
+  const folge = bracketSeedReihenfolge(groesse);
+  const paare = [];
+  for (let p = 0; p < groesse / 2; p++) {
+    const a = folge[p * 2] - 1, b = folge[p * 2 + 1] - 1;
+    if (a < n && b < n) paare.push([Math.min(a, b), Math.max(a, b)]);
+  }
+  const partnerVon = (i) => { const pr = paare.find((x) => x[0] === i || x[1] === i); return pr ? (pr[0] === i ? pr[1] : pr[0]) : -1; };
+  for (let schritt = 0; schritt < n; schritt++) {
+    const konflikt = paare.find(([a, b]) => gruppe[a] === gruppe[b]);
+    if (!konflikt) break;
+    const [stark, schwach] = konflikt;
+    let bester = -1;
+    for (let c = 0; c < n; c++) {
+      const partner = partnerVon(c);
+      if (partner < 0 || c === stark || c === schwach) continue;
+      if (gruppe[c] === gruppe[stark] || gruppe[schwach] === gruppe[partner]) continue;
+      const abstand = Math.abs(c - schwach), alt = Math.abs(bester - schwach);
+      // Bei gleichem Abstand lieber einen schwächer Gesetzten nehmen.
+      if (bester < 0 || abstand < alt || (abstand === alt && c > bester)) bester = c;
+    }
+    if (bester < 0) break;
+    [ids[schwach], ids[bester]] = [ids[bester], ids[schwach]];
+    [gruppe[schwach], gruppe[bester]] = [gruppe[bester], gruppe[schwach]];
+  }
+  return ids;
 }
 
 // Erste K.-o.-Runde als { spielId: spiel } – über Kreuz gesetzt, Freilose bei
