@@ -71,6 +71,13 @@ function skFuelleZeiten(select, von, bis, wert) {
   if (eigenFehlt && eigen > von + Math.floor((bis - von) / SK_SCHRITT_UI) * SK_SCHRITT_UI) {
     teile.push('<option value="' + eigen + '">' + streamService.zeitLabelLang(eigen) + "</option>");
   }
+  // ⚠️ Das Ende des Bereichs gehört immer dazu. Beginnt die Liste nicht im
+  // Viertelstunden-Raster (gezogen auf 5 Minuten, z. B. 12:05), fiel sonst das
+  // Tagesende heraus, und bis zum Schluss ließ sich nichts mehr eintragen
+  // (Bugjagd 25.09.d T5b).
+  if (bis > von && (bis - von) % SK_SCHRITT_UI !== 0 && !(eigenFehlt && eigen === bis)) {
+    teile.push('<option value="' + bis + '">' + streamService.zeitLabelLang(bis) + "</option>");
+  }
   select.innerHTML = teile.join("");
   if (wert != null) select.value = String(wert);
   if (!select.value && select.options.length) select.selectedIndex = 0;
