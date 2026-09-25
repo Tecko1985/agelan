@@ -134,6 +134,13 @@ let esRoh = null;            // roher { meta, karte, bestellungen }-Snapshot
 // mehr lesbar ist, und genau das ist der Sinn der Übung.
 let esPinOk = false;
 let esPinLaeuft = false;
+// Für welchen Plan gilt esPinOk? ⚠️ Wird der Plan gelöscht (auf einem anderen
+// Gerät) und neu angelegt, galt der alte Beweis sonst weiter – mit dem PIN des
+// VORIGEN Plans stand man im neuen im Veranstalter-Bereich (Bugjagd 25.09.d T5a).
+// Kennung ist hostId, nicht erstelltAm: der Zeitstempel kommt beim eigenen
+// Schreiben erst geschätzt und dann vom Server, das hätte den Beweis grundlos
+// verworfen.
+let esPinPlan = null;
 let esListener = null;
 // true, sobald Firebase das Lesen ablehnt – praktisch immer die fehlende Regel.
 let esZugriffFehler = false;
@@ -1070,6 +1077,11 @@ esAuthBereit.then(() => {
     (snap) => {
       esZugriffFehler = false;
       esRoh = snap.val() || {};
+      const planJetzt = esRoh.meta && esRoh.meta.titel ? String(esRoh.meta.hostId || "") : null;
+      if (planJetzt !== esPinPlan) {
+        if (esPinPlan !== null) esPinOk = false;
+        esPinPlan = planJetzt;
+      }
       esMelde();
       // ⚠️ Ohne await und ohne Rückgabe: der Beweis läuft über das Netz und
       // darf das Rendern nicht aufhalten. Ist er durch, meldet er selbst.
