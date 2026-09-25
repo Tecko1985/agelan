@@ -112,6 +112,13 @@ function ubJetztStand(z) {
 
 // --- Bausteine --------------------------------------------------------------
 
+// Alle Einträge mit dem frühesten Beginn (nach Beginn sortiert, gleiche zuerst).
+function ubAlleErsten(liste) {
+  if (!liste.length) return [];
+  const erster = Math.min.apply(null, liste.map((x) => x.absVon));
+  return liste.filter((x) => x.absVon === erster);
+}
+
 function ubKachel(klasse, titel, inhalt, knopf) {
   return '<section class="ub-kachel ' + klasse + '">' +
     '<h2 class="ub-kachel-titel">' + titel + "</h2>" +
@@ -157,7 +164,10 @@ function ubKachelStream() {
     // Moment), und der Kalender zeigt sie nebeneinander. Hier fiel einer weg.
     const laufende = z.slots.filter((s) => s.absVon <= jetzt && s.absBis > jetzt).sort((a, b) => a.absVon - b.absVon);
     const laeuft = laufende[0] || null;
-    const naechster = z.slots.filter((s) => s.absVon > jetzt).sort((a, b) => a.absVon - b.absVon)[0];
+    // ⚠️ Auch beim NÄCHSTEN alle, die zur selben Zeit anfangen – 487e3ad hatte
+    // nur die laufenden auf alle umgestellt (Bugjagd 25.09.d T5b).
+    const naechste = ubAlleErsten(z.slots.filter((s) => s.absVon > jetzt));
+    const naechster = naechste[0] || null;
 
     if (laeuft) {
       laufende.forEach((l) => {
@@ -169,23 +179,24 @@ function ubKachelStream() {
     }
 
     if (naechster) {
-      inhalt += ubZeile("danach", naechster.streamer + (naechster.titel ? " – " + naechster.titel : ""),
-        ubRelativ(naechster.absVon - jetzt) + " · " +
-        streamService.zeitLabel(naechster.von) + "–" + streamService.zeitLabel(naechster.bis));
+      naechste.forEach((n) => {
+        inhalt += ubZeile("danach", n.streamer + (n.titel ? " – " + n.titel : ""),
+          ubRelativ(n.absVon - jetzt) + " · " +
+          streamService.zeitLabel(n.von) + "–" + streamService.zeitLabel(n.bis));
+      });
     } else if (!laeuft) {
       inhalt += ubLeer("Für den Rest der Veranstaltung ist kein Stream eingetragen.");
     }
 
     // Der laufende und der nächste Programmpunkt – das Programm sagt, WORUM es
     // gerade geht, der Slot nur, WER sendet.
-    const prgLaeuft = z.programm.find((p) => p.absVon <= jetzt && p.absBis > jetzt);
-    const prgNaechst = z.programm.filter((p) => p.absVon > jetzt).sort((a, b) => a.absVon - b.absVon)[0];
-    if (prgLaeuft) {
-      inhalt += ubZeile("Programm", prgLaeuft.titel, "noch " + ubDauer(prgLaeuft.absBis - jetzt));
-    }
-    if (prgNaechst) {
-      inhalt += ubZeile("dann", prgNaechst.titel, ubRelativ(prgNaechst.absVon - jetzt));
-    }
+    // Programmpunkte dürfen parallel liegen – also auch hier alle.
+    z.programm.filter((p) => p.absVon <= jetzt && p.absBis > jetzt).sort((a, b) => a.absVon - b.absVon).forEach((p) => {
+      inhalt += ubZeile("Programm", p.titel, "noch " + ubDauer(p.absBis - jetzt));
+    });
+    ubAlleErsten(z.programm.filter((p) => p.absVon > jetzt)).forEach((p) => {
+      inhalt += ubZeile("dann", p.titel, ubRelativ(p.absVon - jetzt));
+    });
   }
 
   // ⚠️ Die offenen Programmpunkte sind der Grund, warum es das Häkchen gibt:
