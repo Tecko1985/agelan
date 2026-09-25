@@ -822,6 +822,24 @@ async function frSetzeEinstellungen({ anzahlTage, schlussUhr }) {
   const uhr = Math.round(frZahl(schlussUhr, -1));
   if (!(uhr >= 0 && uhr <= 1439)) return { erfolg: false, fehler: "Bitte wähle einen Bestellschluss." };
 
+  // ⚠️ Weniger Morgen blenden die Bestellungen der wegfallenden Morgen aus der
+  // Abrechnung aus – bezahlte wie offene, die Daten lägen still weiter in der
+  // Datenbank. Wie beim Streamplan (skSetzeTagesfenster) wird das abgelehnt,
+  // solange dort noch bestellt ist (Bugjagd 25.09.d T5b-2).
+  const z = frGetZustand();
+  const wegfallend = (z.tage || []).filter((t) => t.index >= tage && t.bestellungen.length);
+  if (wegfallend.length) {
+    const anzahl = wegfallend.reduce((s, t) => s + t.bestellungen.length, 0);
+    const bezahlt = wegfallend.reduce((s, t) => s + t.bestellungen.filter((b) => b.bezahlt).length, 0);
+    return {
+      erfolg: false,
+      fehler: anzahl + (anzahl === 1 ? " Bestellung liegt" : " Bestellungen liegen") + " am " +
+        wegfallend.map((t) => t.label).join(", ") + (bezahlt ? ", davon " + bezahlt + " bezahlt" : "") +
+        ". Mit weniger Morgen fielen sie aus Einkaufsliste und Abrechnung – erst müssen sie dort storniert werden" +
+        (bezahlt ? " (bei bezahlten vorher den Haken „bezahlt“ lösen)" : "") + ".",
+    };
+  }
+
   await db.ref(FR_BASIS + "/meta").update({ anzahlTage: tage, schlussUhr: uhr });
   return { erfolg: true };
 }
