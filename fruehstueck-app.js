@@ -148,7 +148,20 @@ function frRenderTagInhalt(z) {
   // zugedrehter Annahme bei JEDEM Morgen „Bestellschluss war", obwohl er erst
   // am Abend kommt. Genau so gemessen, bevor es hier stand.
   const stueckGesamt = Object.values(frEntwurf.positionen).reduce((s, n) => s + (n || 0), 0);
-  const summeCent = z.pakete.reduce((s, p) => s + p.preisCent * (frEntwurf.positionen[p.id] || 0), 0);
+  // ⚠️ Solange am Entwurf nichts geändert ist, zeigt die Karte den BELEG
+  // (meineBestellung.summeCent), nicht Menge × heutiger Paketpreis. Sonst stand
+  // nach einer Preisänderung „2 Stück 6,00 €“ neben „Deine Bestellung ist
+  // gespeichert“, während Abrechnung und Kasse 5,00 € sagen (Bugjagd 25.09.d
+  // T5b-1). Wer etwas ändert, bestellt neu – dann gilt der heutige Preis.
+  const meine = tag.meineBestellung;
+  const summeCent = meine && !frEntwurf.beruehrt
+    ? meine.summeCent
+    : z.pakete.reduce((s, p) => s + p.preisCent * (frEntwurf.positionen[p.id] || 0), 0);
+  const belegPreis = (pid) => {
+    const pos = meine ? meine.positionen.find((x) => x.paketId === pid) : null;
+    return pos ? pos.preisCent : null;
+  };
+  const preisGeaendert = !!meine && z.pakete.some((p) => belegPreis(p.id) !== null && belegPreis(p.id) !== p.preisCent);
 
   const paketeHtml = z.pakete.length
     ? z.pakete.map((p) => {
@@ -158,7 +171,8 @@ function frRenderTagInhalt(z) {
           <div class="fr-paket-info">
             <div class="fr-paket-name">${escapeHtml(p.name)}</div>
             ${p.beschreibung ? `<div class="fr-paket-beschreibung">${escapeHtml(p.beschreibung)}</div>` : ""}
-            <div class="fr-paket-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}</div>
+            <div class="fr-paket-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}${belegPreis(p.id) !== null && belegPreis(p.id) !== p.preisCent
+              ? ` <span class="fr-summe-leer">(bestellt zu ${fruehstueckService.centLabel(belegPreis(p.id))})</span>` : ""}</div>
           </div>
           <div class="fr-stepper">
             <button type="button" data-fr-weniger="${p.id}" ${!bearbeitbar || anzahl <= 0 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(p.name)}">−</button>
@@ -188,6 +202,9 @@ function frRenderTagInhalt(z) {
         <span>${stueckGesamt ? stueckGesamt + " Stück" : '<span class="fr-summe-leer">Nichts ausgewählt</span>'}</span>
         <span>${summeCent ? fruehstueckService.centLabel(summeCent) : ""}</span>
       </div>
+      ${preisGeaendert ? `<p class="hinweis-text">${frEntwurf.beruehrt
+          ? "Die Preise haben sich seit deiner Bestellung geändert. Mit „Bestellung aktualisieren“ gilt für alles der neue Preis – gespeichert sind " + fruehstueckService.centLabel(meine.summeCent) + "."
+          : "Die Preise haben sich seit deiner Bestellung geändert. Deine Bestellung gilt zum Preis von damals – änderst du sie, gilt der neue."}</p>` : ""}
 
       ${bearbeitbar && z.pakete.length ? `
         ${frFesterName()
