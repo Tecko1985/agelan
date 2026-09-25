@@ -459,7 +459,10 @@ function esSammelliste(bestellungen) {
       // Schluessel ueber JSON statt ueber ein Trennzeichen: ein Gerichtname
       // darf jedes Zeichen enthalten, und ein selbst gewaehltes Trennzeichen
       // waere genau dort die naechste Falle.
-      const schluessel = JSON.stringify([p.gerichtId || p.name, p.sonderwunsch.toLowerCase()]);
+      // ⚠️ Nummer und Name gehören mit hinein: sie sind je Beleg festgeschrieben.
+      // Wurde die Nummer auf der Karte zwischendurch korrigiert, stand sonst die
+      // alte (oder neue) Nummer für ALLE Stücke der Zeile (Bugjagd 25.09.d T5a).
+      const schluessel = JSON.stringify([p.gerichtId || p.name, p.nummer || "", p.name, p.sonderwunsch.toLowerCase()]);
       if (!nach.has(schluessel)) {
         nach.set(schluessel, {
           nummer: p.nummer,
