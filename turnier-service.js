@@ -583,46 +583,67 @@ function berechneTabelle(gruppenTeamIds, teams, spiele, meta) {
     z.sonneborn = z.besiegte.reduce((summe, gid) => summe + punkteVon(gid), 0);
   });
 
-  // ALLE Begegnungen der beiden zusammenzaehlen, nicht nur die erste: bei Hin-
-  // und Rueckrunde entschiede sonst allein das Hinspiel.
-  const direktesDuell = (x, y) => {
-    let xSaetze = 0, ySaetze = 0;
+  // Jedes Kriterium liefert je Team einen Schlüssel (größer = besser) – und
+  // zwar für die GRUPPE der gerade noch Gleichen, nicht paarweise.
+  // ⚠️ Das direkte Duell ist eine Mini-Tabelle nur aus den Spielen der Gleichen
+  // untereinander: Siege, dann Satzdifferenz, dann Sätze. Paarweise verglichen
+  // war es bei drei Punktgleichen im Kreis (A>B, B>C, C>A) nicht transitiv, und
+  // die Tabelle hing an der Reihenfolge der Team-Ids statt an den Ergebnissen
+  // (Bugjagd 25.09.d T5-2). Bei zwei Gleichen kommt dasselbe heraus wie vorher.
+  // ⚠️ ALLE Begegnungen zählen, nicht nur die erste: bei Hin- und Rückrunde
+  // entschiede sonst allein das Hinspiel.
+  const direktesDuell = (gruppe) => {
+    const drin = new Set(gruppe.map((z) => z.teamId));
+    const mini = {};
+    gruppe.forEach((z) => { mini[z.teamId] = { siege: 0, plus: 0, minus: 0 }; });
     bestaetigte.forEach((m) => {
-      if (m.teamA === x && m.teamB === y) { xSaetze += m.saetzeA; ySaetze += m.saetzeB; }
-      else if (m.teamA === y && m.teamB === x) { xSaetze += m.saetzeB; ySaetze += m.saetzeA; }
+      if (!m.teamB || !drin.has(m.teamA) || !drin.has(m.teamB)) return;
+      const a = mini[m.teamA], b = mini[m.teamB];
+      a.plus += m.saetzeA; a.minus += m.saetzeB;
+      b.plus += m.saetzeB; b.minus += m.saetzeA;
+      if (m.saetzeA > m.saetzeB) a.siege++; else b.siege++;
     });
-    return ySaetze - xSaetze; // >0 wenn y besser -> x weiter unten
+    return (z) => { const x = mini[z.teamId]; return [x.siege, x.plus - x.minus, x.plus]; };
   };
-
-  const satzWeg = (a, b) => {
-    const dA = a.saetzePlus - a.saetzeMinus, dB = b.saetzePlus - b.saetzeMinus;
-    if (dB !== dA) return dB - dA;
-    if (b.saetzePlus !== a.saetzePlus) return b.saetzePlus - a.saetzePlus;
-    return 0;
-  };
+  const satzWeg = () => (z) => [z.saetzePlus - z.saetzeMinus, z.saetzePlus];
 
   // Reihenfolge der Kriterien nach der eingestellten Wertung. Punkte stehen
   // immer vorn, der Name immer hinten (damit die Sortierung stabil bleibt).
   const tiebreak = metaTiebreak(meta);
   const feinwertung = {
-    buchholz: (a, b) => b.buchholz - a.buchholz,
-    buchholz_cut1: (a, b) => b.buchholzCut1 - a.buchholzCut1,
-    sonneborn: (a, b) => b.sonneborn - a.sonneborn,
+    buchholz: () => (z) => [z.buchholz],
+    buchholz_cut1: () => (z) => [z.buchholzCut1],
+    sonneborn: () => (z) => [z.sonneborn],
   }[tiebreak];
-  const kriterien = feinwertung
-    ? [feinwertung, satzWeg, (a, b) => direktesDuell(a.teamId, b.teamId)]
+  const kriterien = [() => (z) => [z.punkte]].concat(feinwertung
+    ? [feinwertung, satzWeg, direktesDuell]
     : tiebreak === "direktes_duell"
-    ? [(a, b) => direktesDuell(a.teamId, b.teamId), satzWeg]
-    : [satzWeg, (a, b) => direktesDuell(a.teamId, b.teamId)];
+    ? [direktesDuell, satzWeg]
+    : [satzWeg, direktesDuell]);
 
-  return Object.values(zeilen).sort((a, b) => {
-    if (b.punkte !== a.punkte) return b.punkte - a.punkte;
-    for (const kriterium of kriterien) {
-      const wert = kriterium(a, b);
-      if (wert !== 0) return wert;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  // Gruppe nach dem ersten Kriterium ordnen und in Teilgruppen gleicher Werte
+  // zerlegen. Jede Teilgruppe wird mit ALLEN Kriterien neu geordnet – beim
+  // direkten Duell heißt das: neue Mini-Tabelle nur der noch Gleichen. Trennt ein
+  // Kriterium niemanden, kommt das nächste dran.
+  const ordne = (gruppe, liste) => {
+    if (gruppe.length < 2) return gruppe;
+    if (!liste.length) return gruppe.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const wert = liste[0](gruppe);
+    const vgl = (a, b) => {
+      const x = wert(a), y = wert(b);
+      for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return y[i] - x[i];
+      return 0;
+    };
+    const sortiert = gruppe.slice().sort(vgl);
+    const teile = [];
+    sortiert.forEach((z) => {
+      const letzte = teile[teile.length - 1];
+      if (letzte && vgl(letzte[0], z) === 0) letzte.push(z); else teile.push([z]);
+    });
+    if (teile.length === 1) return ordne(gruppe, liste.slice(1));
+    return [].concat(...teile.map((t) => ordne(t, liste)));
+  };
+  return ordne(Object.values(zeilen), kriterien);
 }
 
 function gruppenMitTabellen(teams, spiele, meta) {
