@@ -1323,6 +1323,9 @@ main#app.ub-breit { max-width: 980px; }
    statt auf Restbreite zusammengedrückt zu werden. */
 .es-korb-unten { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .es-wunsch { flex: 1 1 180px; margin: 0; font-size: 14px; padding: 8px 10px; }
+/* ⚠️ Unter 16 px zoomt iOS Safari beim Antippen hinein und nicht wieder heraus
+   (Bugjagd 25.09.d T5-10). Am Handy deshalb die volle Größe. */
+@media (max-width: 820px) { .es-wunsch { font-size: 16px; } }
 
 /* --- Status --- */
 .status-neu      { --es-farbe: #b45309; }
