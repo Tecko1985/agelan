@@ -2014,6 +2014,14 @@ function zpZeitText(minuten) {
   return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
 }
 
+// ⚠️ Ein Schluss VOR dem Beginn heißt „nach Mitternacht“ (18:00 bis 02:00) – auf
+// einer LAN der Normalfall, Stream und Essen rechnen genauso. Vorher lehnte der
+// Zeitplan so einen Abend ab und schickte mit „Tagesende später setzen“ in die
+// falsche Richtung (Bugjagd 25.09.d T5-6). Gleich heißt weiter: kein Fenster.
+function zpEndeMinuten(startMin, endeMin) {
+  return endeMin < startMin ? endeMin + 1440 : endeMin;
+}
+
 function zpDatumPlus(iso, tage) {
   const t = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(iso || ""));
   if (!t) return "";
@@ -2050,7 +2058,7 @@ function zpBloecke(spiele) {
 // Bewusst getrennt gehalten, damit sie sich in Node gegenpruefen laesst.
 function berechneZeitplan(spiele, opt) {
   const startMin = zpMinuten(opt.startZeit);
-  const endeMin = zpMinuten(opt.tagesEnde);
+  const endeMin = zpEndeMinuten(startMin, zpMinuten(opt.tagesEnde));
   const dauer = Math.round(Number(opt.dauerMin));
   const pause = Math.round(Number(opt.pauseMin) || 0);
   const plaetze = Math.max(1, Math.round(Number(opt.gleichzeitig) || 1));
@@ -2062,7 +2070,9 @@ function berechneZeitplan(spiele, opt) {
   const fenster = (k) => {
     const tag = Math.floor(k / proTag);
     const pos = k % proTag;
-    return { datum: zpDatumPlus(opt.startDatum, tag), vonMin: startMin + pos * schritt };
+    // Minuten ab 1440 gehören schon zum Kalendertag danach.
+    const von = startMin + pos * schritt;
+    return { datum: zpDatumPlus(opt.startDatum, tag + Math.floor(von / 1440)), vonMin: von % 1440 };
   };
 
   const belegt = {};        // Fenster -> wie viele Plaetze schon weg
@@ -2127,7 +2137,7 @@ function zpPruefeEinstellungen(opt) {
   // ⚠️ Ohne diese Pruefung liefe die Fensterrechnung auf ein Fenster je Tag
   // und legte ein Drei-Stunden-Spiel in einen Tag, der nur zwei Stunden offen
   // ist.
-  if (endeMin - startMin < dauer) {
+  if (zpEndeMinuten(startMin, endeMin) - startMin < dauer) {
     return "Zwischen Startzeit und Tagesende passt kein einziges Spiel. Tagesende später setzen oder die Dauer kürzen.";
   }
   return "";

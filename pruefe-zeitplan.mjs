@@ -30,6 +30,7 @@ const code = [
   holKonstante('ZP_MAX_FENSTER'),
   holFunktion('zpMinuten'),
   holFunktion('zpZeitText'),
+  holFunktion('zpEndeMinuten'),
   holFunktion('zpDatumPlus'),
   holFunktion('zpIstFreilos'),
   holFunktion('zpBloecke'),
@@ -144,6 +145,21 @@ pruefe('fehlendes Datum wird abgefangen',
   zpPruefeEinstellungen(Object.assign({}, opt, { startDatum: '' })) !== '');
 pruefe('0 Plaetze wird abgefangen',
   zpPruefeEinstellungen(Object.assign({}, opt, { gleichzeitig: 0 })) !== '');
+
+// --- 9) Abend ueber Mitternacht: 18:00-02:00 (Bugjagd 25.09.d T5-6) -------
+const nacht = Object.assign({}, opt, { startZeit: '18:00', tagesEnde: '02:00', dauerMin: 60, pauseMin: 10 });
+pruefe('18:00 bis 02:00 ist planbar', zpPruefeEinstellungen(nacht) === '', zpPruefeEinstellungen(nacht));
+const kette = [];
+for (let i = 0; i < 9; i++) kette.push({ id: 'k' + i, phase: 'gruppe', gruppe: 'A', runde: i, position: 0, teamA: 'a' + i, teamB: 'b' + i, status: 'offen' });
+const p9 = berechneZeitplan(kette, nacht);
+pruefe('6. Spiel 23:50 am ersten Tag', p9.k5 === '2026-10-01T23:50', p9.k5);
+pruefe('7. Spiel 01:00 schon am Kalendertag danach', p9.k6 === '2026-10-02T01:00', p9.k6);
+pruefe('8. Spiel am naechsten Abend 18:00', p9.k7 === '2026-10-02T18:00', p9.k7);
+pruefe('keine Uhrzeit ueber 23:59', Object.values(p9).every((z) => /T([01][0-9]|2[0-3]):[0-5][0-9]$/.test(z)), Object.values(p9).join(' '));
+pruefe('Schluss = Beginn bleibt abgelehnt',
+  zpPruefeEinstellungen(Object.assign({}, opt, { tagesEnde: '14:00' })) !== '');
+pruefe('kurz nach Mitternacht zu knapp wird abgefangen',
+  zpPruefeEinstellungen(Object.assign({}, nacht, { startZeit: '23:30', tagesEnde: '00:15' })) !== '');
 
 console.log('');
 console.log(fehler ? fehler + ' Pruefung(en) fehlgeschlagen' : 'alle Pruefungen bestanden');
