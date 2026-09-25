@@ -874,9 +874,11 @@ function esRenderAdminBestellungen(z) {
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
       // ⚠️ Wer noch nicht bezahlt hat, wird nicht mit abgehakt. Das muss
       // dranstehen, sonst sieht es aus, als hätte der Knopf nur halb gewirkt.
-      else if (res.offen && res.offen.length) {
-        esZeigeFehler("es-admin-fehler",
-          "Ohne " + res.offen.join(", ") + " – da fehlt noch das Geld.");
+      else if ((res.offen && res.offen.length) || (res.offenOrga && res.offenOrga.length)) {
+        const teile = [];
+        if (res.offen && res.offen.length) teile.push("Ohne " + res.offen.join(", ") + " – da fehlt noch das Geld.");
+        if (res.offenOrga && res.offenOrga.length) teile.push("Ohne " + res.offenOrga.join(", ") + " – Orga-Essen noch nicht freigegeben.");
+        esZeigeFehler("es-admin-fehler", teile.join(" "));
       }
     });
   });

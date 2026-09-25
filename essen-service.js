@@ -1570,11 +1570,20 @@ async function esSetzeRundeStatus(rundeId, status) {
   // weiß niemand mehr, dass da noch Geld fehlt.
   const offen = runde.bestellungen.filter((b) => b.status === "neu");
   const treffer = runde.bestellungen.filter((b) => b.status !== status && b.status !== "neu");
+  // ⚠️ Ein Orga-Essen auf „neu“ schuldet kein Geld, es ist nur noch nicht
+  // freigegeben. „Da fehlt noch Geld“ schickte den Veranstalter zum Kassieren
+  // bei jemandem, der nichts zahlt (Bugjagd 25.09.d T5a).
+  const offenGeld = offen.filter((b) => !b.orga).map((b) => b.name);
+  const offenOrga = offen.filter((b) => b.orga).map((b) => b.name);
   if (!treffer.length) {
+    const teile = [];
+    if (offenGeld.length) teile.push("Da fehlt noch Geld: " + offenGeld.join(", ") + ".");
+    if (offenOrga.length) teile.push("Noch nicht freigegeben (Orga): " + offenOrga.join(", ") + ".");
     return {
       erfolg: false,
-      fehler: offen.length
-        ? "Da fehlt noch Geld: " + offen.map((b) => b.name).join(", ") + ". Erst kassieren, dann abhaken."
+      fehler: teile.length
+        ? teile.join(" ") + " Erst " + (offenGeld.length ? "kassieren" : "") + (offenGeld.length && offenOrga.length ? " bzw. " : "") +
+          (offenOrga.length ? "freigeben" : "") + ", dann abhaken."
         : "Da steht schon alles auf diesem Stand.",
     };
   }
@@ -1588,7 +1597,8 @@ async function esSetzeRundeStatus(rundeId, status) {
   return {
     erfolg: true,
     anzahl: treffer.length,
-    offen: offen.map((b) => b.name),
+    offen: offenGeld,
+    offenOrga,
   };
 }
 
