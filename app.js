@@ -922,6 +922,42 @@ function renderRatingBlock(praefix, z) {
 // ===========================================================================
 // Melde-Dialog
 // ===========================================================================
+// ⚠️ Abnahme 25.09.e D-12: die fuenf Fenster (Melden, Veranstalter, Zeitplan, Stream,
+// Programm) sind echte Dialoge: role=dialog + aria-modal in index.html, beim Oeffnen geht der
+// Fokus auf die Ueberschrift (nicht ins erste Feld - das wuerde am Handy die Tastatur
+// aufklappen), beim Schliessen zurueck zum Ausloeser, Escape schliesst das oberste Fenster.
+// Die beiden Stream-Fenster rufen dieselben Helfer aus stream-app.js (geteilter Scope).
+const DLG_SCHLIESSER = {
+  "modal-melden": () => schliesseMeldeDialog(),
+  "modal-admin": () => schliesseAdmin(),
+  "modal-zeitplan": () => schliesseZeitplan(),
+  "modal-stream": () => { if (typeof skSchliesseDialog === "function") skSchliesseDialog(); },
+  "modal-programm": () => { if (typeof skSchliesseProgrammDialog === "function") skSchliesseProgrammDialog(); },
+};
+const dlgAusloeser = {};
+function dlgFokusRein(id) {
+  const ov = document.getElementById(id);
+  if (!ov) return;
+  if (!dlgAusloeser[id]) dlgAusloeser[id] = document.activeElement;
+  const titel = ov.querySelector("[role=dialog] h3");
+  if (titel) { try { titel.focus(); } catch (e) { /* egal */ } }
+}
+function dlgFokusZurueck(id) {
+  const a = dlgAusloeser[id];
+  delete dlgAusloeser[id];
+  if (a && a !== document.body && typeof a.focus === "function" && document.body.contains(a)) {
+    try { a.focus(); } catch (e) { /* egal */ }
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const offen = Object.keys(DLG_SCHLIESSER).filter((id) => {
+    const el = document.getElementById(id);
+    return el && el.classList.contains("aktiv");
+  });
+  if (offen.length) DLG_SCHLIESSER[offen[offen.length - 1]]();
+});
+
 function oeffneMeldeDialog(spielId, adminModus) {
   const s = zustand.spiele.find((x) => x.id === spielId);
   if (!s) return;
@@ -947,10 +983,12 @@ function oeffneMeldeDialog(spielId, adminModus) {
   document.getElementById("melden-hinweis").textContent = `Best of ${bestOf}: Sieger braucht ${noetig} Sätze.`;
   document.getElementById("melden-fehler").textContent = "";
   document.getElementById("modal-melden").classList.add("aktiv");
+  dlgFokusRein("modal-melden");
 }
 function schliesseMeldeDialog() {
   meldeSpielId = null;
   document.getElementById("modal-melden").classList.remove("aktiv");
+  dlgFokusZurueck("modal-melden");
 }
 
 // ===========================================================================
@@ -966,9 +1004,11 @@ function oeffneAdmin() {
   document.getElementById("admin-panel-fehler").textContent = "";
   document.getElementById("admin-pin").value = "";
   document.getElementById("modal-admin").classList.add("aktiv");
+  dlgFokusRein("modal-admin");
 }
 function schliesseAdmin() {
   document.getElementById("modal-admin").classList.remove("aktiv");
+  dlgFokusZurueck("modal-admin");
 }
 
 
@@ -1021,10 +1061,12 @@ function oeffneZeitplan() {
   zeigeFehler("zp-meldung", "");
   renderZeitplanListe(zustand);
   document.getElementById("modal-zeitplan").classList.add("aktiv");
+  dlgFokusRein("modal-zeitplan");
 }
 
 function schliesseZeitplan() {
   document.getElementById("modal-zeitplan").classList.remove("aktiv");
+  dlgFokusZurueck("modal-zeitplan");
 }
 
 function setzeWert(id, wert) {

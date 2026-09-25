@@ -1155,8 +1155,8 @@
 
 <!-- ============ Modal: Ergebnis melden ============ -->
 <div class="modal-overlay" id="modal-melden">
-  <div class="modal">
-    <h3 id="melden-titel">Ergebnis melden</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="melden-titel">
+    <h3 id="melden-titel" tabindex="-1">Ergebnis melden</h3>
     <div class="melden-teams">
       <div class="melden-team">
         <span class="melden-teamname" id="melden-name-a">Team A</span>
@@ -1177,8 +1177,8 @@
 
 <!-- ============ Modal: Veranstalter ============ -->
 <div class="modal-overlay" id="modal-admin">
-  <div class="modal">
-    <h3>Veranstalter</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="admin-titel">
+    <h3 id="admin-titel" tabindex="-1">Veranstalter</h3>
     <div id="admin-login">
       <label class="feld-label" for="admin-pin">Admin-PIN eingeben</label>
       <input type="text" id="admin-pin" class="eingabe" placeholder="PIN" maxlength="20" autocomplete="off">
@@ -1201,8 +1201,8 @@
 <!-- ⚠️ EIN Dialog für Gruppenphase und K.-o. Zwei Karten in zwei Screens
      waeren zwei Stellen, an denen dieselbe Aenderung nachzuziehen ist. -->
 <div class="modal-overlay" id="modal-zeitplan">
-  <div class="modal modal-breit">
-    <h3>Zeitplan</h3>
+  <div class="modal modal-breit" role="dialog" aria-modal="true" aria-labelledby="zp-titel">
+    <h3 id="zp-titel" tabindex="-1">Zeitplan</h3>
     <p class="hinweis-text">Die App verteilt alle noch offenen Spiele der Reihe nach. Schon bestätigte Spiele bleiben stehen – so kannst du mittendrin nachplanen, wenn es hinterherhinkt.</p>
 
     <div class="zp-felder">
@@ -1249,8 +1249,8 @@
 
 <!-- ============ Modal: Zeit belegen ============ -->
 <div class="modal-overlay" id="modal-stream">
-  <div class="modal">
-    <h3 id="sk-dlg-titel-text">Zeit belegen</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sk-dlg-titel-text">
+    <h3 id="sk-dlg-titel-text" tabindex="-1">Zeit belegen</h3>
 
     <label class="feld-label" for="sk-dlg-tag">Tag</label>
     <select id="sk-dlg-tag" class="eingabe"></select>
@@ -1286,8 +1286,8 @@
 
 <!-- ============ Modal: Programmpunkt ============ -->
 <div class="modal-overlay" id="modal-programm">
-  <div class="modal">
-    <h3 id="sk-prg-titel-text">Programmpunkt anlegen</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sk-prg-titel-text">
+    <h3 id="sk-prg-titel-text" tabindex="-1">Programmpunkt anlegen</h3>
 
     <label class="feld-label" for="sk-prg-tag">Tag</label>
     <select id="sk-prg-tag" class="eingabe"></select>
@@ -1342,9 +1342,9 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.12',
-    'app.js?v=3.83',
+    'app.js?v=3.84',
     'stream-service.js?v=2.3',
-    'stream-app.js?v=2.13',
+    'stream-app.js?v=2.14',
     'fruehstueck-service.js?v=1.13',
     'fruehstueck-app.js?v=1.18',
     'essen-service.js?v=2.14',

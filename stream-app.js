@@ -510,6 +510,7 @@ function skOeffneDialog(slotId, vorbelegung) {
   skAktualisiereParallelHinweis();
 
   skEl("modal-stream").classList.add("aktiv");
+  if (typeof dlgFokusRein === "function") dlgFokusRein("modal-stream");   // D-12, app.js
 }
 
 // ⚠️ Seit 2026-09-15 nimmt der Plan überschneidende Zeiten an. Weil dabei
@@ -573,6 +574,7 @@ function skZahlAus(wert, ersatz) {
 
 function skSchliesseDialog() {
   skEl("modal-stream").classList.remove("aktiv");
+  if (typeof dlgFokusZurueck === "function") dlgFokusZurueck("modal-stream");   // D-12
   skDialogSlotId = null;
   skDialogNurLesen = false;
 }
@@ -624,6 +626,7 @@ function skOeffneProgrammDialog(programmId, vorbelegung) {
     : "Steht links neben den Streams. Programmpunkte dürfen sich überschneiden und blockieren keine Streamzeit.";
 
   skEl("modal-programm").classList.add("aktiv");
+  if (typeof dlgFokusRein === "function") dlgFokusRein("modal-programm");   // D-12, app.js
 }
 
 // Steht der Haken, sagt der Satz darunter, ob schon jemand sendet. Ohne das
@@ -646,6 +649,7 @@ function skFuelleProgrammZeiten(tag, von, bis) {
 
 function skSchliesseProgrammDialog() {
   skEl("modal-programm").classList.remove("aktiv");
+  if (typeof dlgFokusZurueck === "function") dlgFokusZurueck("modal-programm");   // D-12
   skProgrammDialogId = null;
   skProgrammNurLesen = false;
 }
