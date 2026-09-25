@@ -594,7 +594,12 @@ function esRundenListe(rundenRoh, bestellungen) {
   // ⚠️ Nach der UHRZEIT sortiert, nicht nach der Nummer – die zählt je Tag neu,
   // und „Freitag 1" ist jünger als „Donnerstag 3".
   liste.sort((a, b) => (b.erstelltAm - a.erstelltAm) || (b.nr - a.nr));
-  return liste;
+  // ⚠️ Eine Runde ohne Bestellung wird nicht gezeigt. Sie entsteht nur, wenn
+  // zwei Veranstalter-Geräte im selben Moment „Ist raus“ klicken: beide legen
+  // eine Runde an, die Bestellungen landen in der zweiten, und die erste stand
+  // als leere zweite „Freitag 1“ da (Bugjagd 25.09.d T5a). Gelöscht wird nichts;
+  // eine leere Runde behauptete nur eine Mail, in der nichts mehr steht.
+  return liste.filter((r) => r.anzahl > 0);
 }
 
 // Was als Nächstes anzuklicken ist, hängt davon ab, OB die Bestellung schon
