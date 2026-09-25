@@ -56,8 +56,11 @@ const WELT = {
   fruehstueck: { F1: { meta: { titel: "Fruehstueck" } } },
   fruehstueckGeheim: { F1: { adminPinHash: HASH_T1 } },
   fruehstueckPinProbe: { F1: { "gast-1": HASH_T1 } },
-  essenGeheim: { aktuell: { adminPinHash: HASH_T1 } },
-  essenPinProbe: { aktuell: { "gast-1": HASH_T1 } },
+  // ⚠️ Die App legt das Essens-Geheimnis unter der Kennung "essen-aktuell" ab (ES_PID), die
+  // Daten unter essen/aktuell. Seit der Abnahme 25.09.e (E5) haengt die Verwaltung an genau
+  // diesem Paar - deshalb stehen hier beide Kennungen (die alten Faelle pruefen "aktuell").
+  essenGeheim: { aktuell: { adminPinHash: HASH_T1 }, "essen-aktuell": { adminPinHash: HASH_T1 } },
+  essenPinProbe: { aktuell: { "gast-1": HASH_T1 }, "essen-aktuell": { "gast-1": HASH_T1 } },
   // ⚠️ Der Takt ist die Bremse gegen das Durchprobieren des PINs. Ein Beweis
   // geht nur durch, wenn derselbe uid GERADE getaktet hat. "gast-1" hat das,
   // "gast-schnell" hat vor 200 ms getaktet (darf also noch nicht wieder),
@@ -146,7 +149,9 @@ const faelle = [
 
   ["MUSS: Teilnehmer liest die Speisekarte", "essen/aktuell/karte", "read", "gast-1", true],
   ["MUSS: Teilnehmer liest die Bestellliste", "essen/aktuell/bestellungen", "read", "gast-1", true],
-  ["MUSS: Teilnehmer bestellt", "essen/aktuell/bestellungen/b1", "write", "gast-1", true],
+  // Seit E5 (26.09.2026) haengt eine Bestellung an der uid des Bestellers - das braucht newData
+  // und steht deshalb in pflege/pruefe-rechte.js. Hier nur: die Verwaltung (PIN-Beweis) darf.
+  ["MUSS: Verwaltung (PIN-Beweis) schreibt eine Bestellung", "essen/aktuell/bestellungen/b1", "write", "gast-1", true],
   ["MUSS: Teilnehmer liest die Runden", "essen/aktuell/runden", "read", "gast-1", true],
   ["MUSS: Veranstalter legt den Plan an", "essen/aktuell/meta", "write", "host-uid", true],
   ["MUSS: Veranstalter pflegt die Karte", "essen/aktuell/karte/g1", "write", "host-uid", true],
@@ -157,7 +162,9 @@ const faelle = [
   // meldet sich niemand an.
   ["MUSS: Turnier bleibt oeffentlich lesbar", "turniere/T1/meta", "read", null, true],
   ["MUSS: Streamplan bleibt oeffentlich lesbar", "streamplan/P1/meta", "read", null, true],
-  ["MUSS: angemeldet ins Turnier schreiben", "turniere/T1/spiele/s1", "write", "gast-1", true],
+  // Seit E5: schreiben darf die Verwaltung (hier gast-1 per PIN-Beweis); Teilnehmer nur ihre
+  // eigenen Wege - die stehen in pflege/pruefe-rechte.js.
+  ["MUSS: Verwaltung (PIN-Beweis) schreibt ins Turnier", "turniere/T1/spiele/s1", "write", "gast-1", true],
   ["DARF NICHT: Turnier schreiben OHNE Anmeldung", "turniere/T1/spiele/s1", "write", null, false],
 
   // --- Der Admin-PIN des Turniers ---------------------------------------

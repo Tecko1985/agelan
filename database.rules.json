@@ -1,14 +1,25 @@
 {
   "rules": {
     "turniere": {
+      "_index": {
+        ".read": true,
+        "$id": {
+          ".write": "auth != null && ((!data.exists() && newData.exists()) || (!newData.exists() && (!root.child('turniere/' + $id).exists() || (root.child('turniere/' + $id + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $id + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $id + '/' + auth.uid).val() === root.child('turnierGeheim/' + $id + '/adminPinHash').val())))))",
+          ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 60"
+        }
+      },
       "$tid": {
         ".read": true,
-        ".write": "auth != null",
+        ".write": "auth != null && ((root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $tid + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $tid + '/' + auth.uid).val() === root.child('turnierGeheim/' + $tid + '/adminPinHash').val())) || (!data.exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['name', 'phase'])",
           "name":  { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
-          "phase": { ".validate": "newData.isString()" },
+          "phase": {
+            ".write": "auth != null && data.val() === 'ko' && newData.val() === 'beendet' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()",
+            ".validate": "newData.isString()"
+          },
+          "siegerTeamId": { ".write": "auth != null && !data.exists() && newData.exists() && root.child('turniere/' + $tid + '/meta/phase').val() === 'ko' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()" },
           "bestOf": { ".validate": "newData.isNumber()" },
 
           "adminPin": { ".validate": false }
@@ -16,14 +27,25 @@
 
         "spieler": {
           "$uid": {
+            ".write": "auth != null && $uid === auth.uid && (root.child('turniere/' + $tid + '/meta/phase').val() === 'anmeldung' || (root.child('turniere/' + $tid + '/meta/phase').val() === 'teams' && data.exists() && newData.exists()))",
             ".validate": "newData.hasChildren(['name', 'rating'])",
             "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
             "rating": { ".validate": "newData.isNumber() && newData.val() >= 500 && newData.val() <= 3000" }
           }
         },
 
+        "teams": {
+          "$team": {
+            "ratingSchnitt": {
+              ".write": "auth != null && root.child('turniere/' + $tid + '/meta/phase').val() === 'teams' && root.child('turniere/' + $tid + '/teams/' + $team + '/mitglieder/' + auth.uid).exists()",
+              ".validate": "newData.isNumber()"
+            }
+          }
+        },
+
         "spiele": {
           "$sid": {
+            ".write": "auth != null && ((!data.exists() && newData.child('phase').val() === 'ko' && root.child('turniere/' + $tid + '/meta/phase').val() === 'ko' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()) || (data.exists() && newData.exists() && data.child('status').val() !== 'bestaetigt' && ((data.child('teamA').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('teamA').val() + '/mitglieder/' + auth.uid).exists()) || (data.child('teamB').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('teamB').val() + '/mitglieder/' + auth.uid).exists())) && newData.child('teamA').val() === data.child('teamA').val() && newData.child('teamB').val() === data.child('teamB').val() && newData.child('phase').val() === data.child('phase').val() && newData.child('runde').val() === data.child('runde').val() && newData.child('position').val() === data.child('position').val() && newData.child('bracket').val() === data.child('bracket').val() && newData.child('gruppe').val() === data.child('gruppe').val() && newData.child('geplantAm').val() === data.child('geplantAm').val() && newData.child('dauerMin').val() === data.child('dauerMin').val() && newData.child('istFinale').val() === data.child('istFinale').val() && newData.child('platz3').val() === data.child('platz3').val() && newData.child('entscheidung').val() === data.child('entscheidung').val() && ((newData.child('status').val() === 'gemeldet' && newData.child('gemeldetVon').exists() && root.child('turniere/' + $tid + '/teams/' + newData.child('gemeldetVon').val() + '/mitglieder/' + auth.uid).exists()) || (newData.child('status').val() === 'offen' && data.child('status').val() === 'gemeldet' && !newData.child('gemeldetVon').exists() && !newData.child('saetzeA').exists() && !newData.child('saetzeB').exists()) || (newData.child('status').val() === 'bestaetigt' && data.child('status').val() === 'gemeldet' && newData.child('saetzeA').val() === data.child('saetzeA').val() && newData.child('saetzeB').val() === data.child('saetzeB').val() && newData.child('gemeldetVon').val() === data.child('gemeldetVon').val() && !(data.child('gemeldetVon').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('gemeldetVon').val() + '/mitglieder/' + auth.uid).exists())))))",
             "saetzeA": { ".validate": "newData.isNumber() || newData.val() == null" },
             "saetzeB": { ".validate": "newData.isNumber() || newData.val() == null" },
             "status":  { ".validate": "newData.isString()" },
@@ -149,7 +171,7 @@
     "streamplan": {
       "$pid": {
         ".read": true,
-        ".write": "auth != null",
+        ".write": "auth != null && ((root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('streamplanGeheim/' + $pid + '/adminPinHash').exists() && root.child('streamplanPinProbe/' + $pid + '/' + auth.uid).val() === root.child('streamplanGeheim/' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
@@ -183,6 +205,7 @@
 
         "slots": {
           "$sid": {
+            ".write": "auth != null && ((newData.exists() && newData.child('uid').val() === auth.uid && (!data.exists() || data.child('uid').val() === auth.uid)) || (!newData.exists() && data.child('uid').val() === auth.uid))",
             ".validate": "newData.hasChildren(['datum', 'von', 'bis', 'streamer'])",
             "datum":    { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
             "von":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 1800" },
@@ -199,7 +222,7 @@
     "fruehstueck": {
       "$pid": {
         ".read": true,
-        ".write": "auth != null",
+        ".write": "auth != null && ((root.child('fruehstueck/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').exists() && root.child('fruehstueckPinProbe/' + 'fruehstueck-' + $pid + '/' + auth.uid).val() === root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
@@ -225,6 +248,7 @@
         "bestellungen": {
           "$datum": {
             "$uid": {
+              ".write": "auth != null && $uid === auth.uid && ((!newData.exists() && data.child('bezahlt').val() !== true) || (newData.exists() && (newData.child('bezahlt').val() === data.child('bezahlt').val() || (!data.child('bezahlt').exists() && newData.child('bezahlt').val() !== true)) && (newData.child('abgeholt').val() === data.child('abgeholt').val() || (!data.child('abgeholt').exists() && newData.child('abgeholt').val() !== true))))",
               ".validate": "newData.hasChildren(['name', 'positionen'])",
               "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
               "notiz":    { ".validate": "newData.isString() && newData.val().length <= 200" },
@@ -241,15 +265,15 @@
     "essen": {
       "$pid": {
         ".read": "auth != null",
-        ".write": "auth != null",
+        ".write": "auth != null && ((root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel'])",
           "titel":            { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
           "lieferantName":    { ".validate": "newData.isString() && newData.val().length <= 80" },
-          "lieferantEmail":   { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "lieferantEmail":   { ".validate": false },
           "bestellerName":    { ".validate": "newData.isString() && newData.val().length <= 60" },
-          "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "bestellerTelefon": { ".validate": false },
           "hinweis":          { ".validate": "newData.isString() && newData.val().length <= 400" },
           "annahmeOffen":     { ".validate": "newData.isBoolean()" },
           "annahmeVon":       { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() < 1440" },
@@ -287,6 +311,7 @@
 
         "bestellungen": {
           "$oid": {
+            ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists()) || (data.exists() && data.child('uid').val() === auth.uid && data.child('status').val() === 'neu' && !data.child('rundeId').exists() && (!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists() && newData.child('orga').val() === data.child('orga').val() && newData.child('erstelltAm').val() === data.child('erstelltAm').val()))))",
             ".validate": "newData.hasChildren(['name', 'positionen'])",
             "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
             "notiz":  { ".validate": "newData.isString() && newData.val().length <= 200" },
@@ -309,6 +334,16 @@
             }
           }
         }
+      }
+    },
+
+    "essenOrga": {
+      "$pid": {
+        ".read": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()))",
+        ".write": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()))",
+        "lieferantEmail":   { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "$sonst": { ".validate": false }
       }
     }
   }

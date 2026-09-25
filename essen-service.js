@@ -57,6 +57,13 @@
 // ===========================================================================
 
 const ES_BASIS = "essen/aktuell";
+// ⚠️ Abnahme 25.09.e (Entscheidung E5): Telefonnummer des Bestellers und Mail des Lieferanten
+// liegen NICHT mehr in essen/aktuell/meta — das liest jede:r Angemeldete, und angemeldet ist
+// jede:r auf der Seite. Sie stehen in essenOrga/aktuell; lesen und schreiben darf dort nur
+// die Verwaltung (hostId oder PIN-Beweis, siehe database.rules.json). Solange die neuen
+// Regeln nicht in der Firebase-Konsole stehen, gibt es den Knoten nicht (Zugriff verweigert)
+// — dann gilt wie bisher meta. Deshalb ueberall mit Rueckfall: esOrgaWert, esSchreibeOrgaDaten.
+const ES_ORGA_PFAD = "essenOrga/aktuell";
 const ES_PIN_KEY = "agelan_admin_pin";      // derselbe Schlüssel wie Turnier, Stream und Frühstück
 
 // ⚠️ Der Admin-PIN steht NICHT mehr in meta. essen/aktuell trug ".read":
@@ -141,6 +148,10 @@ let esPinLaeuft = false;
 // Schreiben erst geschätzt und dann vom Server, das hätte den Beweis grundlos
 // verworfen.
 let esPinPlan = null;
+let esOrga = null;             // { bestellerTelefon, lieferantEmail } aus essenOrga, null = nicht lesbar
+let esOrgaHorcher = null;
+let esOrgaVersuch = null;      // wofuer zuletzt versucht - kein Dauerfeuer bei verweigertem Zugriff
+let esOrgaUmzugLaeuft = false;
 let esListener = null;
 // true, sobald Firebase das Lesen ablehnt – praktisch immer die fehlende Regel.
 let esZugriffFehler = false;
@@ -223,6 +234,79 @@ function esImFenster(von, bis, minute) {
   if (von === null || bis === null) return true;   // kein Fenster = immer offen
   if (von === bis) return true;                    // 10:00–10:00 liest sich wie „ganztags"
   return von < bis ? (minute >= von && minute < bis) : (minute >= von || minute < bis);
+}
+
+// --- Orga-Daten (Telefon, Lieferanten-Mail), E5 ------------------------------
+function esOrgaWert(feld) {
+  if (esOrga && esOrga[feld]) return esOrga[feld];
+  const meta = (esRoh && esRoh.meta) || {};
+  return meta[feld] || "";   // alte Regeln bzw. Altbestand, der noch nicht umgezogen ist
+}
+
+// Nur die Verwaltung versucht zu lesen. Neu versucht wird nur, wenn sich der GRUND der
+// Verwaltung aendert (PIN bewiesen, anderer Plan) - sonst stuende bei verweigertem Zugriff
+// (Konto-Veranstalter ohne PIN, alte Regeln) bei jedem Datenereignis ein Fehlversuch an.
+function esHorcheOrga() {
+  if (!esIstAdmin()) return;
+  const meta = (esRoh && esRoh.meta) || {};
+  const grund = (esPinOk ? "pin" : "-") + "|" + (meta.hostId === esEigeneUid ? "host" : "-") + "|" + String(meta.erstelltAm || "");
+  if (esOrgaVersuch === grund) return;
+  esOrgaVersuch = grund;
+  if (esOrgaHorcher) { try { esOrgaHorcher.off(); } catch (e) { /* egal */ } }
+  const ref = db.ref(ES_ORGA_PFAD);
+  esOrgaHorcher = ref;
+  ref.on("value", (snap) => {
+    esOrga = snap.val() || {};
+    esZieheOrgaDatenUm();
+    esMelde();
+  }, () => {
+    // Verweigert: alte Regeln oder (noch) kein PIN-Beweis. Rueckfall auf meta.
+    esOrgaHorcher = null;
+    esOrga = null;
+  });
+}
+
+// Altbestand: steht Telefon/Mail noch in meta und ist essenOrga lesbar (= neue Regeln), zieht
+// die Verwaltung es einmal um und raeumt meta.
+async function esZieheOrgaDatenUm() {
+  const meta = esRoh && esRoh.meta;
+  if (!meta || esOrga === null || esOrgaUmzugLaeuft) return;
+  if (meta.bestellerTelefon === undefined && meta.lieferantEmail === undefined) return;
+  esOrgaUmzugLaeuft = true;
+  try {
+    await db.ref(ES_ORGA_PFAD).set({
+      bestellerTelefon: esText(esOrga.bestellerTelefon || meta.bestellerTelefon || "", 40),
+      lieferantEmail: esText(esOrga.lieferantEmail || meta.lieferantEmail || "", 120),
+    });
+    await db.ref(ES_BASIS + "/meta").update({ bestellerTelefon: null, lieferantEmail: null });
+  } catch (e) {
+    console.error("Essen: Umzug von Telefon/Lieferanten-Mail fehlgeschlagen:", e);
+  } finally {
+    esOrgaUmzugLaeuft = false;
+  }
+}
+
+// Schreibt Telefon und Lieferanten-Mail. Neue Regeln: in essenOrga (und meta raeumen).
+// Alte Regeln (essenOrga verweigert): wie bisher in meta. Liefert true, wenn es irgendwo steht.
+async function esSchreibeOrgaDaten(telefon, mail) {
+  const daten = { bestellerTelefon: esText(telefon, 40), lieferantEmail: esText(mail, 120) };
+  try {
+    await db.ref(ES_ORGA_PFAD).set(daten);
+    esOrga = daten;
+    const meta = esRoh && esRoh.meta;
+    if (meta && (meta.bestellerTelefon !== undefined || meta.lieferantEmail !== undefined)) {
+      await db.ref(ES_BASIS + "/meta").update({ bestellerTelefon: null, lieferantEmail: null }).catch(() => {});
+    }
+    return true;
+  } catch (e) {
+    try {
+      await db.ref(ES_BASIS + "/meta").update(daten);
+      return true;
+    } catch (e2) {
+      console.error("Essen: Telefon/Lieferanten-Mail ließen sich nicht speichern:", e2);
+      return false;
+    }
+  }
 }
 
 // --- Admin-Status ----------------------------------------------------------
@@ -860,7 +944,8 @@ function esGetZustand() {
 
   return {
     vorhanden: true,
-    meta,
+    // E5: Telefon/Lieferanten-Mail kommen aus essenOrga (Verwaltung) bzw. als Rueckfall aus meta.
+    meta: Object.assign({}, meta, { bestellerTelefon: esOrgaWert("bestellerTelefon"), lieferantEmail: esOrgaWert("lieferantEmail") }),
     annahmeOffen: schalterAn && imFenster,
     schalterAn,
     imFenster,
@@ -1059,6 +1144,8 @@ function esParseImport(roh) {
 const esCallbacks = [];
 
 function esMelde() {
+  esHorcheOrga();
+  esZieheOrgaDatenUm();   // Altbestand in meta, sobald essenOrga lesbar ist (neue Regeln)
   const z = esGetZustand();
   esCallbacks.forEach((cb) => {
     try {
@@ -1188,9 +1275,9 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
         erstelltAm: firebase.database.ServerValue.TIMESTAMP,
         annahmeOffen: true,
         lieferantName: esText(lieferantName, 80),
-        lieferantEmail: mail,
+        // E5: bestellerTelefon und lieferantEmail NICHT hier - die neue Regel weist sie in
+        // meta ab (".validate": false), sie gehen gleich danach nach essenOrga.
         bestellerName: esText(bestellerName, 60),
-        bestellerTelefon: esText(bestellerTelefon, 40),
         hinweis: esText(hinweis, 400),
       },
     });
@@ -1207,6 +1294,10 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
   try {
     localStorage.setItem(ES_PIN_KEY, pin);
   } catch (e) { /* privater Modus: dann zählt nur hostId */ }
+  // E5: erst jetzt, als Anlegender (hostId) - mit Rueckfall auf meta bei alten Regeln.
+  if (!(await esSchreibeOrgaDaten(bestellerTelefon, mail))) {
+    console.error("Essen: Telefon/Lieferanten-Mail bitte in den Einstellungen nachtragen.");
+  }
   return { erfolg: true };
 }
 
@@ -1701,12 +1792,14 @@ async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, best
     annahmeBis: bis === null ? -1 : bis,
     titel: t,
     lieferantName: esText(lieferantName, 80),
-    lieferantEmail: mail,
     bestellerName: esText(bestellerName, 60),
-    bestellerTelefon: esText(bestellerTelefon, 40),
     hinweis: esText(hinweis, 400),
     annahmeOffen: !!annahmeOffen,
   });
+  // E5: Telefon/Lieferanten-Mail in den Orga-Knoten (Rueckfall meta bei alten Regeln).
+  if (!(await esSchreibeOrgaDaten(bestellerTelefon, mail))) {
+    return { erfolg: false, fehler: "Telefon und Lieferanten-Mail ließen sich nicht speichern." };
+  }
   return { erfolg: true };
 }
 
@@ -1758,6 +1851,12 @@ async function esEntferneHash() {
 async function esLoeschePlan() {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  // E5: Telefon/Lieferanten-Mail ZUERST - die Regel fragt nach meta/hostId bzw. dem Beweis.
+  // Bei alten Regeln gibt es den Knoten nicht; dann ist nichts zu tun.
+  if (esOrgaHorcher) { try { esOrgaHorcher.off(); } catch (e) { /* egal */ } esOrgaHorcher = null; }
+  try { await db.ref(ES_ORGA_PFAD).remove(); } catch (e) { /* alte Regeln */ }
+  esOrga = null;
+  esOrgaVersuch = null;
   await db.ref(ES_BASIS).remove();
   // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
   // die nächste Bestellung nur mit dem PIN der vorigen aufmachen – und der ist

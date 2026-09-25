@@ -57,7 +57,10 @@ const BEREICHE = {
     basis: "essen/aktuell", pid: "essen-aktuell", geheim: "essenGeheim", probe: "essenPinProbe", takt: "essenPinTakt",
     kern: ["esText", "esZahl", "esGespeicherterPin", "esIstAdmin", "esBeweisWegDa", "esBeweisePin", "esHeileAltenPin",
       "esPruefeGemerktenPin", "esErstellePlan", "esLoeschePlan", "esAuthentifiziereAlsAdmin"],
-    neu: ["esEntferneHash", "esRaeumeKlartext"],
+    // esSchreibeOrgaDaten seit Abnahme 25.09.e (E5): Telefon/Lieferanten-Mail in essenOrga, mit
+    // Rueckfall auf meta. Die nachgestellte DB unten kennt essenOrga NICHT (= alte Regeln) und
+    // prueft damit genau diesen Rueckfall mit.
+    neu: ["esEntferneHash", "esRaeumeKlartext", "esSchreibeOrgaDaten"],
     plan: (pin, extra = {}) => ({ titel: "Do", lieferantEmail: "", adminPin: pin, ...extra }),
   },
   fruehstueck: {
@@ -152,6 +155,7 @@ function geraet(b, welt, uid, { konto = false, gemerkt = null } = {}) {
     `const ${P}_BASIS=${JSON.stringify(b.basis)}, ${P}_PIN_KEY="agelan_admin_pin", ${P}_PID=${JSON.stringify(b.pid)},
        ${P}_GEHEIM_PFAD=${JSON.stringify(b.geheim)}, ${P}_PROBE_PFAD=${JSON.stringify(b.probe)}, ${P}_MAX_TAGE=7;
      let ${p}Roh=null, ${p}EigeneUid=${JSON.stringify(uid)}, ${p}PinOk=false, ${p}PinLaeuft=false;
+     const ${P}_ORGA_PFAD="essenOrga/aktuell"; let ${p}Orga=null, ${p}OrgaHorcher=null, ${p}OrgaVersuch=null;
      const ${p}AuthBereit=Promise.resolve();
      const PIN_MIN=6, PIN_ZU_KURZ="zu kurz", PIN_UNSICHER="unsicher";
      function istMockModus(){ return false; }
