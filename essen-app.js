@@ -501,6 +501,10 @@ function esRenderMeine(z) {
 function esLadeInKorb(bestellungId) {
   const b = esZustand.bestellungen.find((x) => x.id === bestellungId);
   if (!b) return;
+  // ⚠️ Ein gefüllter, noch nicht abgeschickter Korb wird sonst still ersetzt
+  // (Bugjagd 25.09.d T5a, K2).
+  if (esEntwurf.positionen.length && esEntwurf.bestellungId !== b.id &&
+      !confirm("In deinem Korb liegt noch etwas, das nicht abgeschickt ist. Verwerfen und diese Bestellung zum Ändern laden?")) return;
   esEntwurf = {
     bestellungId: b.id,
     notiz: b.notiz,
