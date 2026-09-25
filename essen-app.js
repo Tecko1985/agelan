@@ -9,9 +9,12 @@ let esZustand = null;
 let esBearbeitetesGerichtId = null;  // null = das Formular legt an, sonst ändert es dieses Gericht
 let esImportVorschau = null;         // Ergebnis von parseImport(), wartet auf „Übernehmen"
 let esMailAuswahl = "bezahlt";       // welche Bestellungen in die Sammelmail gehen
-// Ab der ersten Eingabe in einem der Einstellungsfelder gehören ALLE acht dem
+// Ab der ersten Eingabe in einem Einstellungsfeld gehört DIESES Feld dem
 // Veranstalter, bis gespeichert ist (wie frEinstellungenBeruehrt beim Frühstück).
-let esEinstellungenBeruehrt = false;
+// ⚠️ Je Feld, nicht über alle acht: sonst fror die erste Eingabe auch die Felder
+// ein, die niemand angefasst hat, und „Speichern“ schrieb einen inzwischen auf
+// einem anderen Gerät geänderten Tag zurück (Bugjagd 25.09.d T5a-1c).
+const esEinstellungenBeruehrt = new Set();
 // Solange der Veranstalter im Mailtext etwas geändert hat: { basis } = der
 // erzeugte Text, auf dem die Änderung beruht. ⚠️ Dann zeichnet ein Live-Update
 // (30-s-Takt, fremde Bestellung) den Kasten NICHT neu – sonst wäre die Änderung
@@ -1408,10 +1411,11 @@ function esRenderEinstellungen(z) {
   // ⚠️ Der Fokus allein reicht nicht: wer nach dem Lieferanten ins Telefonfeld
   // wechselt, hat den Lieferanten nicht mehr im Fokus – der 30-s-Takt schrieb
   // den alten Wert zurück, und „Speichern“ übernahm ihn mit „Gespeichert.“.
-  // Deshalb der Merker über alle acht Felder.
+  // Deshalb der Merker je Feld: ein angefasstes Feld bleibt, die übrigen ziehen
+  // weiter nach, damit „Speichern“ dort den aktuellen Stand schreibt.
   const setze = (id, wert) => {
     const el = esEl(id);
-    if (el && !esEinstellungenBeruehrt && document.activeElement !== el) el.value = wert || "";
+    if (el && !esEinstellungenBeruehrt.has(id) && document.activeElement !== el) el.value = wert || "";
   };
   setze("es-ein-titel", z.meta.titel);
   setze("es-ein-lieferant", z.meta.lieferantName);
@@ -1495,7 +1499,7 @@ function esWireEvents() {
 
   ES_EIN_FELDER.forEach((id) => {
     const el = esEl(id);
-    if (el) el.addEventListener("input", () => { esEinstellungenBeruehrt = true; });
+    if (el) el.addEventListener("input", () => { esEinstellungenBeruehrt.add(id); });
   });
 
   esEl("es-ein-annahme").addEventListener("change", async () => {
@@ -1517,7 +1521,7 @@ function esWireEvents() {
     });
     // Erst wenn es wirklich drin steht, darf das nächste Update die Felder
     // wieder befüllen. Bei einem Fehler bleibt der Entwurf stehen.
-    if (res.erfolg) esEinstellungenBeruehrt = false;
+    if (res.erfolg) esEinstellungenBeruehrt.clear();
     esZeigeFehler("es-ein-fehler", res.erfolg ? "" : res.fehler);
     if (res.erfolg) esZeigeFehler("es-ein-fehler", "Gespeichert.");
   });
