@@ -198,6 +198,15 @@ function frRenderTagInhalt(z) {
       (bezahltFest ? `<p class="hinweis-text">Bezahlt – Menge ändern oder stornieren geht erst, wenn der Veranstalter den Haken „bezahlt“ wieder herausnimmt.</p>` : "")
     : "";
 
+  // ⚠️ Fokus und Cursor in Notiz/Name vor dem Neuzeichnen merken: der Takt
+  // und jede fremde Bestellung zeichnen diesen Kasten neu, und wer gerade
+  // tippte, flog aus dem Feld (Bugjagd 25.09.d T5b). Der Text selbst liegt
+  // ohnehin im Entwurf und kommt mit.
+  const aktiv = document.activeElement;
+  const fokusId = aktiv && (aktiv.id === "fr-best-notiz" || aktiv.id === "fr-best-name") ? aktiv.id : null;
+  let cursor = null;
+  if (fokusId) { try { cursor = [aktiv.selectionStart, aktiv.selectionEnd]; } catch (e) { cursor = null; } }
+
   box.innerHTML = `
     <div class="fr-tagkarte">
       <h3>${escapeHtml(tag.tagLang)}, ${escapeHtml(tag.label)}</h3>
@@ -256,6 +265,14 @@ function frRenderTagInhalt(z) {
   if (btnStorno) btnStorno.addEventListener("click", () => frStorniereBestellung(tag));
 
   frWireAbholButtons();
+
+  if (fokusId) {
+    const feld = frEl(fokusId);
+    if (feld) {
+      feld.focus();
+      if (cursor && cursor[0] != null) { try { feld.setSelectionRange(cursor[0], cursor[1]); } catch (e) { /* Feldart ohne Cursor */ } }
+    }
+  }
 }
 
 function frAendereEntwurf(paketId, delta) {
