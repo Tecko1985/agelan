@@ -256,6 +256,10 @@ function weltT(phase, extra) {
   F("Turnier", "DARF NICHT: Fremder löscht einen Index-Eintrag, solange das Turnier steht", weltT("ko"), "set", "turniere/_index/T1", null, "fremd", false);
   F("Turnier", "DARF NICHT: Fremder übernimmt ein bestehendes Turnier (meta neu setzen)", weltT("ko"), "set", R + "/meta", { name: "Weg", phase: "anmeldung", hostId: "fremd" }, "fremd", false);
   F("Turnier", "DARF NICHT: Turnier ohne hinterlegten PIN von Fremden löschen (null === null)", weltT("ko"), "set", "turniere/T2", null, "fremd", false);
+  // B2-15 (26.09.): unter turniere/$tid nur die bekannten Knoten (meta, spieler, teams, spiele,
+  // gruppen, spieltagDaten) - vorher liess sich beliebiger Inhalt ablegen.
+  F("Turnier", "DARF NICHT: unbekanntes Feld im Turnier (auch Verwaltung)", weltT("ko"), "set", R + "/muell", "x", "host", false);
+  F("Turnier", "MUSS: Gruppen und Spieltage bleiben erlaubt (ts:1465, ts:1976)", weltT("teams"), "update", R, { gruppen: { gA: { name: "A" } }, "spieltagDaten/1": "2026-10-01" }, "host", true);
   F("Turnier", "DARF NICHT: ohne Anmeldung melden", weltT("ko"), "update", S + "g1", { saetzeA: 2, saetzeB: 0, status: "gemeldet", gemeldetVon: "tA" }, null, false);
   F("Turnier", "DARF NICHT (bewusste Folge E5): Konto-Veranstalter ohne PIN verwaltet", weltT("ko"), "set", R, null, "orgaKonto", false);
 }
@@ -408,6 +412,7 @@ const mutationen = [
   ["Turnier wieder für jeden Angemeldeten (Stand vor E5)", (r) => { r.turniere.$tid[".write"] = "auth != null"; }],
   ["Turnier-Spiel ohne Teamprüfung", (r) => { r.turniere.$tid.spiele.$sid[".write"] = "auth != null"; }],
   ["Verwaltung ohne Hash-Existenz (null === null)", (r) => { r.turniere.$tid[".write"] = r.turniere.$tid[".write"].replace("root.child('turnierGeheim/' + $tid + '/adminPinHash').exists() && ", ""); }],
+  ["Turnier ohne Feld-Liste (Stand vor 26.09., B2-15)", (r) => { delete r.turniere.$tid.$sonst; }],
   ["Sieger mehrfach setzbar", (r) => { r.turniere.$tid.meta.siegerTeamId[".write"] = r.turniere.$tid.meta.siegerTeamId[".write"].replace("!data.exists() && ", ""); }],
   ["Streamplan wieder für jeden (Stand vor E5)", (r) => { r.streamplan.$pid[".write"] = "auth != null"; }],
   ["Stream-Slot ohne uid-Bindung", (r) => { r.streamplan.$pid.slots.$sid[".write"] = "auth != null"; }],

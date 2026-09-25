@@ -52,7 +52,9 @@
             "geplantAm": { ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/))" },
             "dauerMin":  { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 5 && newData.val() <= 600)" }
           }
-        }
+        },
+
+        "$sonst": { ".validate": "$sonst === 'gruppen' || $sonst === 'spieltagDaten'" }
       }
     },
 
