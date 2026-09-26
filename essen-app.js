@@ -620,9 +620,9 @@ function esRundeHtml(r) {
           <button type="button" class="mini-btn" data-es-runde-mail="${escapeHtml(r.id)}"
             title="Den Text dieser Sammelbestellung noch einmal ansehen">✉ Mailtext</button>
           ${r.fertig || !esDarfBescheid() ? "" : `<button type="button" class="mini-btn" data-es-runde-bescheid="${escapeHtml(r.id)}"
-            title="${r.bescheidAm
+            title="${esSchonBescheid(r)
               ? "Noch einmal anstupsen – wer schon abgeholt hat, bekommt nichts"
-              : "Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt"}">📣 ${r.bescheidAm ? "Nochmal Bescheid" : "Bescheid geben"}</button>`}
+              : "Allen Bestellern dieser Lieferung per Discord sagen, dass ihr Essen bereitliegt"}">📣 ${esSchonBescheid(r) ? "Nochmal Bescheid" : "Bescheid geben"}</button>`}
           ${r.fertig
             // ⚠️ Auch die ganze Lieferung braucht einen Rückweg. Ohne ihn müsste
             // man nach einem Fehlklick auf „Alle abgeholt" jede Bestellung
@@ -657,6 +657,9 @@ function esBescheidHtml(r) {
   if (!e) return wann;
   if (e.laeuft) return wann + `<p class="hinweis-text es-bescheid-lauf">Schicke Nachrichten \u2026</p>`;
   if (e.fehler) return wann + `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}</p>`;
+  // A3-02: raus, aber ohne gespeicherten Zeitpunkt - das muss neben der Liste stehen,
+  // nicht nur oben im Kasten, sonst drueckt man ein zweites Mal.
+  const zeit = e.zeitFehler ? `<p class="hinweis-text fehler">${escapeHtml(e.zeitFehler)}</p>` : "";
 
   const gut = e.geschickt
     ? `<b>\u2705 ${e.geschickt} benachrichtigt.</b>`
@@ -670,7 +673,14 @@ function esBescheidHtml(r) {
     ? `<br><b>\u26a0\ufe0f ${e.offen.length} nicht erreicht \u2013 diesen Leuten selbst Bescheid sagen:</b><br>` +
       e.offen.map((o) => `\u2022 ${escapeHtml(o.nickname)} \u2013 ${escapeHtml(o.grund)}`).join("<br>")
     : "";
-  return wann + `<p class="hinweis-text es-bescheid${e.offen && e.offen.length ? " es-bescheid-luecke" : ""}">${gut}${ohne}${schlecht}</p>`;
+  return wann + zeit + `<p class="hinweis-text es-bescheid${e.offen && e.offen.length ? " es-bescheid-luecke" : ""}">${gut}${ohne}${schlecht}</p>`;
+}
+
+// Ist fuer diese Lieferung schon Bescheid gegeben worden? Gespeichert (bescheidAm) ODER
+// in dieser Sitzung verschickt - auch wenn das Festhalten danach scheiterte (A3-02).
+function esSchonBescheid(r) {
+  const e = esBescheidStand[r.id];
+  return !!(r.bescheidAm || (e && e.geschickt !== undefined));
 }
 
 // "Dein Essen ist da" an alle Besteller dieser Lieferung.
@@ -775,8 +785,18 @@ async function esBescheidGeben(runde, knopf) {
     };
     // Uhrzeit festhalten, damit sie ein Neuladen überlebt. ⚠️ Erst NACH dem
     // Versand – vorher stünde dort eine Zeit, obwohl nichts rausging.
-    const merk = await essenService.setzeBescheid(runde.id, daten.geschickt || 0);
-    if (!merk.erfolg) esZeigeFehler("es-admin-fehler", merk.fehler);
+    // ⚠️ Eigenes try (Fixprüfung 26.09.2026, A3-02): scheitert NUR das Festhalten, sind die
+    // Nachrichten trotzdem raus. Die Nachfassliste bleibt stehen, daneben der Hinweis.
+    let merk;
+    try {
+      merk = await essenService.setzeBescheid(runde.id, daten.geschickt || 0);
+    } catch (e2) {
+      merk = { erfolg: false, fehler: "Die Nachrichten sind raus, der Zeitpunkt ließ sich aber nicht speichern." };
+    }
+    if (!merk.erfolg) {
+      esBescheidStand[runde.id].zeitFehler = merk.fehler;
+      esZeigeFehler("es-admin-fehler", merk.fehler);
+    }
   } catch (e) {
     esBescheidStand[runde.id] = { fehler: e.message };
   }
@@ -1159,7 +1179,10 @@ function esRenderSammelmail(z) {
           ? `<a class="btn btn-primary es-mail-link" id="es-mail-link" href="${escapeHtml(mailto)}">E-Mail öffnen</a>`
           : `<button type="button" class="btn btn-primary" disabled title="Erst die E-Mail-Adresse des Lieferanten eintragen">E-Mail öffnen</button>`}
       </div>
-      ${!brief.empfaenger ? `<p class="hinweis-text">Für „E-Mail öffnen“ fehlt noch die Adresse des Lieferanten – trag sie unten bei den Einstellungen ein.</p>` : ""}
+      ${!brief.empfaenger ? (z.orgaLesbar === false
+        // A3-02: essenOrga ist (noch) nicht lesbar - dann fehlt die Adresse nicht, sie ist nur verborgen.
+        ? `<p class="hinweis-text">Für „E-Mail öffnen“ fehlt die Adresse des Lieferanten: Telefon und Mail sind nur mit dem PIN dieses Bereichs lesbar.</p>`
+        : `<p class="hinweis-text">Für „E-Mail öffnen“ fehlt noch die Adresse des Lieferanten – trag sie unten bei den Einstellungen ein.</p>`) : ""}
       ${zuLang ? `<p class="hinweis-text">⚠️ Der Text ist lang. Manche Mailprogramme schneiden ihn ab – wenn die Mail leer aufgeht, nimm „Text kopieren“ und füg ihn von Hand ein.</p>` : ""}
 
       ${runde

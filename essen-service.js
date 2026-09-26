@@ -947,6 +947,9 @@ function esGetZustand() {
     vorhanden: true,
     // E5: Telefon/Lieferanten-Mail kommen aus essenOrga (Verwaltung) bzw. als Rueckfall aus meta.
     meta: Object.assign({}, meta, { bestellerTelefon: esOrgaWert("bestellerTelefon"), lieferantEmail: esOrgaWert("lieferantEmail") }),
+    // A3-02: false, solange essenOrga nicht gelesen ist (kein PIN-Beweis, noch am Laden oder
+    // alte Regeln). Dann fehlt eine leere Lieferanten-Mail nicht wirklich - sie ist nur nicht lesbar.
+    orgaLesbar: esOrga !== null,
     annahmeOffen: schalterAn && imFenster,
     schalterAn,
     imFenster,
@@ -1713,7 +1716,15 @@ async function esSchickeRunde(bestellungIds) {
   // ⚠️ EIN update(): entweder die Runde entsteht mitsamt ihren Bestellungen
   // oder gar nicht. Zwei Schreibvorgänge könnten eine leere Runde hinterlassen
   // oder Bestellungen, die auf eine Runde zeigen, die es nicht gibt.
-  await db.ref(ES_BASIS).update(updates);
+  // ⚠️ Abgelehnt wird hier ZURÜCKGEGEBEN, nicht geworfen (Fixprüfung 26.09.2026, A3-02):
+  // die Mail ist in diesem Moment schon beim Lieferanten. Ein Wurf ließ die Oberfläche
+  // den bearbeiteten Mailtext verwerfen und die Bestellungen im Stapel liegen – bereit
+  // für eine zweite Mail mit denselben Essen.
+  try {
+    await db.ref(ES_BASIS).update(updates);
+  } catch (e) {
+    return { erfolg: false, fehler: "Nicht festgehalten – die Mail ist aber schon raus. " + esSchreibFehler(null, z, e) };
+  }
   return { erfolg: true, id: rid, nr, titel, anzahl: mit.length };
 }
 
@@ -1774,10 +1785,17 @@ async function esSetzeBescheid(rundeId, erreicht) {
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const runde = esGetZustand().runden.find((r) => r.id === rundeId);
   if (!runde) return { erfolg: false, fehler: "Diese Sammelbestellung gibt es nicht mehr." };
-  await db.ref(ES_BASIS + "/runden/" + rundeId).update({
-    bescheidAm: firebase.database.ServerValue.TIMESTAMP,
-    bescheidErreicht: Math.max(0, Math.round(esZahl(erreicht, 0))),
-  });
+  // ⚠️ Nicht werfen (Fixprüfung 26.09.2026, A3-02): die Nachrichten sind schon raus.
+  // Ein Wurf ersetzte in esBescheidGeben die Nachfassliste durch den Fehler, der Knopf
+  // blieb auf „Bescheid geben“ – und der zweite Klick schickte allen alles noch einmal.
+  try {
+    await db.ref(ES_BASIS + "/runden/" + rundeId).update({
+      bescheidAm: firebase.database.ServerValue.TIMESTAMP,
+      bescheidErreicht: Math.max(0, Math.round(esZahl(erreicht, 0))),
+    });
+  } catch (e) {
+    return { erfolg: false, fehler: "Die Nachrichten sind raus, der Zeitpunkt ließ sich aber nicht speichern. " + esSchreibFehler(null, esGetZustand(), e) };
+  }
   return { erfolg: true };
 }
 
