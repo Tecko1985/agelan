@@ -107,9 +107,29 @@ const authBereit = new Promise((resolve) => {
     }
   });
 });
-// Das Promise wird gebraucht: die Rolle (weiter unten) meldet sich erst NACH der anonymen
-// Anmeldung per Custom Token an - fuer genau diese uid.
-const anonymAngemeldet = auth.signInAnonymously().catch((err) => console.error("Anonyme Anmeldung fehlgeschlagen:", err));
+// Anonym anmelden - aber NUR, wenn nach dem Start niemand angemeldet ist.
+// ⚠️⚠️ Nicht mehr blind bei jedem Laden (agelan-Rolle 26.09.2026): wer per Custom Token
+// angemeldet war (Rolle ⭐/🛠), gilt fuer die Firebase-SDK dauerhaft als NICHT anonym
+// (reload.ts: "if it was not anonymous before, it should never be considered anonymous now"),
+// und signInAnonymously() legt dann einen NEUEN Nutzer an (anonymous.ts) - neue uid, und
+// hostId, Turnier-Anmeldung und Bestellungen des Geraets waeren weg.
+// Im Test-Modus meldet der Mock ohne Anmeldung nichts, dort wie bisher direkt.
+// Das Promise wird gebraucht: die Rolle (weiter unten) meldet sich erst danach per Custom
+// Token an - fuer genau diese uid.
+function starteAnonymeAnmeldung() {
+  const anonym = () => auth.signInAnonymously().catch((err) => console.error("Anonyme Anmeldung fehlgeschlagen:", err));
+  if (istMock) return anonym();
+  return new Promise((fertig) => {
+    let erledigt = false;
+    auth.onAuthStateChanged((user) => {
+      if (erledigt) return;
+      erledigt = true;
+      if (user) { fertig(); return; }   // gespeicherte Anmeldung behalten, anonym ODER per Custom Token
+      anonym().then(() => fertig());
+    });
+  });
+}
+const anonymAngemeldet = starteAnonymeAnmeldung();
 
 // --- kleine Helfer ---------------------------------------------------------
 function mischeArray(arr) {
