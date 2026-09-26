@@ -423,13 +423,14 @@ async function pruefeGemerktePins(id) {
 // geöffnet sind (Löschknopf auf der Kachel).
 // Ist das angemeldete Konto als Veranstalter hinterlegt? Das Merkmal steht im
 // signierten Token, der Client kann es nicht selbst setzen.
-// ⚠️ Wie jede Rechteprüfung dieser App eine BEDIEN-Sperre, kein Datenriegel:
-// die Firebase-Regeln lassen weiterhin jeden anonymen Client schreiben.
 // ⚠️ Seit 2026-09-04 zaehlt `orga` genauso wie `admin`: wer zur Organisation
 // gehoert, hat dieselben Rechte. Der Unterschied liegt nur im Weg dorthin —
 // `admin` ueber das Veranstalter-Passwort, `orga` per Klick im Einstellungs-
-// Reiter. Diese eine Funktion ist der Punkt, an dem das fuer die ganze App
-// entschieden wird; jeder Bereich fragt sie.
+// Reiter.
+// ⚠️ Seit 26.09.2026 (A3-01) gilt das Merkmal nur noch für das, was der
+// agelan-Worker prüft: Einstellungen-Reiter, Turnier anlegen, Discord-Bescheid,
+// Orga-Kachel. Die VERWALTUNG eines Bereichs (Firebase) braucht hostId oder den
+// PIN-Beweis – die Datenbank kennt das Konto nicht (Abnahme 25.09.e, E5).
 function kontoIstVeranstalter() {
   try {
     const k = window.__AGELAN_KONTO__;
@@ -437,6 +438,25 @@ function kontoIstVeranstalter() {
   } catch (e) {
     return false;
   }
+}
+
+// Hinweis im Anmeldekasten eines Bereichs (Turnier, Stream, Frühstück, Essen):
+// wer ⭐/🛠 hat, erwartet die Verwaltung ohne PIN – die Datenbank lässt ihn ohne
+// PIN aber nichts verwalten (A3-01). Leer für alle anderen.
+function kontoPinHinweis() {
+  return kontoIstVeranstalter()
+    ? "Du bist mit ⭐/🛠 angemeldet. Zum Verwalten dieses Bereichs gib auf diesem Gerät einmal seinen PIN ein – die Datenbank kennt dein Konto nicht."
+    : "";
+}
+
+// Setzt den Hinweis in ein Element (per textContent) und blendet es bei leerem
+// Text aus. Ein fehlendes Element (alte index.html aus dem Cache) ist kein Fehler.
+function zeigeKontoPinHinweis(id) {
+  const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+  if (!el) return;
+  const text = kontoPinHinweis();
+  el.textContent = text;
+  el.hidden = !text;
 }
 
 // Gehoert diese Person zur Organisation? Beim Essen heisst das: zahlt nichts.
@@ -479,9 +499,13 @@ function kontoAngemeldet() {
   }
 }
 
+// ⚠️ Seit der Fixprüfung 26.09.2026 (A3-01) zählt hier das Konto-Merkmal
+// ⭐/🛠 NICHT mehr. Die Datenbank-Regeln kennen nur `meta/hostId` und den
+// PIN-Beweis; ein Konto-Veranstalter ohne beides sah die Verwaltung, jeder Klick
+// scheiterte an der Datenbank – und der Kasten mit dem PIN-Feld war versteckt.
+// Dasselbe gilt für skIstAdmin, frIstAdmin und esIstAdmin.
 function istVeranstalterVon(id, meta) {
   if (!meta) return false;
-  if (kontoIstVeranstalter()) return true;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
   // Der PIN-Weg laeuft ueber den Server und laesst sich hier nicht synchron
   // nachschlagen. Was zaehlt, ist das Ergebnis von pruefeGemerktePins().

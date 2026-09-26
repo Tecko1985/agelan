@@ -1000,6 +1000,8 @@ function oeffneAdmin() {
   const istAdmin = zustand && zustand.istAdmin;
   login.style.display = istAdmin ? "none" : "";
   panel.style.display = istAdmin ? "" : "none";
+  // A3-01: wer nur per Konto (⭐/🛠) Veranstalter ist, braucht hier den PIN.
+  if (typeof zeigeKontoPinHinweis === "function") zeigeKontoPinHinweis("admin-konto-hinweis");
   document.getElementById("admin-fehler").textContent = "";
   document.getElementById("admin-panel-fehler").textContent = "";
   document.getElementById("admin-pin").value = "";
@@ -1619,6 +1621,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.24",
+    groups: [
+      { title: "Veranstalter- und Orga-Konto: PIN je Bereich", items: [
+          "Wer nur – ohne PIN – über sein Konto (⭐/🛠) Veranstalter oder Orga ist, sieht in Turnier, Stream, Frühstück und Essen wieder das PIN-Feld. Die Verwaltung eines Bereichs öffnet sich auf einem Gerät nach einmaliger PIN-Eingabe; vorher erschienen die Knöpfe, und jeder Klick scheiterte mit „Anmeldung abgelaufen“.",
+          "Das anlegende Gerät und wer den PIN dort schon eingegeben hat, merken davon nichts. Einstellungen-Reiter und Turnier anlegen hängen weiter nur am Konto; „Bescheid geben“ beim Essen braucht Konto und PIN."
+      ]},
+    ],
+  },
   {
     version: "8.23",
     groups: [

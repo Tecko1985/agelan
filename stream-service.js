@@ -163,7 +163,7 @@ let skPinLaeuft = false;
 
 // Der ganze Beweis-Weg steht in turnier-service.js und wird von beiden benutzt.
 // ⚠️ Die Datei wird VOR dieser geladen (Liste in index.html). Fehlt sie doch
-// einmal, faellt hier nur der PIN-Weg aus - Konto und hostId tragen weiter.
+// einmal, faellt hier nur der PIN-Weg aus - hostId traegt weiter.
 function skBeweisWegDa() {
   return typeof beweisePinAn === "function" && typeof pinHashMoeglich === "function";
 }
@@ -212,8 +212,9 @@ async function skPruefeGemerktenPin() {
 }
 
 function skIstAdmin() {
-  // Ein Veranstalter-Konto gilt ueberall, auch ohne PIN und auf jedem Geraet.
-  if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
+  // ⚠️ Das Konto-Merkmal ⭐/🛠 zählt hier seit 26.09.2026 NICHT mehr (A3-01):
+  // die Datenbank verlangt hostId oder den PIN-Beweis, und ohne beides blieb
+  // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   if (!skRoh || !skRoh.meta) return false;
   const meta = skRoh.meta;
   if (meta.hostId && meta.hostId === skEigeneUid) return true;

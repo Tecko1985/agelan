@@ -260,24 +260,41 @@ for (const [name, b] of Object.entries(BEREICHE)) {
     zusage("A2 ... und traegt den neuen Hash", w.get(hashPfad) === await hashVon(b, "neuerPin99"), w);
   }
   {
-    // A2: Loeschen auf einem Geraet ohne Beweis, aber mit gemerktem PIN (Beweis wird nachgeholt)
+    // A2: Loeschen auf einem zweiten Geraet mit gemerktem PIN. Wie in der App wird der
+    // gemerkte PIN beim Eintreffen der Daten bewiesen (gemerkt()), erst dann geloescht.
+    // ⚠️ Seit der Fixpruefung 26.09.2026 (A3-01) macht das Konto-Merkmal allein NICHT mehr
+    // zum Veranstalter - die Datenbank kennt es nicht. Vorher rief dieser Fall loesche()
+    // ohne Beweis auf und verliess sich auf kontoIstVeranstalter().
     const w = neueWelt(b); const host = geraet(b, w, "host");
     await host.erstelle(b.plan("geheim123"));
     const zweit = geraet(b, w, "orga", { konto: true, gemerkt: "geheim123" });
+    w.tick(3000);
+    await zweit.gemerkt();
     w.tick(3000);
     const r = await zweit.loesche();
     zusage("A2 Veranstalter-Konto mit gemerktem PIN raeumt den Hash", r.erfolg === true && w.get(hashPfad) === null, w);
   }
   {
-    // A2: Loeschen ohne jeden Beweis -> gelingt, sagt aber, dass der PIN noch haengt
+    // A3-01: Konto-Merkmal OHNE jeden Beweis darf nicht loeschen - Plan und Hash bleiben.
     const w = neueWelt(b); const host = geraet(b, w, "host");
     await host.erstelle(b.plan("geheim123"));
     const fremd = geraet(b, w, "orga", { konto: true });
     w.tick(3000);
     const r = await fremd.loesche();
+    zusage("A3-01 Konto ohne PIN: Loeschen abgelehnt, Plan und Hash bleiben", r.erfolg === false && w.get(b.basis + "/meta/titel") !== null && w.get(hashPfad) !== null, w);
+  }
+  {
+    // A2: das anlegende Geraet (hostId) loescht, seine Beweisablage ist aber weg und der PIN
+    // nicht gemerkt -> Plan weg, der Hash laesst sich nicht austragen: Warnung statt Stille.
+    const w = neueWelt(b); const host = geraet(b, w, "host");
+    await host.erstelle(b.plan("geheim123"));
+    w.put(b.probe + "/" + b.pid + "/host", null);
+    const hostOhnePin = geraet(b, w, "host");
+    w.tick(3000);
+    const r = await hostOhnePin.loesche();
     zusage("A2 ohne Beweis: Plan weg, aber Warnung statt Stille", r.erfolg === true && typeof r.warnung === "string" && r.warnung.length > 0, w);
     w.tick(3000);
-    const r2 = await fremd.erstelle(b.plan("geheim123"));
+    const r2 = await hostOhnePin.erstelle(b.plan("geheim123"));
     zusage("A2 ... und die Warnung stimmt: mit dem alten PIN geht es weiter", r2.erfolg === true, w);
   }
 

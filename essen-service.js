@@ -245,7 +245,7 @@ function esOrgaWert(feld) {
 
 // Nur die Verwaltung versucht zu lesen. Neu versucht wird nur, wenn sich der GRUND der
 // Verwaltung aendert (PIN bewiesen, anderer Plan) - sonst stuende bei verweigertem Zugriff
-// (Konto-Veranstalter ohne PIN, alte Regeln) bei jedem Datenereignis ein Fehlversuch an.
+// (alte Regeln ohne essenOrga) bei jedem Datenereignis ein Fehlversuch an.
 function esHorcheOrga() {
   if (!esIstAdmin()) return;
   const meta = (esRoh && esRoh.meta) || {};
@@ -319,8 +319,9 @@ function esGespeicherterPin() {
 }
 
 function esIstAdmin() {
-  // Ein Veranstalter-Konto gilt überall, auch ohne PIN und auf jedem Gerät.
-  if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
+  // ⚠️ Das Konto-Merkmal ⭐/🛠 zählt hier seit 26.09.2026 NICHT mehr (A3-01):
+  // die Datenbank verlangt hostId oder den PIN-Beweis, und ohne beides blieb
+  // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   const meta = esRoh && esRoh.meta;
   if (!meta) return false;
   if (meta.hostId && meta.hostId === esEigeneUid) return true;

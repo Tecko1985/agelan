@@ -520,6 +520,8 @@ function esLadeInKorb(bestellungId) {
 // --- Admin -------------------------------------------------------------------
 function esRenderAdmin(z) {
   esEl("es-admin-login").style.display = z.istAdmin ? "none" : "";
+  // A3-01: wer nur per Konto (⭐/🛠) Veranstalter ist, braucht hier den PIN.
+  if (typeof zeigeKontoPinHinweis === "function") zeigeKontoPinHinweis("es-admin-konto-hinweis");
   esEl("es-admin").style.display = z.istAdmin ? "" : "none";
   if (!z.istAdmin) {
     // ⚠️ Ausblenden ist nicht Zurückhalten. `display:none` lässt die fremden

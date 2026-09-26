@@ -161,8 +161,9 @@ function frGespeicherterPin() {
 }
 
 function frIstAdmin() {
-  // Ein Veranstalter-Konto gilt ueberall, auch ohne PIN und auf jedem Geraet.
-  if (typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter()) return true;
+  // ⚠️ Das Konto-Merkmal ⭐/🛠 zählt hier seit 26.09.2026 NICHT mehr (A3-01):
+  // die Datenbank verlangt hostId oder den PIN-Beweis, und ohne beides blieb
+  // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   if (!frRoh || !frRoh.meta) return false;
   const meta = frRoh.meta;
   if (meta.hostId && meta.hostId === frEigeneUid) return true;
