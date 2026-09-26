@@ -61,7 +61,7 @@
     "turnierGeheim": {
       "$tid": {
         "adminPinHash": {
-          ".write": "auth != null && (!data.exists() || data.val() === root.child('turnierPinProbe').child($tid).child(auth.uid).val())",
+          ".write": "auth != null && ((!data.exists() && (root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || root.child('turniere/' + $tid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('turnierPinProbe').child($tid).child(auth.uid).val()))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -80,7 +80,7 @@
     "streamplanGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && (!data.exists() || data.val() === root.child('streamplanPinProbe').child($pid).child(auth.uid).val())",
+          ".write": "auth != null && ((!data.exists() && (root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || root.child('streamplan/' + $pid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('streamplanPinProbe').child($pid).child(auth.uid).val()))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -135,7 +135,7 @@
     "fruehstueckGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && (!data.exists() || data.val() === root.child('fruehstueckPinProbe').child($pid).child(auth.uid).val())",
+          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('fruehstueck-') && (root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/hostId').val() === auth.uid || root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('fruehstueckPinProbe').child($pid).child(auth.uid).val()))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -154,7 +154,7 @@
     "essenGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && (!data.exists() || data.val() === root.child('essenPinProbe').child($pid).child(auth.uid).val())",
+          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('essen-') && (root.child('essen/' + $pid.replace('essen-', '') + '/meta/hostId').val() === auth.uid || root.child('essen/' + $pid.replace('essen-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('essenPinProbe').child($pid).child(auth.uid).val()))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }

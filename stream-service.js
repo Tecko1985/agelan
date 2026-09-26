@@ -531,33 +531,16 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
   try { pinH = await pinHash(SK_PID, pin); }
   catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Geraet kann den PIN nicht sichern." }; }
 
-  // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank (wie beim Frühstück).
-  // Liegt noch der Hash eines früheren Plans (Löschen ohne PIN-Beweis konnte
-  // ihn nicht austragen), weist die Regel das Überschreiben ab. Stand der
-  // Schreibvorgang HINTER dem Plan, gab es danach einen Plan mit neuem PIN im
-  // Browser, aber altem Hash in der Datenbank – auf jedem anderen Gerät hieß es
-  // „PIN stimmt nicht“, und der ALTE PIN funktionierte. Jetzt entsteht in dem
-  // Fall kein Plan, und die Meldung sagt warum.
+  // ⚠️⚠️ Seit der Fixprüfung 26.09.2026 (A3-06) geht der PLAN zuerst in die Datenbank,
+  // der Hash danach. Die Regel lässt einen neuen Hash nur noch vom anlegenden Gerät
+  // (meta/hostId) zu – vorher konnte jeder Teilnehmer bei fehlendem Hash einen eigenen
+  // hinterlegen und war damit für die Datenbank Verwaltung (bei festen Kennungen sogar
+  // VOR dem Anlegen). „Hash zuerst“ war nur nötig, solange die Geheim-Knoten noch keine
+  // Regel hatten. Sitzt der PIN am Ende nicht, wird der Plan wieder entfernt: ein Plan,
+  // dessen PIN nirgends stimmt, wäre auf jedem anderen Gerät verschlossen.
   // Der PIN selbst kommt nirgends in die Datenbank - nur sein Hash, und zwar in
-  // den Knoten ohne Leserecht.
-  const hashRef = db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash");
-  let hashGeschrieben = false;
-  try {
-    await hashRef.set(pinH);
-    hashGeschrieben = true;
-  } catch (e) {
-    // Ist es der Hash zu GENAU DIESEM PIN, gelingt der Beweis – dann weiter.
-    if (!(await skBeweisePin(pin))) {
-      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einem früheren Streamplan noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
-    }
-  }
-  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
-  // Zurücknehmen des Hashes sie. Die Regel verlangt sie auch später beim
-  // PIN-Wechsel und beim Löschen. Ein Fehlschlag hier ist Nebensache.
-  if (hashGeschrieben) {
-    try { await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, pinH); } catch (e) { /* siehe oben */ }
-  }
-
+  // den Knoten ohne Leserecht. Liegt noch der Hash eines früheren Plans mit ANDEREM
+  // PIN, entsteht kein Plan, und die Meldung sagt warum.
   const geschrieben = await skSchreib(() => db.ref(SK_BASIS).update({
     meta: {
       titel: t,
@@ -569,13 +552,22 @@ async function skErstellePlan({ titel, startDatum, anzahlTage, von, bis, adminPi
       standardBis: b,
     },
   }));
-  if (!geschrieben.erfolg) {
-    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
-    // blockiert er den nächsten Anlauf mit einem anderen PIN.
-    if (hashGeschrieben) {
-      try { await hashRef.remove(); } catch (e2) { /* derselbe PIN kommt trotzdem durch */ }
-    }
-    return geschrieben;
+  if (!geschrieben.erfolg) return geschrieben;
+  const hashRef = db.ref(SK_GEHEIM_PFAD + "/" + SK_PID + "/adminPinHash");
+  let pinSitzt = false;
+  try {
+    await hashRef.set(pinH);
+    pinSitzt = true;
+    // Nebensache: die Regel verlangt die Beweisablage erst später beim PIN-Wechsel
+    // und beim Löschen; nachgeholt wird sie beim Laden (skPruefeGemerktenPin).
+    try { await legeBeweisAb(SK_PROBE_PFAD, SK_PID, skEigeneUid, pinH); } catch (e) { /* siehe oben */ }
+  } catch (e) {
+    // Ist es der Hash zu GENAU DIESEM PIN, gelingt der Beweis – dann weiter.
+    pinSitzt = await skBeweisePin(pin);
+  }
+  if (!pinSitzt) {
+    try { await db.ref(SK_BASIS).remove(); } catch (e) { /* hostId darf löschen */ }
+    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich ist von einem früheren Streamplan noch ein anderer PIN hinterlegt – dann nimm den." };
   }
   skPinOk = true;
   try {

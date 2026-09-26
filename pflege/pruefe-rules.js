@@ -28,6 +28,16 @@ const fs = require("fs");
 const DATEI = __dirname + "/../database.rules.json";
 const REGELN = JSON.parse(fs.readFileSync(DATEI, "utf8")).rules;
 
+// Firebase kennt `.beginsWith()` auf Strings (seit A3-06 in den Geheim-Regeln von Fruehstueck
+// und Essen). In Node gibt es das nicht - ohne das wirft eval() und JEDE solche Regel gaelte als
+// "verboten": die DARF-NICHT-Faelle saehen gruen aus, geprueft waere nichts.
+if (!String.prototype.beginsWith) {
+  Object.defineProperty(String.prototype, "beginsWith", {
+    value: function (s) { return this.valueOf().startsWith(s); },
+    enumerable: false,
+  });
+}
+
 // Der Weltzustand, gegen den geprueft wird: ein laufendes Turnier, ein
 // Streamplan und ein Essensplan unter essen/aktuell (ES_BASIS).
 const HASH_T1 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -39,7 +49,8 @@ const HASH_ANDERS = "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c1
 const JETZT = 1789000000000;
 
 const WELT = {
-  turniere: { T1: { meta: { name: "AgeLan" } } },
+  // T2: frisch angelegt von gast-2 (meta/hostId), noch kein Hash hinterlegt (A3-06).
+  turniere: { T1: { meta: { name: "AgeLan" } }, T2: { meta: { name: "Neu", hostId: "gast-2" } } },
   // Der Admin-PIN des Turniers liegt NEBEN dem Turnierbaum, nicht darin:
   // turniere/$tid traegt ".read": true, und ein Leserecht laesst sich in
   // Firebase weiter unten nicht wieder wegnehmen. T1 ist eingerichtet, T2
@@ -47,13 +58,14 @@ const WELT = {
   turnierGeheim: { T1: { adminPinHash: HASH_T1 } },
   turnierPinProbe: { T1: { "gast-1": HASH_T1 } },
   // Der Streamkalender geht denselben Weg mit eigenen Knoten.
-  streamplan: { P1: { meta: { titel: "Stream" } } },
+  // P2: frisch von gast-2 angelegt, ohne Hash. P3: Altbestand mit Klartext-PIN, ohne Hash.
+  streamplan: { P1: { meta: { titel: "Stream" } }, P2: { meta: { titel: "Neu", hostId: "gast-2" } }, P3: { meta: { titel: "Alt", adminPin: "123456" } } },
   streamplanGeheim: { P1: { adminPinHash: HASH_T1 } },
   streamplanPinProbe: { P1: { "gast-1": HASH_T1 } },
-  essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } } },
+  essen: { aktuell: { meta: { hostId: "host-uid", adminPin: "4711" } }, neu1: { meta: { titel: "Neu", hostId: "gast-2" } } },
   // Fruehstueck und Essen gehen seit dem 15.09.2026 denselben Weg wie Turnier
   // und Streamplan: Hash im geschuetzten Knoten, nichts mehr im Klartext.
-  fruehstueck: { F1: { meta: { titel: "Fruehstueck" } } },
+  fruehstueck: { F1: { meta: { titel: "Fruehstueck" } }, F2: { meta: { titel: "Neu", hostId: "gast-2" } } },
   fruehstueckGeheim: { F1: { adminPinHash: HASH_T1 } },
   fruehstueckPinProbe: { F1: { "gast-1": HASH_T1 } },
   // ⚠️ Die App legt das Essens-Geheimnis unter der Kennung "essen-aktuell" ab (ES_PID), die
@@ -188,7 +200,11 @@ const faelle = [
   // Den Hash anlegen darf, wer ein neues Turnier macht (T2: noch nichts da).
   // Einen VORHANDENEN ersetzen darf nur, wer den alten PIN bewiesen hat -
   // sonst koennte jeder Zuschauer ein laufendes Turnier uebernehmen.
-  ["MUSS: PIN beim neuen Turnier hinterlegen", "turnierGeheim/T2/adminPinHash", "write", "gast-1", true],
+  // ⚠️ Seit der Fixpruefung 26.09.2026 (A3-06) nur noch der, dessen uid in meta/hostId steht:
+  // vorher legte bei fehlendem Hash jeder Teilnehmer einen eigenen an und war damit Verwaltung.
+  ["MUSS: PIN beim neuen Turnier hinterlegen (anlegendes Geraet)", "turnierGeheim/T2/adminPinHash", "write", "gast-2", true],
+  ["DARF NICHT (A3-06): Teilnehmer hinterlegt PIN fuer fremdes Turnier ohne Hash", "turnierGeheim/T2/adminPinHash", "write", "gast-1", false],
+  ["DARF NICHT (A3-06): PIN fuer ein Turnier, das es noch gar nicht gibt", "turnierGeheim/T9/adminPinHash", "write", "gast-1", false],
   ["MUSS: PIN wechseln mit gueltigem Beweis", "turnierGeheim/T1/adminPinHash", "write", "gast-1", true],
   ["DARF NICHT: fremden PIN ohne Beweis ueberschreiben", "turnierGeheim/T1/adminPinHash", "write", "fremd-1", false],
   ["DARF NICHT: PIN hinterlegen OHNE Anmeldung", "turnierGeheim/T2/adminPinHash", "write", null, false],
@@ -203,7 +219,10 @@ const faelle = [
 
   ["MUSS: eigenen Stream-Beweis ablegen", "streamplanPinProbe/P1/gast-1", "write", "gast-1", true],
   ["DARF NICHT: Stream-Beweis unter fremder Kennung", "streamplanPinProbe/P1/gast-1", "write", "fremd-1", false],
-  ["MUSS: Stream-PIN beim neuen Plan hinterlegen", "streamplanGeheim/P2/adminPinHash", "write", "gast-1", true],
+  ["MUSS: Stream-PIN beim neuen Plan hinterlegen (anlegendes Geraet)", "streamplanGeheim/P2/adminPinHash", "write", "gast-2", true],
+  ["DARF NICHT (A3-06): Teilnehmer hinterlegt Stream-PIN fuer fremden Plan ohne Hash", "streamplanGeheim/P2/adminPinHash", "write", "gast-1", false],
+  ["DARF NICHT (A3-06): Stream-PIN vor dem Anlegen besetzen (kein Plan)", "streamplanGeheim/P9/adminPinHash", "write", "gast-1", false],
+  ["MUSS (Altbestand): Hash fuer Plan mit Klartext-PIN anlegen (Umzug)", "streamplanGeheim/P3/adminPinHash", "write", "gast-1", true],
   ["MUSS: Stream-PIN wechseln mit gueltigem Beweis", "streamplanGeheim/P1/adminPinHash", "write", "gast-1", true],
   ["DARF NICHT: fremden Stream-PIN ohne Beweis ueberschreiben", "streamplanGeheim/P1/adminPinHash", "write", "fremd-1", false],
 
@@ -243,7 +262,13 @@ const faelle = [
   ["DARF NICHT: Essens-Hash OHNE Beweis ersetzen", "essenGeheim/aktuell/adminPinHash", "write", "fremd-1", false],
   ["MUSS: Essens-Hash ersetzen, wer ihn bewiesen hat", "essenGeheim/aktuell/adminPinHash", "write", "gast-1", true],
   ["DARF NICHT: Essens-Beweisablage lesen", "essenPinProbe/aktuell/gast-1", "read", "gast-1", false],
-  ["MUSS: frischen Essens-Hash anlegen, wo keiner steht", "essenGeheim/neu1/adminPinHash", "write", "gast-1", true],
+  ["MUSS: frischen Essens-Hash anlegen, wo keiner steht (anlegendes Geraet)", "essenGeheim/essen-neu1/adminPinHash", "write", "gast-2", true],
+  ["DARF NICHT (A3-06): Teilnehmer legt Essens-Hash fuer fremden Plan an", "essenGeheim/essen-neu1/adminPinHash", "write", "gast-1", false],
+  ["DARF NICHT (A3-06): Essens-Hash vor dem Anlegen besetzen (kein Plan)", "essenGeheim/essen-nix/adminPinHash", "write", "gast-1", false],
+  ["DARF NICHT (A3-06): Essens-Hash ohne Kennungs-Praefix", "essenGeheim/neu1/adminPinHash", "write", "gast-2", false],
+  ["MUSS: frischen Fruehstuecks-Hash anlegen (anlegendes Geraet)", "fruehstueckGeheim/fruehstueck-F2/adminPinHash", "write", "gast-2", true],
+  ["DARF NICHT (A3-06): Teilnehmer legt Fruehstuecks-Hash fuer fremden Plan an", "fruehstueckGeheim/fruehstueck-F2/adminPinHash", "write", "gast-1", false],
+  ["DARF NICHT (A3-06): Fruehstuecks-Hash vor dem Anlegen besetzen (kein Plan)", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", "write", "gast-1", false],
 
   // Aufraeumen braucht KEINEN Takt -- sonst scheitert das Loeschen eines
   // Turniers am eigenen Schutz und laesst Reste in der Datenbank stehen.
@@ -301,6 +326,24 @@ for (const [was, altPfad, neuPfad] of [
   }
 }
 
+// --- Mutationsprobe A3-06: Hash wieder fuer jeden neu anlegbar -------------
+// Die alte Regel (`!data.exists() || Beweis`) muss genau die DARF-NICHT-(A3-06)-Faelle
+// durchlassen, sonst merkt dieser Pruefstand den Unterschied nicht.
+{
+  const m = JSON.parse(JSON.stringify(REGELN));
+  for (const [geheim, probe, v] of [["turnierGeheim", "turnierPinProbe", "$tid"], ["streamplanGeheim", "streamplanPinProbe", "$pid"],
+                                     ["fruehstueckGeheim", "fruehstueckPinProbe", "$pid"], ["essenGeheim", "essenPinProbe", "$pid"]]) {
+    m[geheim][v].adminPinHash[".write"] = "auth != null && (!data.exists() || data.val() === root.child('" + probe + "').child(" + v + ").child(auth.uid).val())";
+  }
+  const a306 = faelle.filter((f) => f[0].startsWith("DARF NICHT (A3-06)") && !/Praefix/.test(f[0]));
+  const durch = a306.filter((f) => darf(m, f[1], f[2], f[3], f[5]) === true);
+  console.log("\nMutationsprobe (A3-06, Hash wieder fuer jeden neu anlegbar):");
+  console.log("  " + durch.length + " von " + a306.length + " Besetzungen waeren durchgegangen");
+  if (!a306.length || durch.length !== a306.length) {
+    fehler++;
+    console.log("  FEHL  Der Pruefstand merkt den Unterschied nicht - er ist tot.");
+  }
+}
 
 // --- Wert-Regeln (".validate") ---------------------------------------------
 // ⚠️ `darf()` oben prueft nur ".read"/".write". Eine kaputte ".validate" faellt

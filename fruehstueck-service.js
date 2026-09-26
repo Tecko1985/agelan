@@ -524,39 +524,13 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
   try { pinH = await pinHash(FR_PID, pin); }
   catch (e) { return { erfolg: false, fehler: typeof PIN_UNSICHER === "string" ? PIN_UNSICHER : "Dieses Gerät kann den PIN nicht sichern." }; }
 
-  // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank, nicht danach.
-  //
-  // Bis die neuen Regeln in der Firebase-Konsole veröffentlicht sind, gibt es
-  // fruehstueckGeheim gar nicht und dieser Schreibvorgang scheitert. Stünde er HINTER
-  // dem Plan, gäbe es danach einen Plan, dessen PIN nirgends hinterlegt ist —
-  // weder als Hash noch (seit heute) als Klartext. Dann käme nur noch das
-  // anlegende Gerät über hostId hinein, und auf jedem anderen wäre der
-  // Veranstalter-Bereich dauerhaft zu. Scheitert es hier, entsteht schlicht
-  // kein Plan, und die Meldung sagt warum.
-  const hashRef = db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash");
-  let hashGeschrieben = false;
-  try {
-    await hashRef.set(pinH);
-    hashGeschrieben = true;
-  } catch (e) {
-    // Liegt schon ein Hash (ein halber früherer Anlauf, ein nicht
-    // ausgetragener PIN), darf die Regel ihn nur mit Beweis ersetzen. Ist es
-    // der Hash zu GENAU DIESEM PIN, gelingt der Beweis – und es geht weiter
-    // (Bugjagd 16.09.2026, A3).
-    if (!(await frBeweisePin(pin))) {
-      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einer früheren Frühstücksbestellung noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
-    }
-  }
-  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
-  // Zurücknehmen des Hashes sie (die Regel vergleicht damit). Beim Weg über
-  // frBeweisePin() liegt sie schon. ⚠️ Mit try: ein Fehlschlag hier ist eine
-  // Nebensache, nachgeholt wird sie beim nächsten Laden von frPruefeGemerktenPin().
-  if (hashGeschrieben) {
-    try {
-      await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, pinH);
-    } catch (e) { /* siehe oben */ }
-  }
-
+  // ⚠️⚠️ Seit der Fixprüfung 26.09.2026 (A3-06) geht der PLAN zuerst in die Datenbank,
+  // der Hash danach. Die Regel lässt einen neuen Hash nur noch vom anlegenden Gerät
+  // (meta/hostId) zu – vorher konnte jeder Teilnehmer bei fehlendem Hash einen eigenen
+  // hinterlegen und war damit für die Datenbank Verwaltung (bei festen Kennungen sogar
+  // VOR dem Anlegen). „Hash zuerst“ war nur nötig, solange die Geheim-Knoten noch keine
+  // Regel hatten. Sitzt der PIN am Ende nicht, wird der Plan wieder entfernt: ein Plan,
+  // dessen PIN nirgends stimmt, wäre auf jedem anderen Gerät verschlossen.
   try {
     await db.ref(FR_BASIS).update({
       meta: {
@@ -573,13 +547,24 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
       },
     });
   } catch (e) {
-    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
-    // blockiert er den nächsten Anlauf mit einem anderen PIN. Scheitert auch
-    // das, kommt derselbe PIN trotzdem durch (Beweisweg oben).
-    if (hashGeschrieben) {
-      try { await hashRef.remove(); } catch (e2) { /* siehe oben */ }
-    }
     return { erfolg: false, fehler: "Die Frühstücksbestellung ließ sich nicht anlegen. Bitte versuch es noch einmal." };
+  }
+  const hashRef = db.ref(FR_GEHEIM_PFAD + "/" + FR_PID + "/adminPinHash");
+  let pinSitzt = false;
+  try {
+    await hashRef.set(pinH);
+    pinSitzt = true;
+    // Nebensache: nachgeholt wird sie beim nächsten Laden von frPruefeGemerktenPin().
+    try { await legeBeweisAb(FR_PROBE_PFAD, FR_PID, frEigeneUid, pinH); } catch (e) { /* siehe oben */ }
+  } catch (e) {
+    // Liegt schon ein Hash (ein nicht ausgetragener PIN), darf die Regel ihn nur mit
+    // Beweis ersetzen. Ist es der Hash zu GENAU DIESEM PIN, gelingt der Beweis – und es
+    // geht weiter (Bugjagd 16.09.2026, A3).
+    pinSitzt = await frBeweisePin(pin);
+  }
+  if (!pinSitzt) {
+    try { await db.ref(FR_BASIS).remove(); } catch (e) { /* hostId darf löschen */ }
+    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich ist von einer früheren Frühstücksbestellung noch ein anderer PIN hinterlegt – dann nimm den." };
   }
   frPinOk = true;
   try {

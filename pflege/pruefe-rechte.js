@@ -383,6 +383,37 @@ function weltE(ohnePlan) {
   F("Essen", "DARF NICHT (bewusste Folge E5): Konto-Veranstalter ohne PIN liest Telefon", weltE(), "lesen", "essenOrga/aktuell", null, "orgaKonto", false);
 }
 
+/* ---------- A3-06 (Fixprüfung 26.09.2026): wer darf einen PIN-Hash NEU anlegen? ----------
+   Vorher: jeder Angemeldete, wenn noch keiner lag – und danach war er per Beweis Verwaltung
+   (bei Frühstück/Essen/Stream mit festen Kennungen sogar schon VOR dem Anlegen des Plans).
+   Jetzt: nur das anlegende Gerät (meta/hostId) – oder beim Altbestand mit Klartext-PIN
+   in meta (dort ist der PIN ohnehin lesbar; der Umzug in den Hash muss gehen). */
+{
+  const ohneT = (w) => { delete w.turnierGeheim; delete w.turnierPinProbe; };
+  F("Turnier", "MUSS (A3-06): anlegendes Gerät hinterlegt den Hash (ts:erstelleTurnier)", weltT("anmeldung", ohneT), "set", "turnierGeheim/T1/adminPinHash", H, "host", true);
+  F("Turnier", "DARF NICHT (A3-06): Teilnehmer legt Hash für Turnier ohne Hash an", weltT("anmeldung", ohneT), "set", "turnierGeheim/T1/adminPinHash", H, "a1", false);
+  F("Turnier", "DARF NICHT (A3-06): Hash für ein Turnier, das es nicht gibt", weltT("anmeldung", ohneT), "set", "turnierGeheim/T9/adminPinHash", H, "fremd", false);
+  F("Turnier", "MUSS (A3-06, Altbestand): Hash für Turnier mit Klartext-PIN (heileAltenPin)", weltT("anmeldung", (w) => { ohneT(w); w.turniere.T1.meta.adminPin = "123456"; }), "set", "turnierGeheim/T1/adminPinHash", H, "a1", true);
+  F("Turnier", "MUSS: PIN wechseln mit Beweis bleibt (Verwaltung per PIN)", weltT("anmeldung"), "set", "turnierGeheim/T1/adminPinHash", "0".repeat(64), "pin", true);
+  F("Turnier", "DARF NICHT: vorhandenen Hash ohne Beweis ersetzen (auch hostId nicht)", weltT("anmeldung"), "set", "turnierGeheim/T1/adminPinHash", "0".repeat(64), "host", false);
+
+  const ohneS = (w) => { delete w.streamplanGeheim; delete w.streamplanPinProbe; return w; };
+  F("Stream", "MUSS (A3-06): anlegendes Gerät hinterlegt den Hash nach meta", ohneS(weltS()), "set", "streamplanGeheim/aktuell/adminPinHash", H, "host", true);
+  F("Stream", "DARF NICHT (A3-06): Teilnehmer legt Hash für fremden Plan an", ohneS(weltS()), "set", "streamplanGeheim/aktuell/adminPinHash", H, "u2", false);
+  F("Stream", "DARF NICHT (A3-06): Hash vor dem Anlegen besetzen (kein Plan)", ohneS(weltS(true)), "set", "streamplanGeheim/aktuell/adminPinHash", H, "u2", false);
+
+  const ohneF = (w) => { delete w.fruehstueckGeheim; delete w.fruehstueckPinProbe; return w; };
+  F("Frühstück", "MUSS (A3-06): anlegendes Gerät hinterlegt den Hash nach meta", ohneF(weltF()), "set", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", H, "host", true);
+  F("Frühstück", "DARF NICHT (A3-06): Teilnehmer legt Hash für fremden Plan an", ohneF(weltF()), "set", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", H, "u2", false);
+  F("Frühstück", "DARF NICHT (A3-06): Hash vor dem Anlegen besetzen (kein Plan, live-Fall)", ohneF(weltF(true)), "set", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", H, "u2", false);
+  F("Frühstück", "MUSS (A3-06, Altbestand): Hash für Plan mit Klartext-PIN", (() => { const w = ohneF(weltF()); w.fruehstueck.aktuell.meta.adminPin = "123456"; return w; })(), "set", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", H, "u2", true);
+
+  const ohneE = (w) => { delete w.essenGeheim; delete w.essenPinProbe; return w; };
+  F("Essen", "MUSS (A3-06): anlegendes Gerät hinterlegt den Hash nach meta", ohneE(weltE()), "set", "essenGeheim/essen-aktuell/adminPinHash", H, "host", true);
+  F("Essen", "DARF NICHT (A3-06): Teilnehmer legt Hash für fremden Plan an", ohneE(weltE()), "set", "essenGeheim/essen-aktuell/adminPinHash", H, "u2", false);
+  F("Essen", "DARF NICHT (A3-06): Hash vor dem Anlegen besetzen (kein Plan)", ohneE(weltE(true)), "set", "essenGeheim/essen-aktuell/adminPinHash", H, "u2", false);
+}
+
 /* ======================================================================
    Lauf
    ====================================================================== */
@@ -422,6 +453,14 @@ const mutationen = [
   ["Essens-Bestellung ohne uid-Bindung", (r) => { r.essen.$pid.bestellungen.$oid[".write"] = "auth != null"; }],
   ["Orga-Knoten für jeden Angemeldeten lesbar", (r) => { r.essenOrga.$pid[".read"] = "auth != null"; }],
   ["Telefon wieder in meta erlaubt (Stand vor E5)", (r) => { r.essen.$pid.meta.bestellerTelefon[".validate"] = "newData.isString() && newData.val().length <= 40"; }],
+  ["PIN-Hash wieder für jeden neu anlegbar (Stand vor A3-06)", (r) => {
+    for (const [g, pr, v] of [["turnierGeheim", "turnierPinProbe", "$tid"], ["streamplanGeheim", "streamplanPinProbe", "$pid"], ["fruehstueckGeheim", "fruehstueckPinProbe", "$pid"], ["essenGeheim", "essenPinProbe", "$pid"]]) {
+      r[g][v].adminPinHash[".write"] = "auth != null && (!data.exists() || data.val() === root.child('" + pr + "').child(" + v + ").child(auth.uid).val())";
+    }
+  }],
+  ["Altbestand-Umzug gesperrt (nur hostId)", (r) => {
+    r.turnierGeheim.$tid.adminPinHash[".write"] = r.turnierGeheim.$tid.adminPinHash[".write"].replace(" || root.child('turniere/' + $tid + '/meta/adminPin').exists()", "");
+  }],
 ];
 let blind = 0;
 for (const [name, aendere] of mutationen) {

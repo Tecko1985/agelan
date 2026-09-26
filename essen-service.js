@@ -1236,38 +1236,13 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
     return { erfolg: false, fehler: "Die E-Mail-Adresse des Lieferanten sieht nicht richtig aus." };
   }
 
-  // ⚠️⚠️ Der Hash geht VOR dem Plan in die Datenbank, nicht danach.
-  //
-  // Bis die neuen Regeln in der Firebase-Konsole veröffentlicht sind, gibt es
-  // essenGeheim gar nicht und dieser Schreibvorgang scheitert. Stünde er HINTER
-  // dem Plan, gäbe es danach einen Plan, dessen PIN nirgends hinterlegt ist —
-  // weder als Hash noch (seit heute) als Klartext. Dann käme nur noch das
-  // anlegende Gerät über hostId hinein, und auf jedem anderen wäre der
-  // Veranstalter-Bereich dauerhaft zu. Scheitert es hier, entsteht schlicht
-  // kein Plan, und die Meldung sagt warum.
-  const hashRef = db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash");
-  let hashGeschrieben = false;
-  try {
-    await hashRef.set(pinH);
-    hashGeschrieben = true;
-  } catch (e) {
-    // Liegt schon ein Hash (ein halber früherer Anlauf, ein nicht
-    // ausgetragener PIN), darf die Regel ihn nur mit Beweis ersetzen. Ist es
-    // der Hash zu GENAU DIESEM PIN, gelingt der Beweis – und es geht weiter.
-    if (!(await esBeweisePin(pin))) {
-      return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Entweder ist von einer früheren Essensbestellung noch ein anderer PIN hinterlegt – dann nimm den –, oder die Datenbank-Regeln sind noch nicht veröffentlicht." };
-    }
-  }
-  // Beweisablage VOR dem Plan: scheitert der Plan gleich, braucht das
-  // Zurücknehmen des Hashes sie (die Regel vergleicht damit). Beim Weg über
-  // esBeweisePin() liegt sie schon. ⚠️ Mit try: ein Fehlschlag hier ist eine
-  // Nebensache, nachgeholt wird sie beim nächsten Laden von esPruefeGemerktenPin().
-  if (hashGeschrieben) {
-    try {
-      await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH);
-    } catch (e) { /* siehe oben */ }
-  }
-
+  // ⚠️⚠️ Seit der Fixprüfung 26.09.2026 (A3-06) geht der PLAN zuerst in die Datenbank,
+  // der Hash danach. Die Regel lässt einen neuen Hash nur noch vom anlegenden Gerät
+  // (meta/hostId) zu – vorher konnte jeder Teilnehmer bei fehlendem Hash einen eigenen
+  // hinterlegen und war damit für die Datenbank Verwaltung (bei festen Kennungen sogar
+  // VOR dem Anlegen). „Hash zuerst“ war nur nötig, solange die Geheim-Knoten noch keine
+  // Regel hatten. Sitzt der PIN am Ende nicht, wird der Plan wieder entfernt: ein Plan,
+  // dessen PIN nirgends stimmt, wäre auf jedem anderen Gerät verschlossen.
   try {
     await db.ref(ES_BASIS).update({
       meta: {
@@ -1286,13 +1261,23 @@ async function esErstellePlan({ titel, lieferantName, lieferantEmail, bestellerN
       },
     });
   } catch (e) {
-    // Plan nicht angelegt: den eben hinterlegten Hash zurücknehmen, sonst
-    // blockiert er den nächsten Anlauf mit einem anderen PIN. Scheitert auch
-    // das, kommt derselbe PIN trotzdem durch (Beweisweg oben).
-    if (hashGeschrieben) {
-      try { await hashRef.remove(); } catch (e2) { /* siehe oben */ }
-    }
     return { erfolg: false, fehler: "Die Essensbestellung ließ sich nicht anlegen. Bitte versuch es noch einmal." };
+  }
+  const hashRef = db.ref(ES_GEHEIM_PFAD + "/" + ES_PID + "/adminPinHash");
+  let pinSitzt = false;
+  try {
+    await hashRef.set(pinH);
+    pinSitzt = true;
+    // Nebensache: nachgeholt wird sie beim nächsten Laden von esPruefeGemerktenPin().
+    try { await legeBeweisAb(ES_PROBE_PFAD, ES_PID, esEigeneUid, pinH); } catch (e) { /* siehe oben */ }
+  } catch (e) {
+    // Liegt schon ein Hash (ein nicht ausgetragener PIN), darf die Regel ihn nur mit
+    // Beweis ersetzen. Ist es der Hash zu GENAU DIESEM PIN, gelingt der Beweis.
+    pinSitzt = await esBeweisePin(pin);
+  }
+  if (!pinSitzt) {
+    try { await db.ref(ES_BASIS).remove(); } catch (e) { /* hostId darf löschen */ }
+    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Vermutlich ist von einer früheren Essensbestellung noch ein anderer PIN hinterlegt – dann nimm den." };
   }
   esPinOk = true;
   try {

@@ -74,7 +74,10 @@ const BEREICHE = {
 };
 
 // --- nachgestellte Datenbank ---------------------------------------------------
-// Nur die Regeln, die diese Wege beruehren. Stand database.rules.json 16.09.2026.
+// Nur die Regeln, die diese Wege beruehren. Stand database.rules.json 16.09.2026,
+// seit der Fixpruefung 26.09.2026 dazu: Verwaltung des Plans nur mit hostId oder
+// PIN-Beweis (E5), und einen NEUEN Hash legt nur das anlegende Geraet an - oder
+// wer einen Altbestand mit Klartext-PIN umzieht (A3-06).
 function neueWelt(b) {
   const D = {};
   let uhr = 1.789e12;
@@ -91,7 +94,10 @@ function neueWelt(b) {
     if (t[0] === b.geheim) {
       if (t.length !== 3 || t[2] !== "adminPinHash") return false;   // $sonst / Elternknoten: keine .write-Regel
       const d = get(p);
-      return !d || d === get(b.probe + "/" + t[1] + "/" + uid);
+      if (d) return d === get(b.probe + "/" + t[1] + "/" + uid);
+      // A3-06: neu anlegen nur das anlegende Geraet des Plans oder der Umzug eines Altbestands
+      const planMeta = t[1] === b.pid ? get(b.basis + "/meta") : null;
+      return !!planMeta && (planMeta.hostId === uid || planMeta.adminPin != null);
     }
     if (t[0] === b.probe) {
       if (t.length !== 3 || t[2] !== uid) return false;
@@ -106,7 +112,14 @@ function neueWelt(b) {
     }
     if (p === b.basis || p.startsWith(b.basis + "/")) {
       if (v && typeof v === "object" && v.meta && "adminPin" in v.meta) return false;
-      return true;
+      // E5: Verwaltung = anlegendes Geraet ODER PIN-Beweis; ohne Plan darf anlegen, wer sich
+      // selbst als hostId eintraegt.
+      const meta = get(b.basis + "/meta");
+      const hash = get(b.geheim + "/" + b.pid + "/adminPinHash");
+      const beweis = !!hash && get(b.probe + "/" + b.pid + "/" + uid) === hash;
+      const host = !!meta && meta.hostId === uid;
+      const neu = !meta && p === b.basis && !!v && typeof v === "object" && !!v.meta && v.meta.hostId === uid;
+      return host || beweis || neu;
     }
     return false;
   }
@@ -222,27 +235,31 @@ for (const [name, b] of Object.entries(BEREICHE)) {
     zusage("A3 zweiter Anlauf mit demselben PIN legt an", r2.erfolg === true && w.get(b.basis + "/meta/titel") !== null, w);
   }
   {
-    // A3: Plan scheitert UND das Zuruecknehmen scheitert -> derselbe PIN kommt trotzdem durch
-    const w = neueWelt(b); const g = geraet(b, w, "host");
-    w.stoerung.add(b.basis);
-    // Das Zuruecknehmen erst NACH dem Hinterlegen stoeren - sonst traefe es das Hinterlegen selbst.
-    const orig = w.mkref;
-    let hinterlegt = false;
-    w.mkref = (uid) => (pf) => {
-      const r = orig(uid)(pf);
-      if (pf === hashPfad) {
-        const set = r.set, rem = r.remove;
-        r.set = async (v) => { await set(v); hinterlegt = true; };
-        r.remove = async () => { if (hinterlegt) throw new Error("Netz weg"); return rem(); };
-      }
-      return r;
-    };
-    await g.erstelle(b.plan("geheim123"));
-    w.mkref = orig;
-    zusage("A3 (Probe) Hash blieb nach gescheitertem Zuruecknehmen stehen", w.get(hashPfad) !== null, w);
+    // A3-06 (Fixpruefung 26.09.2026): der Plan geht zuerst in die Datenbank, der Hash danach
+    // (die Regel laesst einen neuen Hash nur vom anlegenden Geraet zu). Liegt noch der Hash
+    // eines frueheren Plans (nicht ausgetragen), gilt weiter: derselbe PIN kommt durch, ein
+    // anderer nicht - und dann bleibt KEIN Plan ohne passenden PIN stehen.
+    // (Ersetzt den Fall "Plan scheitert UND Zuruecknehmen scheitert": mit dem Plan zuerst
+    // entsteht dieser Zwischenstand nicht mehr.)
+    const w = neueWelt(b);
+    w.put(hashPfad, await hashVon(b, "geheim123"));
+    const g = geraet(b, w, "host");
+    const r1 = await g.erstelle(b.plan("anders999"));
+    zusage("A3-06 anderer PIN ueber stehengebliebenem Hash: abgelehnt", r1.erfolg === false, w);
+    zusage("A3-06 ... und es bleibt kein Plan ohne passenden PIN stehen", w.get(b.basis + "/meta") === null, w);
     w.tick(3000);
     const r2 = await g.erstelle(b.plan("geheim123"));
-    zusage("A3 derselbe PIN kommt ueber den stehengebliebenen Hash hinweg", r2.erfolg === true, w);
+    zusage("A3 derselbe PIN kommt ueber den stehengebliebenen Hash hinweg", r2.erfolg === true && w.get(b.basis + "/meta/titel") !== null, w);
+  }
+  {
+    // A3-06: ein Teilnehmer besetzt den Hash, BEVOR der Plan angelegt ist (feste Kennung) -
+    // die Regel weist ihn ab, und die Orga legt danach ganz normal an.
+    const w = neueWelt(b);
+    let besetzt = true;
+    try { await w.mkref("fremd")(hashPfad).set(await hashVon(b, "fremdpin1")); } catch (e) { besetzt = false; }
+    zusage("A3-06 Teilnehmer kann den Hash vor dem Anlegen nicht besetzen", besetzt === false && w.get(hashPfad) === null, w);
+    const r = await geraet(b, w, "host").erstelle(b.plan("geheim123"));
+    zusage("A3-06 ... und die Orga legt danach an, Hash = ihr PIN", r.erfolg === true && w.get(hashPfad) === await hashVon(b, "geheim123"), w);
   }
 
   {

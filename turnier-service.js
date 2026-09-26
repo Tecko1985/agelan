@@ -996,16 +996,27 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
     punkteSieg: 3,
     siegerTeamId: null,
   });
+  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
+  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
+  // verlangt sie spaeter beim PIN-Wechsel und beim Loeschen.
+  // ⚠️ Seit der Fixprüfung 26.09.2026 (A3-06) NACH meta und VOR dem Index: die Regel
+  // lässt einen neuen Hash nur noch vom anlegenden Gerät (meta/hostId) zu – vorher
+  // konnte jeder Teilnehmer bei fehlendem Hash einen eigenen hinterlegen und war damit
+  // Verwaltung. Und ein Turnier steht erst in der Liste, wenn sein PIN sitzt.
+  try {
+    await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(pinH);
+  } catch (e) {
+    try { await db.ref("turniere/" + id).remove(); } catch (e2) { /* hostId darf löschen */ }
+    return { erfolg: false, fehler: "Der PIN ließ sich nicht sichern. Bitte versuch es noch einmal." };
+  }
+  // Nebensache: das anlegende Gerät verwaltet über hostId, den Beweis holt jedes andere
+  // Gerät beim Laden nach (pruefeGemerktePins).
+  try { await legeBeweisAb(PROBE_PFAD, id, eigeneUid, pinH); } catch (e) { /* siehe oben */ }
   // Erst danach in den Index: ein Eintrag ohne Baum wäre eine tote Kachel.
   await db.ref(INDEX_PFAD + "/" + id).set({
     name: name.trim(),
     erstelltAm: firebase.database.ServerValue.TIMESTAMP,
   });
-  // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
-  // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
-  // verlangt sie spaeter beim PIN-Wechsel und beim Loeschen.
-  await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").set(pinH);
-  await legeBeweisAb(PROBE_PFAD, id, eigeneUid, pinH);
   pinOk[id] = true;
   merkeAdminPin(id, pin);
   waehleTurnier(id);
