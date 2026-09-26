@@ -921,6 +921,7 @@ function waehleTurnier(id) {
       letzterZustand = snap.val();
       pruefeGemerktePins(turnierId);
       benachrichtige();
+      stosseKoFortschrittAn();
     });
   }
   benachrichtige();
@@ -1748,7 +1749,15 @@ async function bestaetigeErgebnis(spielId) {
     return { erfolg: false, fehler: "Nur das gegnerische Team (oder der Veranstalter) bestätigt." };
   }
   await db.ref(turnierBasis() + "/spiele/" + spielId + "/status").set("bestaetigt");
-  await pruefeKoProgression();
+  // ⚠️ Die Bestätigung ist gespeichert. Scheitert danach nur der Fortschritt
+  // (zwei Bestätigende gleichzeitig, Netz), darf das nicht als gescheiterte
+  // Bestätigung erscheinen – den nächsten Anlauf macht stosseKoFortschrittAn()
+  // auf jedem Gerät eines Spielers (Fixprüfung 26.09.2026, A3-05).
+  try {
+    await pruefeKoProgression();
+  } catch (e) {
+    console.error("K.-o.-Fortschritt nach dem Bestätigen:", e);
+  }
   return { erfolg: true };
 }
 
@@ -2279,6 +2288,74 @@ async function beendeNachGruppen() {
 // WARNUNG: in der SCHLEIFE, nicht einmalig. Eine Runde, die nur aus Freilosen
 // besteht, ist im selben Moment fertig, in dem sie entsteht - ohne Wiederholung
 // bliebe die Kette dort stehen. Der Zaehler ist der Notausgang gegen Endlosläufe.
+// --- Fixprüfung 26.09.2026, A3-05: Wettlauf zweier Bestätigender -----------------
+// Die Regel lässt ein neues K.-o.-Spiel für Teilnehmer nur entstehen, wenn es noch
+// nicht existiert. Bestätigen zwei fast gleichzeitig, rechnet der Zweite auf altem
+// Stand und legt dieselbe Folgerunde noch einmal an – abgelehnt. Bisher flog das als
+// Fehler bis in die Oberfläche („Anmeldung abgelaufen“, obwohl seine Bestätigung
+// gespeichert war), und im Doppel-K.-o. fehlte danach die neue Verliererrunde, die
+// im selben update() stand, bis jemand anders bestätigte.
+
+function istAbgelehnt(e) {
+  return /permission|denied/i.test(String((e && (e.code || e.message)) || e || ""));
+}
+
+// Neue Spiele anlegen – weiter in EINEM update(). ⚠️ Bewusst NICHT einzeln: eine
+// halb angelegte Runde (etwa nur ko_r1_p0, ein Freilos) läse ein anderer Client als
+// vollständige Einer-Runde und setzte daraus den Sieger. Eine Ablehnung heißt: ein
+// anderer war schneller, der eigene Stand war alt. Sie wird geschluckt; sobald der
+// frische Stand da ist, rechnet stosseKoFortschrittAn() neu und legt an, was dann
+// noch fehlt (z. B. die Verliererrunde neben der schon vorhandenen Gewinnerrunde).
+async function legeKoSpieleAn(updates) {
+  try {
+    await db.ref(turnierBasis()).update(updates);
+    return true;
+  } catch (e) {
+    if (!istAbgelehnt(e)) throw e;
+    console.warn("K.-o.-Folgerunde nicht angelegt (anderer Client schneller?):", e && e.message);
+    return false;
+  }
+}
+
+// Sieger festhalten. Hat ein anderer Client ihn gerade gesetzt, lehnt die Regel ab
+// (siegerTeamId nur einmal) – dann steht er ja.
+async function setzeKoSieger(teamId) {
+  try {
+    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: teamId });
+  } catch (e) {
+    if (!istAbgelehnt(e)) throw e;
+    console.warn("Sieger nicht gesetzt (schon gesetzt?):", e && e.message);
+  }
+}
+
+// Beim Laden und nach jeder Änderung: steht eine Folgerunde aus, legt sie der nächste
+// Spieler an, dem sie fehlt – die Regel lässt das jeden Spieler des Turniers tun.
+// Gebremst: erst 2 s Ruhe (der Bestätigende ist fast immer schneller), nie zwei
+// Läufe gleichzeitig. koProgressionSchritt liest den Stand über once(); weil der
+// Horcher auf demselben Pfad liegt, kommt der aus dem lokalen Stand, nicht übers Netz.
+let koAnstossTimer = null;
+let koAnstossLaeuft = false;
+function stosseKoFortschrittAn() {
+  const z = letzterZustand;
+  if (!z || !z.meta || z.meta.phase !== "ko") return;
+  const binSpieler = !!(eigeneUid && z.spieler && z.spieler[eigeneUid]);
+  if (!binSpieler && !istAdmin()) return;
+  if (koAnstossTimer) clearTimeout(koAnstossTimer);
+  const id = turnierId;
+  koAnstossTimer = setTimeout(async () => {
+    koAnstossTimer = null;
+    if (koAnstossLaeuft || id !== turnierId) return;
+    koAnstossLaeuft = true;
+    try {
+      await pruefeKoProgression();
+    } catch (e) {
+      console.error("K.-o.-Fortschritt beim Laden:", e);
+    } finally {
+      koAnstossLaeuft = false;
+    }
+  }, 2000);
+}
+
 async function pruefeKoProgression() {
   for (let i = 0; i < 12; i++) {
     const geaendert = await koProgressionSchritt();
@@ -2336,7 +2413,7 @@ async function einfachKoSchritt(zustand, spiele) {
 
   if (aktuelle.length === 1) {
     if (zustand.meta.siegerTeamId) return false; // schon gesetzt
-    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: koSieger(aktuelle[0]) });
+    await setzeKoSieger(koSieger(aktuelle[0]));
     return false;
   }
 
@@ -2360,8 +2437,7 @@ async function einfachKoSchritt(zustand, spiele) {
       updates["spiele/ko_platz3"] = macheKoSpiel("w", naechste, 1, dritte[0], dritte[1], { platz3: true });
     }
   }
-  await db.ref(turnierBasis()).update(updates);
-  return true;
+  return legeKoSpieleAn(updates);
 }
 
 // ===========================================================================
@@ -2469,8 +2545,7 @@ async function doppelKoSchritt(zustand, spiele) {
   }
 
   if (Object.keys(updates).length) {
-    await db.ref(turnierBasis()).update(updates);
-    return true;
+    return legeKoSpieleAn(updates);
   }
 
   // Der Sieger steht erst fest, wenn kein Entscheidungsspiel mehr aussteht.
@@ -2480,7 +2555,7 @@ async function doppelKoSchritt(zustand, spiele) {
     grossesEins.status === "bestaetigt" && grossesEins.teamB &&
     koSieger(grossesEins) === grossesEins.teamB;
   if (letztes && letztes.status === "bestaetigt" && !brauchtEntscheidung && !meta.siegerTeamId) {
-    await db.ref(turnierBasis() + "/meta").update({ phase: "beendet", siegerTeamId: koSieger(letztes) });
+    await setzeKoSieger(koSieger(letztes));
   }
   return false;
 }

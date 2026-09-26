@@ -1631,7 +1631,8 @@ const APP_CHANGELOG = [
     groups: [
       { title: "Meldungen und Randfälle vor der AGE LAN", items: [
           "Lehnt die Datenbank einen Schritt ab, steht jetzt dort, woran es meist liegt – am fehlenden PIN des Bereichs – statt „Anmeldung abgelaufen“, „Regeln neu veröffentlichen“ oder „versuch es noch einmal“.",
-          "Essen: Lehnt die Datenbank „Ist raus“ oder das Festhalten von „Bescheid geben“ ab, bleiben Mailtext und Nachfassliste stehen, und die App sagt, dass Mail bzw. Nachrichten schon raus sind – damit nichts ein zweites Mal hinausgeht. Ist die Lieferanten-Mail ohne PIN nicht lesbar, sagt die App das, statt „trag sie ein“ zu verlangen."
+          "Essen: Lehnt die Datenbank „Ist raus“ oder das Festhalten von „Bescheid geben“ ab, bleiben Mailtext und Nachfassliste stehen, und die App sagt, dass Mail bzw. Nachrichten schon raus sind – damit nichts ein zweites Mal hinausgeht. Ist die Lieferanten-Mail ohne PIN nicht lesbar, sagt die App das, statt „trag sie ein“ zu verlangen.",
+          "Turnier: Bestätigen zwei Teams im K.-o. fast gleichzeitig, erscheint keine falsche Fehlermeldung mehr, und eine dabei liegen gebliebene Folgerunde legt das nächste Gerät eines Spielers von selbst an."
       ]},
     ],
   },
