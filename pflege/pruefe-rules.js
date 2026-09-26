@@ -126,7 +126,9 @@ function darf(regeln, pfad, typ, uid, loeschen) {
   for (const { ausdruck, vars } of gefunden) {
     if (ausdruck === true) return true;
     if (ausdruck === false) continue;
-    const auth = uid ? { uid } : null;
+    // agelan-Rolle: auth.token gibt es bei jeder Anmeldung; "rolle-1" traegt den Claim eines
+    // Custom Tokens (Konto ⭐/🛠), "rolle-alt" einen abgelaufenen.
+    const auth = uid ? { uid, token: uid === "rolle-1" ? { agelanOrga: true, agelanBis: JETZT + 3600000 } : uid === "rolle-alt" ? { agelanOrga: true, agelanBis: JETZT - 1 } : {} } : null;
     const root = { child: (p) => kindKette(p) };
     // ⚠️ `data` ist der Wert, der JETZT an der Stelle steht - die Regel fuer
     // den PIN-Hash unterscheidet damit "noch keiner da" von "wird ersetzt".
@@ -269,6 +271,17 @@ const faelle = [
   ["MUSS: frischen Fruehstuecks-Hash anlegen (anlegendes Geraet)", "fruehstueckGeheim/fruehstueck-F2/adminPinHash", "write", "gast-2", true],
   ["DARF NICHT (A3-06): Teilnehmer legt Fruehstuecks-Hash fuer fremden Plan an", "fruehstueckGeheim/fruehstueck-F2/adminPinHash", "write", "gast-1", false],
   ["DARF NICHT (A3-06): Fruehstuecks-Hash vor dem Anlegen besetzen (kein Plan)", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", "write", "gast-1", false],
+
+  // --- agelan-Rolle (26.09.2026): Konto ⭐/🛠 per Claim, ohne PIN --------------
+  ["MUSS (Rolle): Claim schreibt ins Turnier", "turniere/T1/spiele/s1", "write", "rolle-1", true],
+  ["DARF NICHT (Rolle): abgelaufener Claim schreibt ins Turnier", "turniere/T1/spiele/s1", "write", "rolle-alt", false],
+  ["MUSS (Rolle): Claim liest Telefon/Lieferanten-Mail", "essenOrga/aktuell", "read", "rolle-1", true],
+  ["DARF NICHT (Rolle): abgelaufener Claim liest Telefon", "essenOrga/aktuell", "read", "rolle-alt", false],
+  ["MUSS (Rolle): Claim ersetzt Stream-PIN ohne Beweis", "streamplanGeheim/P1/adminPinHash", "write", "rolle-1", true],
+  ["MUSS (Rolle): Claim legt Essens-Hash an, auch vor dem Anlegen", "essenGeheim/essen-nix/adminPinHash", "write", "rolle-1", true],
+  ["MUSS: rolleProbe mit Claim lesbar", "rolleProbe", "read", "rolle-1", true],
+  ["DARF NICHT: rolleProbe ohne Claim", "rolleProbe", "read", "gast-1", false],
+  ["DARF NICHT: rolleProbe mit abgelaufenem Claim", "rolleProbe", "read", "rolle-alt", false],
 
   // Aufraeumen braucht KEINEN Takt -- sonst scheitert das Loeschen eines
   // Turniers am eigenen Schutz und laesst Reste in der Datenbank stehen.

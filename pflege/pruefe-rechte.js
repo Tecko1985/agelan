@@ -88,6 +88,16 @@ function snap(wert) {
   };
 }
 
+// agelan-Rolle 26.09.2026: `auth.token` - bei jeder Firebase-Anmeldung vorhanden, mit den Claims
+// eines Custom Tokens. orgaClaim = Konto ⭐/🛠 mit gueltigem Claim (worker firebase-rolle),
+// orgaAbgelaufen = Claim nach agelanBis, orgaFalsch = agelanOrga als Text statt true.
+const TOKENS = {
+  orgaClaim: { agelanOrga: true, agelanBis: JETZT + 3600000 },
+  orgaAbgelaufen: { agelanOrga: true, agelanBis: JETZT - 1 },
+  orgaFalsch: { agelanOrga: "true", agelanBis: JETZT + 3600000 },
+};
+function authFuer(uid) { return uid ? { uid, token: Object.assign({ firebase: { sign_in_provider: TOKENS[uid] ? "custom" : "anonymous" } }, TOKENS[uid] || {}) } : null; }
+
 const unbekannt = [];
 function werte(ausdruck, vars, kontext) {
   if (ausdruck === true || ausdruck === "true") return true;
@@ -126,7 +136,7 @@ function weg(regeln, pfad) {
 }
 function darfSchreibenEinzeln(regeln, baum, pfad, wert, uid, neuBaum) {
   const nachher = neuBaum || schreibIn(baum, pfad, wert);
-  const k0 = { auth: uid ? { uid } : null, root: snap(baum) };
+  const k0 = { auth: authFuer(uid), root: snap(baum) };
   let erlaubt = false;
   for (const e of weg(regeln, pfad)) {
     if (!e.knoten || e.knoten[".write"] === undefined) continue;
@@ -171,7 +181,7 @@ function darfUpdate(regeln, baum, basis, objekt, uid) {
 function darfLesen(regeln, baum, pfad, uid) {
   for (const e of weg(regeln, pfad)) {
     if (!e.knoten || e.knoten[".read"] === undefined) continue;
-    if (werte(e.knoten[".read"], e.vars, { auth: uid ? { uid } : null, root: snap(baum), data: snap(lies(baum, e.pfad)), newData: snap(null) })) return true;
+    if (werte(e.knoten[".read"], e.vars, { auth: authFuer(uid), root: snap(baum), data: snap(lies(baum, e.pfad)), newData: snap(null) })) return true;
   }
   return false;
 }
@@ -455,6 +465,50 @@ function weltE(ohnePlan) {
   F("Turnier", "DARF NICHT (A3-08): Zusatzfeld an einem neuen K.-o.-Spiel (Teilnehmer)", weltT("ko"), "update", R, { "spiele/ko_r1_p0": { phase: "ko", bracket: "w", runde: 1, position: 0, teamA: "tA", teamB: "tB", status: "offen", istFinale: true, muell: "x" } }, "b1", false);
 }
 
+/* ---------- agelan-Rolle (26.09.2026, Variante B): ⭐/🛠 per Claim, ohne PIN ----------
+   Der Worker stellt fuer das Konto ein Custom Token mit agelanOrga/agelanBis aus (dieselbe uid).
+   Mit gueltigem Claim ist man in ALLEN Bereichen Verwaltung - ohne hostId und ohne PIN-Beweis.
+   Abgelaufen, falsch getypt oder fehlend: wie bisher (PIN-Weg). */
+{
+  const R = "turniere/T1", S = R + "/spiele/";
+  const ohneT = (w) => { delete w.turniere.T1.meta.hostId; delete w.turnierGeheim; delete w.turnierPinProbe; };
+  const faelleT = [
+    ["korrigiert ein bestätigtes Ergebnis", () => weltT("ko"), "update", S + "g3", { saetzeA: 0, saetzeB: 2, status: "bestaetigt", gemeldetVon: "admin" }],
+    ["löscht das Turnier", () => weltT("ko"), "set", R, null],
+    ["löscht den Index-Eintrag, solange das Turnier steht", () => weltT("ko"), "set", "turniere/_index/T1", null],
+    ["legt den Hash für ein Turnier ohne Hash an", () => weltT("anmeldung", ohneT), "set", "turnierGeheim/T1/adminPinHash", H],
+    ["wechselt den PIN ohne Beweis", () => weltT("anmeldung"), "set", "turnierGeheim/T1/adminPinHash", "0".repeat(64)],
+  ];
+  for (const [text, welt, art, pfad, wert] of faelleT) {
+    F("Turnier", "MUSS (Rolle): Claim gültig " + text, welt(), art, pfad, wert, "orgaClaim", true);
+    F("Turnier", "DARF NICHT (Rolle): Claim abgelaufen " + text, welt(), art, pfad, wert, "orgaAbgelaufen", false);
+    F("Turnier", "DARF NICHT (Rolle): agelanOrga als Text " + text, welt(), art, pfad, wert, "orgaFalsch", false);
+  }
+  const P = "streamplan/aktuell";
+  F("Stream", "MUSS (Rolle): Claim gültig legt Programm an", weltS(), "update", P + "/programm/p9", { datum: "2026-10-02", von: 600, bis: 700, titel: "Show", notiz: "", streamerNoetig: true, erstelltAm: TS }, "orgaClaim", true);
+  F("Stream", "MUSS (Rolle): Claim gültig löscht den Plan", weltS(), "set", P, null, "orgaClaim", true);
+  F("Stream", "DARF NICHT (Rolle): Claim abgelaufen leert Slots", weltS(), "set", P + "/slots", null, "orgaAbgelaufen", false);
+  const B = "fruehstueck/aktuell/bestellungen/2026-10-02/";
+  F("Frühstück", "MUSS (Rolle): Claim gültig hakt „bezahlt“ ab", weltF(), "set", B + "u1/bezahlt", true, "orgaClaim", true);
+  F("Frühstück", "MUSS (Rolle): Claim gültig legt Hash an (Plan ohne Hash)", (() => { const w = weltF(); delete w.fruehstueckGeheim; delete w.fruehstueckPinProbe; return w; })(), "set", "fruehstueckGeheim/fruehstueck-aktuell/adminPinHash", H, "orgaClaim", true);
+  F("Frühstück", "DARF NICHT (Rolle): Claim abgelaufen hakt ab", weltF(), "set", B + "u1/bezahlt", true, "orgaAbgelaufen", false);
+  const E = "essen/aktuell";
+  F("Essen", "MUSS (Rolle): Claim gültig setzt Status", weltE(), "update", E + "/bestellungen/o3", { status: "bezahlt", aktualisiertAm: TS }, "orgaClaim", true);
+  F("Essen", "MUSS (Rolle): Claim gültig liest Telefon/Lieferanten-Mail", weltE(), "lesen", "essenOrga/aktuell", null, "orgaClaim", true);
+  F("Essen", "MUSS (Rolle): Claim gültig schreibt Telefon/Lieferanten-Mail", weltE(), "set", "essenOrga/aktuell", { bestellerTelefon: "0000 5555", lieferantEmail: "x@example.org" }, "orgaClaim", true);
+  F("Essen", "MUSS (Rolle): Claim gültig wechselt den Essens-PIN ohne Beweis", weltE(), "set", "essenGeheim/essen-aktuell/adminPinHash", "0".repeat(64), "orgaClaim", true);
+  F("Essen", "DARF NICHT (Rolle): Claim abgelaufen liest Telefon", weltE(), "lesen", "essenOrga/aktuell", null, "orgaAbgelaufen", false);
+  F("Essen", "DARF NICHT (Rolle): agelanOrga als Text liest Telefon", weltE(), "lesen", "essenOrga/aktuell", null, "orgaFalsch", false);
+  F("Essen", "DARF NICHT (Rolle): Telefon auch mit Claim nicht zurück ins lesbare meta", weltE(), "update", E + "/meta", { bestellerTelefon: "0000 6666" }, "orgaClaim", false);
+  F("Essen", "MUSS (Rolle): Claim gültig löscht eine Bestellung aus einer Runde", weltE(), "update", E, { "bestellungen/o2": null, "runden/r1": null }, "orgaClaim", true);
+  // Probe-Knoten: der Client liest ihn, um zu wissen, ob die eingespielten Regeln den Claim kennen.
+  F("Rolle", "MUSS: rolleProbe mit gültigem Claim lesbar", weltT("ko"), "lesen", "rolleProbe", null, "orgaClaim", true);
+  F("Rolle", "DARF NICHT: rolleProbe mit abgelaufenem Claim", weltT("ko"), "lesen", "rolleProbe", null, "orgaAbgelaufen", false);
+  F("Rolle", "DARF NICHT: rolleProbe ohne Claim (Teilnehmer, auch Verwaltung per PIN)", weltT("ko"), "lesen", "rolleProbe", null, "pin", false);
+  F("Rolle", "DARF NICHT: rolleProbe ohne Anmeldung", weltT("ko"), "lesen", "rolleProbe", null, null, false);
+  F("Rolle", "DARF NICHT: rolleProbe beschreiben (auch mit Claim)", weltT("ko"), "set", "rolleProbe", "x", "orgaClaim", false);
+}
+
 /* ======================================================================
    Lauf
    ====================================================================== */
@@ -506,6 +560,14 @@ const mutationen = [
     delete r.turniere._index.$id.$sonst; delete r.turniere.$tid.meta.$sonst; delete r.turniere.$tid.meta.zeitplan.$sonst;
     delete r.turniere.$tid.spieler.$uid.$sonst; delete r.turniere.$tid.teams.$team.$sonst; delete r.turniere.$tid.spiele.$sid.$sonst;
     delete r.turniere.$tid.gruppen.$gid.$sonst;
+  }],
+  ["Rolle ohne Ablaufzeit (nur agelanOrga)", (r) => {
+    const s = JSON.stringify(r).split(" && auth.token.agelanBis > now").join("");
+    Object.assign(r, JSON.parse(s));
+  }],
+  ["Rolle fuer jeden Angemeldeten (Claim-Pruefung weg)", (r) => {
+    const s = JSON.stringify(r).split("(auth.token.agelanOrga === true && auth.token.agelanBis > now)").join("(auth != null)");
+    Object.assign(r, JSON.parse(s));
   }],
   ["Altbestand-Umzug gesperrt (nur hostId)", (r) => {
     r.turnierGeheim.$tid.adminPinHash[".write"] = r.turnierGeheim.$tid.adminPinHash[".write"].replace(" || root.child('turniere/' + $tid + '/meta/adminPin').exists()", "");

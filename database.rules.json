@@ -4,7 +4,7 @@
       "_index": {
         ".read": true,
         "$id": {
-          ".write": "auth != null && ((!data.exists() && newData.exists()) || (!newData.exists() && (!root.child('turniere/' + $id).exists() || (root.child('turniere/' + $id + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $id + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $id + '/' + auth.uid).val() === root.child('turnierGeheim/' + $id + '/adminPinHash').val())))))",
+          ".write": "auth != null && ((!data.exists() && newData.exists()) || (!newData.exists() && (!root.child('turniere/' + $id).exists() || (root.child('turniere/' + $id + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $id + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $id + '/' + auth.uid).val() === root.child('turnierGeheim/' + $id + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now)))))",
           ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 60",
           "name":       { ".validate": "newData.isString()" },
           "erstelltAm": { ".validate": "newData.isNumber()" },
@@ -13,7 +13,7 @@
       },
       "$tid": {
         ".read": true,
-        ".write": "auth != null && ((root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $tid + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $tid + '/' + auth.uid).val() === root.child('turnierGeheim/' + $tid + '/adminPinHash').val())) || (!data.exists() && newData.child('meta/hostId').val() === auth.uid))",
+        ".write": "auth != null && ((root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $tid + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $tid + '/' + auth.uid).val() === root.child('turnierGeheim/' + $tid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now)) || (!data.exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['name', 'phase'])",
@@ -126,7 +126,7 @@
     "turnierGeheim": {
       "$tid": {
         "adminPinHash": {
-          ".write": "auth != null && ((!data.exists() && (root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || root.child('turniere/' + $tid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('turnierPinProbe').child($tid).child(auth.uid).val()))",
+          ".write": "auth != null && ((!data.exists() && (root.child('turniere/' + $tid + '/meta/hostId').val() === auth.uid || root.child('turniere/' + $tid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('turnierPinProbe').child($tid).child(auth.uid).val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -145,7 +145,7 @@
     "streamplanGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && ((!data.exists() && (root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || root.child('streamplan/' + $pid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('streamplanPinProbe').child($pid).child(auth.uid).val()))",
+          ".write": "auth != null && ((!data.exists() && (root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || root.child('streamplan/' + $pid + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('streamplanPinProbe').child($pid).child(auth.uid).val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -200,7 +200,7 @@
     "fruehstueckGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('fruehstueck-') && (root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/hostId').val() === auth.uid || root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('fruehstueckPinProbe').child($pid).child(auth.uid).val()))",
+          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('fruehstueck-') && (root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/hostId').val() === auth.uid || root.child('fruehstueck/' + $pid.replace('fruehstueck-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('fruehstueckPinProbe').child($pid).child(auth.uid).val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -219,7 +219,7 @@
     "essenGeheim": {
       "$pid": {
         "adminPinHash": {
-          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('essen-') && (root.child('essen/' + $pid.replace('essen-', '') + '/meta/hostId').val() === auth.uid || root.child('essen/' + $pid.replace('essen-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('essenPinProbe').child($pid).child(auth.uid).val()))",
+          ".write": "auth != null && ((!data.exists() && $pid.beginsWith('essen-') && (root.child('essen/' + $pid.replace('essen-', '') + '/meta/hostId').val() === auth.uid || root.child('essen/' + $pid.replace('essen-', '') + '/meta/adminPin').exists())) || (data.exists() && data.val() === root.child('essenPinProbe').child($pid).child(auth.uid).val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "$sonst": { ".validate": false }
@@ -238,7 +238,7 @@
     "streamplan": {
       "$pid": {
         ".read": true,
-        ".write": "auth != null && ((root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('streamplanGeheim/' + $pid + '/adminPinHash').exists() && root.child('streamplanPinProbe/' + $pid + '/' + auth.uid).val() === root.child('streamplanGeheim/' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
+        ".write": "auth != null && ((root.child('streamplan/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('streamplanGeheim/' + $pid + '/adminPinHash').exists() && root.child('streamplanPinProbe/' + $pid + '/' + auth.uid).val() === root.child('streamplanGeheim/' + $pid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now)) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
@@ -289,7 +289,7 @@
     "fruehstueck": {
       "$pid": {
         ".read": true,
-        ".write": "auth != null && ((root.child('fruehstueck/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').exists() && root.child('fruehstueckPinProbe/' + 'fruehstueck-' + $pid + '/' + auth.uid).val() === root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
+        ".write": "auth != null && ((root.child('fruehstueck/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').exists() && root.child('fruehstueckPinProbe/' + 'fruehstueck-' + $pid + '/' + auth.uid).val() === root.child('fruehstueckGeheim/' + 'fruehstueck-' + $pid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now)) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel', 'startDatum', 'anzahlTage'])",
@@ -332,7 +332,7 @@
     "essen": {
       "$pid": {
         ".read": "auth != null",
-        ".write": "auth != null && ((root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val())) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
+        ".write": "auth != null && ((root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now)) || (!data.child('meta').exists() && newData.child('meta/hostId').val() === auth.uid))",
 
         "meta": {
           ".validate": "newData.hasChildren(['titel'])",
@@ -404,10 +404,14 @@
       }
     },
 
+    "rolleProbe": {
+      ".read": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now"
+    },
+
     "essenOrga": {
       "$pid": {
-        ".read": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()))",
-        ".write": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()))",
+        ".read": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
+        ".write": "auth != null && (root.child('essen/' + $pid + '/meta/hostId').val() === auth.uid || (root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').exists() && root.child('essenPinProbe/' + 'essen-' + $pid + '/' + auth.uid).val() === root.child('essenGeheim/' + 'essen-' + $pid + '/adminPinHash').val()) || (auth.token.agelanOrga === true && auth.token.agelanBis > now))",
         "lieferantEmail":   { ".validate": "newData.isString() && newData.val().length <= 120" },
         "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
         "$sonst": { ".validate": false }
