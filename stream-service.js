@@ -140,7 +140,9 @@ async function skSchreib(aktion) {
     console.error("[Streamplan] Schreiben fehlgeschlagen:", e);
     const kennung = String((e && (e.code || e.message)) || "");
     if (/permission|denied/i.test(kennung)) {
-      return { erfolg: false, fehler: "Die Datenbank hat das Speichern abgelehnt. Die Sicherheitsregeln der AgeLan-Datenbank muessen in der Firebase-Konsole neu veroeffentlicht werden." };
+      // ⚠️ Seit den Regeln vom 26.09.2026 (E5) heisst das fast immer: kein Recht –
+      // nicht „Regeln neu veroeffentlichen“ (Fixprüfung 26.09.2026, A3-04).
+      return { erfolg: false, fehler: "Die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das den Plan angelegt hat; einen eigenen Eintrag ändert nur das Gerät, auf dem er entstand." };
     }
     return { erfolg: false, fehler: "Das Speichern hat nicht geklappt. Pruefe die Internetverbindung und versuch es noch einmal." };
   }

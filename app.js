@@ -1591,11 +1591,16 @@ window.addEventListener("unhandledrejection", (e) => {
   // Die Konsolenmeldung bleibt bewusst stehen (kein preventDefault) – sie ist
   // beim Nachsehen die genauere Quelle als dieser Balken.
   const grund = e && e.reason;
-  const text = String((grund && grund.message) || grund || "");
+  const text = String((grund && grund.code) || "") + " " + String((grund && grund.message) || grund || "");
+  // ⚠️ PERMISSION_DENIED ist seit den Regeln vom 26.09.2026 (E5) fast immer ein
+  // fehlendes Recht, keine abgelaufene Anmeldung: Neuladen half nie, und alle
+  // suchten den Fehler an der falschen Stelle (Fixprüfung 26.09.2026, A3-04).
   zeigeNetzFehler(
-    /permission|denied|auth/i.test(text)
-      ? "Nicht gespeichert – die Anmeldung ist abgelaufen. Bitte die Seite neu laden."
-      : "Nicht gespeichert – keine Verbindung. Bitte prüfen und noch einmal versuchen."
+    /permission|denied/i.test(text)
+      ? "Nicht gespeichert – die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das ihn angelegt hat."
+      : /auth/i.test(text)
+        ? "Nicht gespeichert – die Anmeldung ist abgelaufen. Bitte die Seite neu laden."
+        : "Nicht gespeichert – keine Verbindung. Bitte prüfen und noch einmal versuchen."
   );
 });
 
@@ -1621,6 +1626,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.25",
+    groups: [
+      { title: "Meldungen und Randfälle vor der AGE LAN", items: [
+          "Lehnt die Datenbank einen Schritt ab, steht jetzt dort, woran es meist liegt – am fehlenden PIN des Bereichs – statt „Anmeldung abgelaufen“, „Regeln neu veröffentlichen“ oder „versuch es noch einmal“."
+      ]},
+    ],
+  },
   {
     version: "8.24",
     groups: [

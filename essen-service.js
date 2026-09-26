@@ -1536,7 +1536,7 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
   });
   } catch (e) {
-    return { erfolg: false, fehler: esSchreibFehler(bisher, z) };
+    return { erfolg: false, fehler: esSchreibFehler(bisher, z, e) };
   }
   try {
     localStorage.setItem(ES_NAME_KEY, n);
@@ -1569,16 +1569,24 @@ async function esStorniere(bestellungId) {
   try {
     await db.ref(ES_BASIS).update(updates);
   } catch (e) {
-    return { erfolg: false, fehler: esSchreibFehler(b, z) };   // E5, siehe esBestelle
+    return { erfolg: false, fehler: esSchreibFehler(b, z, e) };   // E5, siehe esBestelle
   }
   return { erfolg: true };
 }
 
 // E5: warum die Datenbank eine Bestellung abgelehnt hat - die haeufigste Ursache ist ein
 // zweites Geraet mit demselben Konto (neue Regeln binden an die uid des abgebenden Geraets).
-function esSchreibFehler(bestellung, z) {
+// ⚠️ Seit der Fixprüfung 26.09.2026 (A3-04) mit dem Fehler selbst: eine Ablehnung der
+// Datenbank ist kein Netzproblem, „versuch es noch einmal“ half dort nie.
+function esSchreibFehler(bestellung, z, fehler) {
   if (bestellung && bestellung.uid && bestellung.uid !== esEigeneUid && !(z && z.istAdmin)) {
     return "Diese Bestellung wurde auf einem anderen Gerät abgegeben. Ändern oder stornieren geht dort – oder über die Orga.";
+  }
+  const kennung = String((fehler && (fehler.code || fehler.message)) || "");
+  if (/permission|denied/i.test(kennung)) {
+    return z && z.istAdmin
+      ? "Die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das ihn angelegt hat."
+      : "Die Datenbank hat das abgelehnt – die Bestellung ist wohl gerade bezahlt oder zum Lieferanten geschickt worden. Ändern geht dann nur noch über die Orga.";
   }
   return "Das ließ sich gerade nicht speichern. Bitte versuch es noch einmal.";
 }
