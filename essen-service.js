@@ -249,7 +249,8 @@ function esOrgaWert(feld) {
 function esHorcheOrga() {
   if (!esIstAdmin()) return;
   const meta = (esRoh && esRoh.meta) || {};
-  const grund = (esPinOk ? "pin" : "-") + "|" + (meta.hostId === esEigeneUid ? "host" : "-") + "|" + String(meta.erstelltAm || "");
+  const grund = (esPinOk ? "pin" : "-") + "|" + (meta.hostId === esEigeneUid ? "host" : "-") + "|" + String(meta.erstelltAm || "") +
+    "|" + (typeof rolleGueltig === "function" && rolleGueltig() ? "rolle" : "-");
   if (esOrgaVersuch === grund) return;
   esOrgaVersuch = grund;
   if (esOrgaHorcher) { try { esOrgaHorcher.off(); } catch (e) { /* egal */ } }
@@ -324,6 +325,8 @@ function esIstAdmin() {
   // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   const meta = esRoh && esRoh.meta;
   if (!meta) return false;
+  // Rolle ueber das Konto (Claim, von der Datenbank bestaetigt) - agelan-Rolle 26.09.2026.
+  if (typeof rolleGueltig === "function" && rolleGueltig()) return true;
   if (meta.hostId && meta.hostId === esEigeneUid) return true;
   return esPinOk;
 }
@@ -1575,6 +1578,7 @@ function esSchreibFehler(bestellung, z, fehler) {
   }
   const kennung = String((fehler && (fehler.code || fehler.message)) || "");
   if (/permission|denied/i.test(kennung)) {
+    if (typeof rolleNachAblehnung === "function") rolleNachAblehnung();
     return z && z.istAdmin
       ? "Die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das ihn angelegt hat."
       : "Die Datenbank hat das abgelehnt – die Bestellung ist wohl gerade bezahlt oder zum Lieferanten geschickt worden. Ändern geht dann nur noch über die Orga.";

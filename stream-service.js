@@ -140,6 +140,7 @@ async function skSchreib(aktion) {
     console.error("[Streamplan] Schreiben fehlgeschlagen:", e);
     const kennung = String((e && (e.code || e.message)) || "");
     if (/permission|denied/i.test(kennung)) {
+      if (typeof rolleNachAblehnung === "function") rolleNachAblehnung();
       // ⚠️ Seit den Regeln vom 26.09.2026 (E5) heisst das fast immer: kein Recht –
       // nicht „Regeln neu veroeffentlichen“ (Fixprüfung 26.09.2026, A3-04).
       return { erfolg: false, fehler: "Die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das den Plan angelegt hat; einen eigenen Eintrag ändert nur das Gerät, auf dem er entstand." };
@@ -218,6 +219,8 @@ function skIstAdmin() {
   // die Datenbank verlangt hostId oder den PIN-Beweis, und ohne beides blieb
   // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   if (!skRoh || !skRoh.meta) return false;
+  // Rolle ueber das Konto (Claim, von der Datenbank bestaetigt) - agelan-Rolle 26.09.2026.
+  if (typeof rolleGueltig === "function" && rolleGueltig()) return true;
   const meta = skRoh.meta;
   if (meta.hostId && meta.hostId === skEigeneUid) return true;
   // Der PIN-Weg laeuft ueber den Server und laesst sich hier nicht synchron

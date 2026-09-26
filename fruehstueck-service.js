@@ -165,6 +165,8 @@ function frIstAdmin() {
   // die Datenbank verlangt hostId oder den PIN-Beweis, und ohne beides blieb
   // das PIN-Feld versteckt, während jeder Verwaltungsklick abgelehnt wurde.
   if (!frRoh || !frRoh.meta) return false;
+  // Rolle ueber das Konto (Claim, von der Datenbank bestaetigt) - agelan-Rolle 26.09.2026.
+  if (typeof rolleGueltig === "function" && rolleGueltig()) return true;
   const meta = frRoh.meta;
   if (meta.hostId && meta.hostId === frEigeneUid) return true;
   return frPinOk;

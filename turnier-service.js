@@ -107,7 +107,9 @@ const authBereit = new Promise((resolve) => {
     }
   });
 });
-auth.signInAnonymously().catch((err) => console.error("Anonyme Anmeldung fehlgeschlagen:", err));
+// Das Promise wird gebraucht: die Rolle (weiter unten) meldet sich erst NACH der anonymen
+// Anmeldung per Custom Token an - fuer genau diese uid.
+const anonymAngemeldet = auth.signInAnonymously().catch((err) => console.error("Anonyme Anmeldung fehlgeschlagen:", err));
 
 // --- kleine Helfer ---------------------------------------------------------
 function mischeArray(arr) {
@@ -441,12 +443,15 @@ function kontoIstVeranstalter() {
 }
 
 // Hinweis im Anmeldekasten eines Bereichs (Turnier, Stream, Frühstück, Essen):
-// wer ⭐/🛠 hat, erwartet die Verwaltung ohne PIN – die Datenbank lässt ihn ohne
-// PIN aber nichts verwalten (A3-01). Leer für alle anderen.
+// wer ⭐/🛠 hat, erwartet die Verwaltung ohne PIN. Seit der Rolle (26.09.2026) geht das,
+// sobald Worker und Regeln so weit sind; bis dahin (oder wenn es scheitert) der PIN.
+// Leer für alle anderen.
 function kontoPinHinweis() {
-  return kontoIstVeranstalter()
-    ? "Du bist mit ⭐/🛠 angemeldet. Zum Verwalten dieses Bereichs gib auf diesem Gerät einmal seinen PIN ein – die Datenbank kennt dein Konto nicht."
-    : "";
+  if (!kontoIstVeranstalter()) return "";
+  if (typeof rolleStand === "string" && (rolleStand === "holt" || rolleStand === "")) {
+    return "Du bist mit ⭐/🛠 angemeldet – die Verwaltung wird gerade über dein Konto freigeschaltet. Klappt das nicht, gib auf diesem Gerät einmal den PIN dieses Bereichs ein.";
+  }
+  return "Du bist mit ⭐/🛠 angemeldet, die Freischaltung über das Konto geht gerade nicht. Zum Verwalten dieses Bereichs gib auf diesem Gerät einmal seinen PIN ein.";
 }
 
 // Setzt den Hinweis in ein Element (per textContent) und blendet es bei leerem
@@ -457,6 +462,178 @@ function zeigeKontoPinHinweis(id) {
   const text = kontoPinHinweis();
   el.textContent = text;
   el.hidden = !text;
+}
+
+// ===========================================================================
+// Rolle ueber das Konto (agelan-Rolle 26.09.2026, Entscheidung Michel: Variante B)
+//
+// Wer per Konto ⭐/🛠 ist, holt beim agelan-Worker (`firebase-rolle`) ein Firebase-
+// Custom-Token fuer SEINE uid (dieselbe wie bei der anonymen Anmeldung - hostId,
+// Bestellungen und Anmeldungen bleiben am Geraet) und meldet sich damit an. Das
+// ID-Token traegt danach die Claims agelanOrga/agelanBis; die Regeln lassen damit
+// verwalten, OHNE PIN. Der PIN-Weg (hostId oder PIN-Beweis) bleibt der Rueckfall.
+//
+// ⚠️ Die Rolle zaehlt erst, wenn die DATENBANK sie annimmt: der Knoten rolleProbe
+// ist nur mit gueltigem Claim lesbar. Sind die neuen Regeln noch nicht eingespielt
+// (oder fehlt am Worker das Secret), bleibt alles beim PIN-Weg - und das PIN-Feld
+// sichtbar. Sonst saehe ein ⭐/🛠 wieder Knoepfe, die die Datenbank ablehnt (A3-01).
+// ⚠️ Im Test-Modus (?mock=1) gibt es weder Worker noch Custom Token: dort nie.
+// ===========================================================================
+const ROLLE_GATEWAY = "https://agelan.michel-brunner.workers.dev";
+const ROLLE_ERNEUERN_MS = 6 * 3600 * 1000;   // spaetestens alle 6 h neu holen (Claim gilt 24 h)
+const ROLLE_NOCHMAL_MS = 10 * 60 * 1000;     // nach einem Netz-/Serverfehler
+const ROLLE_AUS_MS = 6 * 3600 * 1000;        // Worker ohne Secret / alte Worker-Fassung
+const ROLLE_BREMSE_MS = 60 * 1000;           // ausserplanmaessig hoechstens einmal je Minute
+let rolleBis = 0;              // agelanBis aus dem ID-Token (ms)
+let rolleBestaetigt = false;   // hat die Datenbank den Claim angenommen (rolleProbe lesbar)?
+let rolleStand = "";           // "", "holt", "aktiv", "aus", "fehler"
+let rolleLaeuft = null;        // laufende Anforderung
+let rolleZuletzt = 0;
+let rolleTimer = null;
+let rolleProbeLaeuft = null;   // laufende Gegenprobe (Promise) - wer spaeter kommt, wartet darauf
+
+function rolleMoeglich() {
+  return !istMock && typeof auth.signInWithCustomToken === "function";
+}
+
+// Gilt die Rolle gerade? Konto-Merkmal (lebt im Browser, kommt frisch aus konto-pruefen)
+// UND gueltiger Claim UND die Datenbank hat ihn angenommen. Entzieht jemand ⭐/🛠, faellt
+// die Oberflaeche sofort zurueck; in der Datenbank verfaellt der Claim nach agelanBis.
+function rolleGueltig() {
+  return rolleBestaetigt && rolleBis > Date.now() && kontoIstVeranstalter();
+}
+
+// Alle Bereiche neu zeichnen: istAdmin haengt jetzt auch an der Rolle.
+function rolleMelden() {
+  try { benachrichtige(); } catch (e) { /* Zuhoerer melden selbst */ }
+  ["skMelde", "frMelde", "esMelde"].forEach((n) => {
+    try { if (typeof window[n] === "function") window[n](); } catch (e) { /* siehe oben */ }
+  });
+}
+
+// Claims aus dem ID-Token uebernehmen und bei der Datenbank gegenpruefen.
+async function rolleUebernehmen(claims) {
+  const vorher = rolleGueltig();
+  rolleBis = claims && claims.agelanOrga === true && typeof claims.agelanBis === "number" ? claims.agelanBis : 0;
+  if (!(rolleBis > Date.now())) {
+    rolleBestaetigt = false;
+  } else {
+    if (!rolleProbeLaeuft) {
+      rolleProbeLaeuft = (async () => {
+        // Direkt nach signInWithCustomToken meldet sich die Datenbank-Verbindung erst neu an;
+        // deshalb ein zweiter Versuch nach kurzer Pause, bevor es "nicht angenommen" heisst.
+        for (let versuch = 0; versuch < 2; versuch++) {
+          try {
+            await db.ref("rolleProbe").once("value");
+            return true;
+          } catch (e) {
+            if (versuch === 0) await new Promise((f) => setTimeout(f, 2000));
+          }
+        }
+        return false;
+      })();
+    }
+    const probe = rolleProbeLaeuft;
+    try {
+      rolleBestaetigt = await probe;
+    } finally {
+      if (rolleProbeLaeuft === probe) rolleProbeLaeuft = null;
+    }
+    if (!rolleBestaetigt) rolleStand = "aus";   // Claim da, aber die Regeln kennen ihn noch nicht
+  }
+  if (rolleGueltig()) rolleStand = "aktiv";
+  if (rolleGueltig() !== vorher) rolleMelden();
+}
+
+function planeRolleErneuern(wartezeit) {
+  if (rolleTimer) clearTimeout(rolleTimer);
+  rolleTimer = null;
+  if (!rolleMoeglich() || !kontoIstVeranstalter()) return;
+  let ms = wartezeit;
+  if (!ms) {
+    // Rechtzeitig vor agelanBis, spaetestens nach 6 h.
+    ms = rolleBis > Date.now() ? Math.min(ROLLE_ERNEUERN_MS, rolleBis - Date.now() - 30 * 60 * 1000) : ROLLE_NOCHMAL_MS;
+  }
+  rolleTimer = setTimeout(() => { holeFirebaseRolle("zeit"); }, Math.max(60 * 1000, ms));
+}
+
+// Custom Token beim Worker holen und damit anmelden. Liefert true, wenn die Rolle danach gilt.
+// ⚠️ Jeder Fehler endet STILL beim PIN-Weg - die Seite darf daran nicht haengen.
+function holeFirebaseRolle(anlass) {
+  if (!rolleMoeglich()) { rolleStand = "aus"; return Promise.resolve(false); }
+  const k = window.__AGELAN_KONTO__;
+  if (!kontoIstVeranstalter() || !k || !k.token) return Promise.resolve(false);
+  if (rolleLaeuft) return rolleLaeuft;
+  if (anlass !== "zeit" && Date.now() - rolleZuletzt < ROLLE_BREMSE_MS) return Promise.resolve(rolleGueltig());
+  rolleZuletzt = Date.now();
+  rolleStand = rolleGueltig() ? "aktiv" : "holt";
+  let naechster = 0;
+  rolleLaeuft = (async () => {
+    try {
+      await authBereit;
+      await anonymAngemeldet;
+      const user = auth.currentUser;
+      if (!user) { rolleStand = "fehler"; naechster = ROLLE_NOCHMAL_MS; return false; }
+      const uidVorher = user.uid;
+      const idToken = await user.getIdToken();
+      const antwort = await fetch(ROLLE_GATEWAY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "firebase-rolle", token: k.token, idToken: idToken }),
+      });
+      const b = await antwort.json().catch(() => ({}));
+      if (!antwort.ok || !b || b.ok !== true || typeof b.customToken !== "string") {
+        // 503 = am Worker fehlt das Secret, 400 = alte Worker-Fassung ohne die Aktion,
+        // 403 = kein ⭐/🛠 mehr: in allen Faellen PIN-Weg, erst viel spaeter wieder fragen.
+        const aus = antwort.status === 503 || antwort.status === 400 || antwort.status === 403;
+        rolleStand = aus ? "aus" : "fehler";
+        naechster = aus ? ROLLE_AUS_MS : ROLLE_NOCHMAL_MS;
+        return false;
+      }
+      // ⚠️ Nur mit einem Token fuer DIESE uid anmelden - eine andere uid kostete das
+      // Geraet seine hostId, Bestellungen und Anmeldungen.
+      if (b.uid !== uidVorher) { rolleStand = "fehler"; naechster = ROLLE_NOCHMAL_MS; return false; }
+      await auth.signInWithCustomToken(b.customToken);
+      const nachher = auth.currentUser;
+      if (!nachher || nachher.uid !== uidVorher) {
+        console.error("[Rolle] Anmeldung hat die uid gewechselt - das darf nicht sein.");
+        rolleStand = "fehler"; naechster = ROLLE_NOCHMAL_MS;
+        return false;
+      }
+      const ergebnis = await nachher.getIdTokenResult();
+      await rolleUebernehmen(ergebnis && ergebnis.claims);
+      if (!rolleGueltig() && rolleStand !== "aus") rolleStand = "fehler";
+      return rolleGueltig();
+    } catch (e) {
+      console.warn("[Rolle] nicht geholt – es bleibt beim PIN:", e && e.message);
+      rolleStand = "fehler";
+      naechster = ROLLE_NOCHMAL_MS;
+      return false;
+    } finally {
+      rolleLaeuft = null;
+      planeRolleErneuern(naechster);
+      rolleMelden();   // Hinweis im Anmeldekasten nachziehen
+    }
+  })();
+  return rolleLaeuft;
+}
+
+// Nach einer Ablehnung der Datenbank: vielleicht ist nur der Claim verfallen.
+function rolleNachAblehnung() {
+  if (kontoIstVeranstalter()) holeFirebaseRolle("abgelehnt");
+}
+
+// Jede neue Fassung des ID-Tokens (Anmeldung, stuendliche Auffrischung): Claims lesen.
+// Fehlen sie bei einem ⭐/🛠 (erste Anmeldung, verfallen), wird neu geholt.
+if (rolleMoeglich() && typeof auth.onIdTokenChanged === "function") {
+  auth.onIdTokenChanged((user) => {
+    if (!user) { rolleUebernehmen(null); return; }
+    user.getIdTokenResult().then((r) => rolleUebernehmen(r && r.claims)).then(() => {
+      if (!rolleGueltig() && kontoIstVeranstalter() && rolleStand !== "aus") holeFirebaseRolle("claims");
+    }).catch(() => { /* bleibt beim PIN-Weg */ });
+  });
+} else {
+  rolleStand = "aus";
 }
 
 // Gehoert diese Person zur Organisation? Beim Essen heisst das: zahlt nichts.
@@ -506,6 +683,8 @@ function kontoAngemeldet() {
 // Dasselbe gilt für skIstAdmin, frIstAdmin und esIstAdmin.
 function istVeranstalterVon(id, meta) {
   if (!meta) return false;
+  // Rolle ueber das Konto (Claim, von der Datenbank bestaetigt) - agelan-Rolle 26.09.2026.
+  if (typeof rolleGueltig === "function" && rolleGueltig()) return true;
   if (meta.hostId && meta.hostId === eigeneUid) return true;
   // Der PIN-Weg laeuft ueber den Server und laesst sich hier nicht synchron
   // nachschlagen. Was zaehlt, ist das Ergebnis von pruefeGemerktePins().

@@ -1595,6 +1595,8 @@ window.addEventListener("unhandledrejection", (e) => {
   // ⚠️ PERMISSION_DENIED ist seit den Regeln vom 26.09.2026 (E5) fast immer ein
   // fehlendes Recht, keine abgelaufene Anmeldung: Neuladen half nie, und alle
   // suchten den Fehler an der falschen Stelle (Fixprüfung 26.09.2026, A3-04).
+  // agelan-Rolle: vielleicht ist nur der Claim verfallen - dann neu holen (gebremst).
+  if (/permission|denied/i.test(text) && typeof rolleNachAblehnung === "function") rolleNachAblehnung();
   zeigeNetzFehler(
     /permission|denied/i.test(text)
       ? "Nicht gespeichert – die Datenbank hat das abgelehnt. Verwalten geht nur mit dem PIN dieses Bereichs oder am Gerät, das ihn angelegt hat."
@@ -1626,6 +1628,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.26",
+    groups: [
+      { title: "Veranstalter- und Orga-Konto verwalten ohne PIN", items: [
+          "Wer per Konto Veranstalter (⭐) oder Orga (🛠) ist, verwaltet Turnier, Stream, Frühstück und Essen ohne PIN: die App meldet das Gerät dazu über das Konto bei der Datenbank an. Das gilt 24 Stunden und erneuert sich von selbst, solange die Seite offen ist oder neu geöffnet wird.",
+          "Solange das nicht eingerichtet ist oder einmal nicht klappt, bleibt alles wie bisher: der Kasten „Veranstalter“ zeigt das PIN-Feld und sagt, warum. Wird ⭐/🛠 abgenommen, ist die Verwaltung in der App sofort weg und in der Datenbank spätestens nach 24 Stunden."
+      ]},
+    ],
+  },
   {
     version: "8.25",
     groups: [
