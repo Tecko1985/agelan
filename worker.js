@@ -14,6 +14,10 @@
 // Secrets (im Cloudflare-Dashboard bei DIESEM Worker zu setzen):
 //   PW_AGELAN              = Einladung: einmal noetig, um sich ein Konto anzulegen
 //   PW_AGELAN_VERANSTALTER = Turniere anlegen und Konten verwalten (nur Michel)
+//   FIREBASE_DIENSTKONTO   = JSON-Schluessel eines Firebase-Dienstkontos (Projekt
+//                            agelan-ab042). Damit stellt `firebase-rolle` fuer ⭐/🛠
+//                            ein Custom Token aus (Verwaltung ohne PIN). Fehlt es,
+//                            antwortet nur diese Aktion 503; alles andere laeuft.
 //   DISCORD_BOT_TOKEN      = Token des Bots, der die Benachrichtigungen verschickt.
 //                            Fehlt es, sagen NUR die Discord-Aktionen das klar;
 //                            alles Uebrige laeuft unveraendert weiter. Auch die
@@ -101,6 +105,7 @@ export default {
     if (aktion === "konto-discord")  return kontoDiscord(body, env, cors);
     if (aktion === "discord-test")   return discordTest(body, env, cors);
     if (aktion === "discord-sammel") return discordSammel(request, body, env, cors);
+    if (aktion === "firebase-rolle") return firebaseRolle(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
 };
@@ -1242,6 +1247,170 @@ async function meldeNeuesKonto(env, neu) {
   } catch (e) {
     // Bewusst still. Hier gibt es niemanden mehr, dem man etwas sagen könnte –
     // die Antwort an den neuen Nutzer ist längst raus.
+  }
+}
+
+// ===========================================================================
+// Firebase-Rolle (agelan-Rolle 26.09.2026, Entscheidung Michel: Variante B)
+//
+// Wer per Konto Veranstalter (⭐) oder Orga (🛠) ist, soll in der Firebase-
+// Datenbank als Verwaltung gelten, OHNE den PIN des Bereichs. Die Regeln kennen
+// das Konto aber nicht - sie kennen nur `auth`. Deshalb stellt dieser Worker ein
+// Firebase-CUSTOM-TOKEN aus: fuer DIESELBE uid, mit der das Geraet schon anonym
+// angemeldet ist (hostId, Bestellungen und Anmeldungen haengen an ihr), und mit
+// den Claims `agelanOrga: true` und `agelanBis: <jetzt + 24 h in ms>`. Die Regeln
+// pruefen `auth.token.agelanOrga === true && auth.token.agelanBis > now`.
+//
+// Ablauf `firebase-rolle`:
+//   1. Konto-Token pruefen, Stand aus dem KV (wie konto-pruefen, B2-11) - ein
+//      entzogenes ⭐/🛠 wirkt beim naechsten Abholen sofort.
+//   2. Das Firebase-ID-Token des Geraets pruefen (RS256 gegen Googles oeffentliche
+//      Schluessel, aud/iss = Projekt, exp/iat/auth_time, sub = uid). Nur so steht
+//      fest, fuer WELCHE uid das Custom Token gilt - sonst koennte jemand eines fuer
+//      die uid eines anderen Geraets (etwa dessen hostId) verlangen.
+//   3. Custom Token bauen, signiert mit dem Schluessel des Dienstkontos aus dem
+//      Secret FIREBASE_DIENSTKONTO (die JSON-Datei aus der Firebase-Konsole).
+// Fehlt das Secret: 503 { nichtKonfiguriert: true } - der Client bleibt dann
+// still beim PIN-Weg.
+//
+// Doku: Custom Token https://firebase.google.com/docs/auth/admin/create-custom-tokens
+// ("Create custom tokens using a third-party JWT library"), ID-Token pruefen
+// https://firebase.google.com/docs/auth/admin/verify-id-tokens ("Verify ID tokens
+// using a third-party JWT library"). Die JWK-Adresse liefert dieselben Schluessel
+// (gleiche kid) wie die dort genannte x509-Adresse, laesst sich aber ohne
+// Zertifikats-Zerlegung direkt mit crypto.subtle einlesen.
+// ===========================================================================
+
+const FIREBASE_PROJEKT = "agelan-ab042";
+const FIREBASE_JWK_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const CUSTOM_TOKEN_AUD = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
+const ROLLE_DAUER_MS = 24 * 3600 * 1000;   // danach verfaellt der Claim in den Regeln von selbst
+const UHR_SPIEL_S = 60;                     // Uhrenversatz, den iat/auth_time haben duerfen
+
+let jwkSpeicher = { bis: 0, keys: [] };    // je Isolate, nach Cache-Control max-age
+let dienstkontoSpeicher = { roh: null, key: null };
+
+async function firebaseRolle(body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  const dienstkonto = dienstkontoLesen(env);
+  if (!dienstkonto) return json({ ok: false, nichtKonfiguriert: true }, 503, cors);
+
+  // 1. Konto (Stand aus dem KV, nicht aus dem Token allein)
+  const eigen = await eigenesKonto(body, env);
+  if (eigen.fehler) return json({ ok: false, fehler: eigen.fehler }, eigen.status === 500 ? 500 : 401, cors);
+  if (!(eigen.konto.admin || eigen.konto.orga)) {
+    return json({ ok: false, fehler: "Nur für Veranstalter oder Orga." }, 403, cors);
+  }
+
+  // 2. Firebase-ID-Token des Geraets
+  const uid = await firebaseIdTokenPruefen(body.idToken, Date.now());
+  if (!uid) return json({ ok: false, fehler: "Die Firebase-Anmeldung dieses Geräts ließ sich nicht bestätigen." }, 401, cors);
+
+  // 3. Custom Token fuer DIESELBE uid
+  const bis = Date.now() + ROLLE_DAUER_MS;
+  let customToken;
+  try {
+    customToken = await customTokenBauen(dienstkonto, uid, { agelanOrga: true, agelanBis: bis }, Date.now());
+  } catch (e) {
+    // Kaputter Schluessel im Secret: fuer den Client dasselbe wie "nicht eingerichtet".
+    return json({ ok: false, nichtKonfiguriert: true }, 503, cors);
+  }
+  return json({ ok: true, customToken: customToken, uid: uid, bis: bis }, 200, cors);
+}
+
+// Das Secret ist die JSON-Datei des Dienstkontos. Gelesen werden nur client_email
+// und private_key; project_id muss zum Projekt passen, sonst lehnt Firebase das
+// Custom Token ohnehin ab (und der Fehler waere dann schwer zu finden).
+function dienstkontoLesen(env) {
+  const roh = env && typeof env.FIREBASE_DIENSTKONTO === "string" ? env.FIREBASE_DIENSTKONTO : "";
+  if (!roh) return null;
+  try {
+    const d = JSON.parse(roh);
+    if (!d || typeof d.client_email !== "string" || typeof d.private_key !== "string") return null;
+    if (d.project_id && d.project_id !== FIREBASE_PROJEKT) return null;
+    return { client_email: d.client_email, private_key: d.private_key, roh: roh };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function dienstkontoSchluessel(dienstkonto) {
+  if (dienstkontoSpeicher.roh === dienstkonto.roh && dienstkontoSpeicher.key) return dienstkontoSpeicher.key;
+  const pem = dienstkonto.private_key.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, "").replace(/\s+/g, "");
+  const key = await crypto.subtle.importKey(
+    "pkcs8", b64ZuBytes(pem), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+  );
+  dienstkontoSpeicher = { roh: dienstkonto.roh, key: key };
+  return key;
+}
+
+// Custom Token nach "Create custom tokens using a third-party JWT library":
+// RS256, iss = sub = Dienstkonto, aud = IdentityToolkit, exp hoechstens 1 h nach
+// iat (nur fuer den Tausch gegen ein ID-Token), uid, claims. Die Claim-Namen sind
+// keine reservierten Namen (acr, amr, at_hash, aud, auth_time, azp, cnf, c_hash,
+// exp, iat, iss, jti, nbf, nonce, sub, firebase, user_id).
+async function customTokenBauen(dienstkonto, uid, claims, jetztMs) {
+  const iat = Math.floor(jetztMs / 1000);
+  const kopf = { alg: "RS256", typ: "JWT" };
+  const nutzlast = {
+    iss: dienstkonto.client_email, sub: dienstkonto.client_email, aud: CUSTOM_TOKEN_AUD,
+    iat: iat, exp: iat + 3600, uid: uid, claims: claims,
+  };
+  const eingabe = jsonB64Url(kopf) + "." + jsonB64Url(nutzlast);
+  const key = await dienstkontoSchluessel(dienstkonto);
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(eingabe));
+  return eingabe + "." + bytesZuB64Url(new Uint8Array(sig));
+}
+
+function jsonB64Url(o) {
+  return bytesZuB64Url(new TextEncoder().encode(JSON.stringify(o)));
+}
+
+// Googles oeffentliche Schluessel fuer Firebase-ID-Token, zwischengespeichert nach
+// Cache-Control max-age. Unbekannte kid -> einmal frisch holen (Schluesselwechsel).
+async function jwkHolen(kid, jetztMs) {
+  const suche = () => jwkSpeicher.keys.find((k) => k && k.kid === kid) || null;
+  if (jwkSpeicher.bis > jetztMs) {
+    const k = suche();
+    if (k) return k;
+  }
+  const antwort = await fetch(FIREBASE_JWK_URL);
+  if (!antwort.ok) return null;
+  const daten = await antwort.json();
+  const m = /max-age=(\d+)/.exec(antwort.headers.get("Cache-Control") || "");
+  jwkSpeicher = { bis: jetztMs + (m ? Number(m[1]) : 3600) * 1000, keys: Array.isArray(daten && daten.keys) ? daten.keys : [] };
+  return suche();
+}
+
+// Liefert die uid (sub) eines gueltigen Firebase-ID-Tokens dieses Projekts, sonst null.
+// ⚠️ Der ganze Rumpf steht im try, wie bei tokenLesen: ein verstelltes Token darf
+// den Worker nicht mitreissen (Cloudflare 1101).
+async function firebaseIdTokenPruefen(idToken, jetztMs) {
+  try {
+    const teile = String(idToken || "").split(".");
+    if (teile.length !== 3) return null;
+    const kopf = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[0])));
+    const nutzlast = JSON.parse(new TextDecoder().decode(b64UrlZuBytes(teile[1])));
+    if (!kopf || kopf.alg !== "RS256" || typeof kopf.kid !== "string") return null;
+    const jetzt = Math.floor(jetztMs / 1000);
+    if (nutzlast.aud !== FIREBASE_PROJEKT) return null;
+    if (nutzlast.iss !== "https://securetoken.google.com/" + FIREBASE_PROJEKT) return null;
+    if (!(typeof nutzlast.exp === "number" && nutzlast.exp > jetzt)) return null;
+    if (!(typeof nutzlast.iat === "number" && nutzlast.iat <= jetzt + UHR_SPIEL_S)) return null;
+    if (!(typeof nutzlast.auth_time === "number" && nutzlast.auth_time <= jetzt + UHR_SPIEL_S)) return null;
+    if (typeof nutzlast.sub !== "string" || !nutzlast.sub || nutzlast.sub.length > 128) return null;
+    const jwk = await jwkHolen(kopf.kid, jetztMs);
+    if (!jwk || jwk.kty !== "RSA") return null;
+    const key = await crypto.subtle.importKey(
+      "jwk", { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]
+    );
+    const ok = await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5", key, b64UrlZuBytes(teile[2]), new TextEncoder().encode(teile[0] + "." + teile[1])
+    );
+    return ok ? nutzlast.sub : null;
+  } catch (e) {
+    return null;
   }
 }
 
