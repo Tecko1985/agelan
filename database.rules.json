@@ -5,7 +5,10 @@
         ".read": true,
         "$id": {
           ".write": "auth != null && ((!data.exists() && newData.exists()) || (!newData.exists() && (!root.child('turniere/' + $id).exists() || (root.child('turniere/' + $id + '/meta/hostId').val() === auth.uid || (root.child('turnierGeheim/' + $id + '/adminPinHash').exists() && root.child('turnierPinProbe/' + $id + '/' + auth.uid).val() === root.child('turnierGeheim/' + $id + '/adminPinHash').val())))))",
-          ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 60"
+          ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 60",
+          "name":       { ".validate": "newData.isString()" },
+          "erstelltAm": { ".validate": "newData.isNumber()" },
+          "$sonst":     { ".validate": false }
         }
       },
       "$tid": {
@@ -19,10 +22,41 @@
             ".write": "auth != null && data.val() === 'ko' && newData.val() === 'beendet' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()",
             ".validate": "newData.isString()"
           },
-          "siegerTeamId": { ".write": "auth != null && !data.exists() && newData.exists() && root.child('turniere/' + $tid + '/meta/phase').val() === 'ko' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()" },
+          "siegerTeamId": {
+            ".write": "auth != null && !data.exists() && newData.exists() && root.child('turniere/' + $tid + '/meta/phase').val() === 'ko' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()",
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
           "bestOf": { ".validate": "newData.isNumber()" },
+          "erstelltAm":       { ".validate": "newData.isNumber()" },
+          "hostId":           { ".validate": "newData.isString() && newData.val().length <= 128" },
+          "teamGroesse":      { ".validate": "newData.isNumber()" },
+          "ablauf":           { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "formatOffen":      { ".validate": "newData.isBoolean()" },
+          "anzahlGruppen":    { ".validate": "newData.isNumber()" },
+          "weiterProGruppe":  { ".validate": "newData.isNumber()" },
+          "weiterInsgesamt":  { ".validate": "newData.isNumber()" },
+          "punkteSieg":       { ".validate": "newData.isNumber()" },
+          "koTyp":            { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "bestOfFinale":     { ".validate": "newData.isNumber()" },
+          "tiebreak":         { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "bracketReset":     { ".validate": "newData.isBoolean()" },
+          "spielUmPlatz3":    { ".validate": "newData.isBoolean()" },
+          "doppelrunde":      { ".validate": "newData.isBoolean()" },
+          "spieltage":        { ".validate": "newData.isBoolean()" },
+          "schweizerRunden":  { ".validate": "newData.isNumber()" },
+          "setzlisteManuell": { ".validate": "newData.isBoolean()" },
+          "zeitplan": {
+            "startDatum":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "startZeit":    { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "tagesEnde":    { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "dauerMin":     { ".validate": "newData.isNumber()" },
+            "pauseMin":     { ".validate": "newData.isNumber()" },
+            "gleichzeitig": { ".validate": "newData.isNumber()" },
+            "$sonst":       { ".validate": false }
+          },
 
-          "adminPin": { ".validate": false }
+          "adminPin": { ".validate": false },
+          "$sonst":   { ".validate": false }
         },
 
         "spieler": {
@@ -30,7 +64,9 @@
             ".write": "auth != null && $uid === auth.uid && (root.child('turniere/' + $tid + '/meta/phase').val() === 'anmeldung' || (root.child('turniere/' + $tid + '/meta/phase').val() === 'teams' && data.exists() && newData.exists()))",
             ".validate": "newData.hasChildren(['name', 'rating'])",
             "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
-            "rating": { ".validate": "newData.isNumber() && newData.val() >= 500 && newData.val() <= 3000" }
+            "rating": { ".validate": "newData.isNumber() && newData.val() >= 500 && newData.val() <= 3000" },
+            "beigetretenAm": { ".validate": "newData.isNumber()" },
+            "$sonst": { ".validate": false }
           }
         },
 
@@ -39,7 +75,12 @@
             "ratingSchnitt": {
               ".write": "auth != null && root.child('turniere/' + $tid + '/meta/phase').val() === 'teams' && root.child('turniere/' + $tid + '/teams/' + $team + '/mitglieder/' + auth.uid).exists()",
               ".validate": "newData.isNumber()"
-            }
+            },
+            "name":       { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "mitglieder": { "$m": { ".validate": "newData.isBoolean()" } },
+            "gruppe":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "seed":       { ".validate": "newData.isNumber()" },
+            "$sonst":     { ".validate": false }
           }
         },
 
@@ -48,10 +89,34 @@
             ".write": "auth != null && ((!data.exists() && newData.child('phase').val() === 'ko' && root.child('turniere/' + $tid + '/meta/phase').val() === 'ko' && root.child('turniere/' + $tid + '/spieler/' + auth.uid).exists()) || (data.exists() && newData.exists() && data.child('status').val() !== 'bestaetigt' && ((data.child('teamA').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('teamA').val() + '/mitglieder/' + auth.uid).exists()) || (data.child('teamB').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('teamB').val() + '/mitglieder/' + auth.uid).exists())) && newData.child('teamA').val() === data.child('teamA').val() && newData.child('teamB').val() === data.child('teamB').val() && newData.child('phase').val() === data.child('phase').val() && newData.child('runde').val() === data.child('runde').val() && newData.child('position').val() === data.child('position').val() && newData.child('bracket').val() === data.child('bracket').val() && newData.child('gruppe').val() === data.child('gruppe').val() && newData.child('geplantAm').val() === data.child('geplantAm').val() && newData.child('dauerMin').val() === data.child('dauerMin').val() && newData.child('istFinale').val() === data.child('istFinale').val() && newData.child('platz3').val() === data.child('platz3').val() && newData.child('entscheidung').val() === data.child('entscheidung').val() && ((newData.child('status').val() === 'gemeldet' && newData.child('gemeldetVon').exists() && root.child('turniere/' + $tid + '/teams/' + newData.child('gemeldetVon').val() + '/mitglieder/' + auth.uid).exists()) || (newData.child('status').val() === 'offen' && data.child('status').val() === 'gemeldet' && !newData.child('gemeldetVon').exists() && !newData.child('saetzeA').exists() && !newData.child('saetzeB').exists()) || (newData.child('status').val() === 'bestaetigt' && data.child('status').val() === 'gemeldet' && newData.child('saetzeA').val() === data.child('saetzeA').val() && newData.child('saetzeB').val() === data.child('saetzeB').val() && newData.child('gemeldetVon').val() === data.child('gemeldetVon').val() && !(data.child('gemeldetVon').exists() && root.child('turniere/' + $tid + '/teams/' + data.child('gemeldetVon').val() + '/mitglieder/' + auth.uid).exists())))))",
             "saetzeA": { ".validate": "newData.isNumber() || newData.val() == null" },
             "saetzeB": { ".validate": "newData.isNumber() || newData.val() == null" },
-            "status":  { ".validate": "newData.isString()" },
+            "status":  { ".validate": "newData.isString() && newData.val().length <= 20" },
             "geplantAm": { ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/))" },
-            "dauerMin":  { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 5 && newData.val() <= 600)" }
+            "dauerMin":  { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 5 && newData.val() <= 600)" },
+            "phase":        { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "gruppe":       { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "runde":        { ".validate": "newData.isNumber()" },
+            "position":     { ".validate": "newData.isNumber()" },
+            "teamA":        { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "teamB":        { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "gemeldetVon":  { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "bracket":      { ".validate": "newData.isString() && newData.val().length <= 2" },
+            "istFinale":    { ".validate": "newData.isBoolean()" },
+            "platz3":       { ".validate": "newData.isBoolean()" },
+            "entscheidung": { ".validate": "newData.isBoolean()" },
+            "$sonst":       { ".validate": false }
           }
+        },
+
+        "gruppen": {
+          "$gid": {
+            "name":    { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "teamIds": { "$t": { ".validate": "newData.isBoolean()" } },
+            "$sonst":  { ".validate": false }
+          }
+        },
+
+        "spieltagDaten": {
+          "$nr": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" }
         },
 
         "$sonst": { ".validate": "$sonst === 'gruppen' || $sonst === 'spieltagDaten'" }

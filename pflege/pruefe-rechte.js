@@ -433,6 +433,28 @@ function weltE(ohnePlan) {
   F("Essen", "MUSS: Verwaltung holt sie aus der verschwundenen Runde zurück (esNimmAusRunde)", (() => { const w = weltE(); w.essen.aktuell.bestellungen.o5 = { uid: "u1", name: "U1", orga: false, status: "neu", rundeId: "weg", positionen: { a: { name: "Margherita", anzahl: 1, preisCent: 800 } }, erstelltAm: 9 }; return w; })(), "update", E, { "bestellungen/o5/rundeId": null, "bestellungen/o5/status": "neu", "bestellungen/o5/aktualisiertAm": TS }, "pin", true);
 }
 
+/* ---------- A3-08 (Fixprüfung 26.09.2026): keine Zusatzfelder im Turnierbaum ----------
+   Jeder Client liest turniere/_index ganz und hängt je Eintrag einen Horcher auf das Turnier.
+   Wer ein eigenes Turnier anlegt (oder sich einschreibt), konnte dort beliebig viel ablegen. */
+{
+  const R = "turniere/T1";
+  const metaNeu = { name: "Neu", erstelltAm: TS, hostId: "neu", phase: "anmeldung", teamGroesse: 2, ablauf: "gruppen_ko", formatOffen: true, bestOf: 3, anzahlGruppen: 2, weiterProGruppe: 2, punkteSieg: 3, siegerTeamId: null };
+  F("Turnier", "MUSS (A3-08): Turnier anlegen mit allen Feldern von erstelleTurnier", weltT("ko"), "set", "turniere/T9/meta", metaNeu, "neu", true);
+  F("Turnier", "DARF NICHT (A3-08): neues Turnier mit Zusatzfeld in meta", weltT("ko"), "set", "turniere/T9/meta", Object.assign({}, metaNeu, { muell: "x".repeat(100) }), "neu", false);
+  F("Turnier", "DARF NICHT (A3-08): Index-Eintrag mit Zusatzfeld", weltT("ko"), "set", "turniere/_index/T9", { name: "Neu", erstelltAm: TS, muell: "x" }, "neu", false);
+  F("Turnier", "DARF NICHT (A3-08): Verwaltung legt Zusatzfeld in meta ab", weltT("ko"), "set", R + "/meta/muell", "x", "host", false);
+  F("Turnier", "DARF NICHT (A3-08): Verwaltung schreibt 5000 Zeichen in meta.ablauf", weltT("anmeldung"), "set", R + "/meta/ablauf", "x".repeat(5000), "host", false);
+  F("Turnier", "MUSS: Verwaltung stellt Stellschrauben beim Auslosen (ts:gemeinsameLosMeta)", weltT("teams"), "update", R, { "meta/bestOf": 3, "meta/bestOfFinale": 5, "meta/punkteSieg": 3, "meta/tiebreak": "buchholz", "meta/koTyp": "doppel", "meta/bracketReset": true, "meta/spielUmPlatz3": false, "meta/doppelrunde": false, "meta/spieltage": true, "meta/schweizerRunden": null, "meta/weiterInsgesamt": 4, "meta/setzlisteManuell": true }, "pin", true);
+  F("Turnier", "MUSS: Zeitplan in meta merken (ts:erzeugeZeitplan)", weltT("gruppen"), "update", R, { "meta/zeitplan": { startDatum: "2026-10-01", startZeit: "10:00", dauerMin: 60, pauseMin: 10, gleichzeitig: 2, tagesEnde: "02:00" } }, "host", true);
+  F("Turnier", "DARF NICHT (A3-08): Zusatzfeld im Zeitplan", weltT("gruppen"), "update", R, { "meta/zeitplan": { startDatum: "2026-10-01", startZeit: "10:00", muell: "x" } }, "host", false);
+  F("Turnier", "DARF NICHT (A3-08): Teilnehmer schreibt Zusatzfeld in seinen Spieler-Eintrag", weltT("anmeldung"), "set", R + "/spieler/x1", { name: "X", rating: 1300, beigetretenAm: TS, muell: "x".repeat(100) }, "x1", false);
+  F("Turnier", "MUSS: Testspieler anlegen (Verwaltung, name/rating/beigetretenAm)", weltT("anmeldung"), "update", R, { "spieler/test_a_0": { name: "Testspieler 1", rating: 1200, beigetretenAm: 1789000000000 } }, "pin", true);
+  F("Turnier", "DARF NICHT (A3-08): Verwaltung legt Zusatzfeld in eine Gruppe", weltT("teams"), "update", R, { gruppen: { gA: { name: "A", teamIds: { tA: true }, muell: "x" } } }, "host", false);
+  F("Turnier", "DARF NICHT (A3-08): Spieltag-Datum als freier Text", weltT("gruppen"), "set", R + "/spieltagDaten/1", "irgendwann", "host", false);
+  F("Turnier", "DARF NICHT (A3-08): Zusatzfeld an einem Team", weltT("teams"), "set", R + "/teams/tA/muell", "x", "host", false);
+  F("Turnier", "DARF NICHT (A3-08): Zusatzfeld an einem neuen K.-o.-Spiel (Teilnehmer)", weltT("ko"), "update", R, { "spiele/ko_r1_p0": { phase: "ko", bracket: "w", runde: 1, position: 0, teamA: "tA", teamB: "tB", status: "offen", istFinale: true, muell: "x" } }, "b1", false);
+}
+
 /* ======================================================================
    Lauf
    ====================================================================== */
@@ -479,6 +501,11 @@ const mutationen = [
   }],
   ["Essens-Altbestand ohne orga wieder gesperrt (Stand vor A3-07)", (r) => {
     r.essen.$pid.bestellungen.$oid[".write"] = r.essen.$pid.bestellungen.$oid[".write"].replace(" || (!data.child('orga').exists() && newData.child('orga').val() === false))", ")").replace("(newData.child('orga').val() === data.child('orga').val())", "newData.child('orga').val() === data.child('orga').val()");
+  }],
+  ["Turnierbaum ohne Feldlisten (Stand vor A3-08)", (r) => {
+    delete r.turniere._index.$id.$sonst; delete r.turniere.$tid.meta.$sonst; delete r.turniere.$tid.meta.zeitplan.$sonst;
+    delete r.turniere.$tid.spieler.$uid.$sonst; delete r.turniere.$tid.teams.$team.$sonst; delete r.turniere.$tid.spiele.$sid.$sonst;
+    delete r.turniere.$tid.gruppen.$gid.$sonst;
   }],
   ["Altbestand-Umzug gesperrt (nur hostId)", (r) => {
     r.turnierGeheim.$tid.adminPinHash[".write"] = r.turnierGeheim.$tid.adminPinHash[".write"].replace(" || root.child('turniere/' + $tid + '/meta/adminPin').exists()", "");

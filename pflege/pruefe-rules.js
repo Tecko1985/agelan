@@ -479,6 +479,30 @@ const WERT_FAELLE = [
   ["MUSS: Essens-Beweis gleicht dem hinterlegten Hash", "essenPinProbe/aktuell/gast-1", HASH_T1, true],
   ["DARF NICHT: Essens-Beweis mit falschem Hash", "essenPinProbe/aktuell/gast-1", HASH_ANDERS, false],
 
+  // --- A3-08 (Fixpruefung 26.09.2026): keine Zusatzfelder, grobe Laengen ------
+  // Jeder Client liest turniere/_index ganz und haengt je Eintrag einen Horcher auf das
+  // Turnier. Wer ein eigenes Turnier anlegt, konnte dort beliebig viel ablegen - das landete
+  // bei allen Teilnehmern im LAN-WLAN.
+  ["MUSS: Index-Eintrag erstelltAm als Zahl", "turniere/_index/T1/erstelltAm", 1789000000000, true],
+  ["DARF NICHT (A3-08): Zusatzfeld im Index-Eintrag", "turniere/_index/T1/muell", "x", false],
+  ["DARF NICHT (A3-08): Index erstelltAm als Text", "turniere/_index/T1/erstelltAm", "gestern", false],
+  ["MUSS: meta.ablauf als kurzer Text", "turniere/T1/meta/ablauf", "schweizer_ko", true],
+  ["DARF NICHT (A3-08): meta.ablauf mit 5000 Zeichen", "turniere/T1/meta/ablauf", "x".repeat(5000), false],
+  ["DARF NICHT (A3-08): Zusatzfeld in meta", "turniere/T1/meta/muell", "x", false],
+  ["MUSS: meta.zeitplan.startZeit", "turniere/T1/meta/zeitplan/startZeit", "10:00", true],
+  ["DARF NICHT (A3-08): Zusatzfeld in meta.zeitplan", "turniere/T1/meta/zeitplan/muell", "x", false],
+  ["MUSS: Gruppenname", "turniere/T1/gruppen/gruppe_A/name", "A", true],
+  ["DARF NICHT (A3-08): Gruppenname mit 1000 Zeichen", "turniere/T1/gruppen/gruppe_A/name", "x".repeat(1000), false],
+  ["DARF NICHT (A3-08): Zusatzfeld in einer Gruppe", "turniere/T1/gruppen/gruppe_A/muell", "x", false],
+  ["MUSS: Spieltag-Datum", "turniere/T1/spieltagDaten/1", "2026-10-01", true],
+  ["DARF NICHT (A3-08): Spieltag-Datum als freier Text", "turniere/T1/spieltagDaten/1", "irgendwann", false],
+  ["DARF NICHT (A3-08): Zusatzfeld am Spieler", "turniere/T1/spieler/gast-1/muell", "x", false],
+  ["MUSS: beigetretenAm am Spieler", "turniere/T1/spieler/gast-1/beigetretenAm", 1789000000000, true],
+  ["DARF NICHT (A3-08): Zusatzfeld am Team", "turniere/T1/teams/team_0/muell", "x", false],
+  ["DARF NICHT (A3-08): Teamname mit 1000 Zeichen", "turniere/T1/teams/team_0/name", "x".repeat(1000), false],
+  ["DARF NICHT (A3-08): Zusatzfeld am Spiel", "turniere/T1/spiele/s1/muell", "x", false],
+  ["MUSS: Spiel-Marker istFinale", "turniere/T1/spiele/s1/istFinale", true, true],
+
   // Die alten Felder als Gegenprobe, dass der Pruefer ueberhaupt greift.
   ["MUSS: Saetze als Zahl", "turniere/T1/spiele/s1/saetzeA", 2, true],
   ["DARF NICHT: Saetze als Text", "turniere/T1/spiele/s1/saetzeA", "zwei", false],
@@ -498,6 +522,9 @@ for (const [text, pfad, wert, erwartet] of WERT_FAELLE) {
 const ohneNeue = JSON.parse(JSON.stringify(REGELN));
 delete ohneNeue.turniere.$tid.spiele.$sid.geplantAm;
 delete ohneNeue.turniere.$tid.spiele.$sid.dauerMin;
+// Seit A3-08 steht in spiele/$sid ein "$sonst": false - ohne die beiden Regeln griffe sonst DAS
+// und liesse die Mutation wirkungslos aussehen. Nachgestellt wird "gar keine Regel".
+delete ohneNeue.turniere.$tid.spiele.$sid.$sonst;
 const sollenScheitern = WERT_FAELLE.filter((f) => f[3] === false && /geplantAm|dauerMin/.test(f[1]));
 const rutschenDurch = sollenScheitern.filter((f) => gueltig(ohneNeue, f[1], f[2]) === true);
 console.log("\nMutationsprobe (ohne die neuen Wert-Regeln):");
@@ -505,6 +532,26 @@ console.log("  " + rutschenDurch.length + " von " + sollenScheitern.length + " f
 if (rutschenDurch.length !== sollenScheitern.length) {
   fehler++;
   console.log("  FEHL  Der Pruefer merkt den Unterschied nicht - er ist tot.");
+}
+
+// --- Mutationsprobe A3-08: ohne die Feldlisten ($sonst) ---------------------
+{
+  const m = JSON.parse(JSON.stringify(REGELN));
+  delete m.turniere._index.$id.$sonst;
+  delete m.turniere.$tid.meta.$sonst;
+  delete m.turniere.$tid.meta.zeitplan.$sonst;
+  delete m.turniere.$tid.gruppen.$gid.$sonst;
+  delete m.turniere.$tid.spieler.$uid.$sonst;
+  delete m.turniere.$tid.teams.$team.$sonst;
+  delete m.turniere.$tid.spiele.$sid.$sonst;
+  const zusatz = WERT_FAELLE.filter((f) => f[3] === false && /Zusatzfeld/.test(f[0]) && f[1].startsWith("turniere/"));
+  const durch = zusatz.filter((f) => gueltig(m, f[1], f[2]) === true);
+  console.log("\nMutationsprobe (A3-08, ohne Feldlisten):");
+  console.log("  " + durch.length + " von " + zusatz.length + " Zusatzfeldern waeren durchgegangen");
+  if (!zusatz.length || durch.length !== zusatz.length) {
+    fehler++;
+    console.log("  FEHL  Der Pruefer merkt den Unterschied nicht - er ist tot.");
+  }
 }
 
 console.log("\n" + (fehler ? fehler + " FEHLER" : "alle " + (faelle.length + WERT_FAELLE.length) + " Zusagen erfuellt"));
