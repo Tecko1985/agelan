@@ -313,7 +313,7 @@
 
         "bestellungen": {
           "$oid": {
-            ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists()) || (data.exists() && data.child('uid').val() === auth.uid && data.child('status').val() === 'neu' && !data.child('rundeId').exists() && (!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists() && newData.child('orga').val() === data.child('orga').val() && newData.child('erstelltAm').val() === data.child('erstelltAm').val()))))",
+            ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists()) || (data.exists() && data.child('uid').val() === auth.uid && data.child('status').val() === 'neu' && !data.child('rundeId').exists() && (!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('status').val() === 'neu' && !newData.child('rundeId').exists() && (newData.child('orga').val() === data.child('orga').val() || (!data.child('orga').exists() && newData.child('orga').val() === false)) && newData.child('erstelltAm').val() === data.child('erstelltAm').val()))))",
             ".validate": "newData.hasChildren(['name', 'positionen'])",
             "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
             "notiz":  { ".validate": "newData.isString() && newData.val().length <= 200" },

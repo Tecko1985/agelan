@@ -414,6 +414,25 @@ function weltE(ohnePlan) {
   F("Essen", "DARF NICHT (A3-06): Hash vor dem Anlegen besetzen (kein Plan)", ohneE(weltE(true)), "set", "essenGeheim/essen-aktuell/adminPinHash", H, "u2", false);
 }
 
+/* ---------- A3-07 (Fixprüfung 26.09.2026): Essens-Altbestand ohne `orga`-Feld ----------
+   Bestellungen von vor dem 04.09. haben kein Feld `orga`. Der Client schreibt beim Ändern
+   immer ein Boolean (`orga: false`); die Regel verlangte Gleichheit mit dem alten Wert (null)
+   und wies den Besteller ab. Jetzt darf aus „fehlt“ ein `false` werden – nie ein `true`.
+   Eine `rundeId` auf eine gelöschte Runde bleibt für den Besteller gesperrt (der Client
+   bietet dort seit A3-07 kein Ändern/Stornieren mehr an). */
+{
+  const E = "essen/aktuell", O = E + "/bestellungen/";
+  const pos = { a: { gerichtId: "g1", nummer: "1", name: "Margherita", sonderwunsch: "", anzahl: 1, preisCent: 800, sort: 0 } };
+  const altbestand = (w) => { w.essen.aktuell.bestellungen.o4 = { uid: "u1", name: "U1", status: "neu", positionen: { a: { name: "Margherita", anzahl: 1, preisCent: 800 } }, erstelltAm: 8 }; };
+  const weltAlt = () => { const w = weltE(); altbestand(w); return w; };
+  F("Essen", "MUSS (A3-07): Altbestand ohne orga-Feld ändern, Client schreibt orga:false (es:esBestelle)", weltAlt(), "set", O + "o4", { uid: "u1", name: "U1", orga: false, status: "neu", rundeId: null, notiz: "", positionen: pos, erstelltAm: 8, aktualisiertAm: TS }, "u1", true);
+  F("Essen", "DARF NICHT (A3-07): Altbestand ohne orga-Feld auf orga:true (kostenlos) ändern", weltAlt(), "set", O + "o4", { uid: "u1", name: "U1", orga: true, status: "neu", rundeId: null, notiz: "", positionen: pos, erstelltAm: 8, aktualisiertAm: TS }, "u1", false);
+  F("Essen", "DARF NICHT (A3-07): fremder Altbestand bleibt fremd", weltAlt(), "set", O + "o4", { uid: "u1", name: "U1", orga: false, status: "neu", rundeId: null, notiz: "", positionen: pos, erstelltAm: 8, aktualisiertAm: TS }, "u2", false);
+  F("Essen", "MUSS: Altbestand stornieren (war schon erlaubt)", weltAlt(), "update", E, { "bestellungen/o4": null }, "u1", true);
+  F("Essen", "DARF NICHT: Besteller ändert Bestellung mit rundeId auf gelöschte Runde (Client sperrt seit A3-07)", (() => { const w = weltE(); w.essen.aktuell.bestellungen.o5 = { uid: "u1", name: "U1", orga: false, status: "neu", rundeId: "weg", positionen: { a: { name: "Margherita", anzahl: 1, preisCent: 800 } }, erstelltAm: 9 }; return w; })(), "update", E, { "bestellungen/o5": null }, "u1", false);
+  F("Essen", "MUSS: Verwaltung holt sie aus der verschwundenen Runde zurück (esNimmAusRunde)", (() => { const w = weltE(); w.essen.aktuell.bestellungen.o5 = { uid: "u1", name: "U1", orga: false, status: "neu", rundeId: "weg", positionen: { a: { name: "Margherita", anzahl: 1, preisCent: 800 } }, erstelltAm: 9 }; return w; })(), "update", E, { "bestellungen/o5/rundeId": null, "bestellungen/o5/status": "neu", "bestellungen/o5/aktualisiertAm": TS }, "pin", true);
+}
+
 /* ======================================================================
    Lauf
    ====================================================================== */
@@ -457,6 +476,9 @@ const mutationen = [
     for (const [g, pr, v] of [["turnierGeheim", "turnierPinProbe", "$tid"], ["streamplanGeheim", "streamplanPinProbe", "$pid"], ["fruehstueckGeheim", "fruehstueckPinProbe", "$pid"], ["essenGeheim", "essenPinProbe", "$pid"]]) {
       r[g][v].adminPinHash[".write"] = "auth != null && (!data.exists() || data.val() === root.child('" + pr + "').child(" + v + ").child(auth.uid).val())";
     }
+  }],
+  ["Essens-Altbestand ohne orga wieder gesperrt (Stand vor A3-07)", (r) => {
+    r.essen.$pid.bestellungen.$oid[".write"] = r.essen.$pid.bestellungen.$oid[".write"].replace(" || (!data.child('orga').exists() && newData.child('orga').val() === false))", ")").replace("(newData.child('orga').val() === data.child('orga').val())", "newData.child('orga').val() === data.child('orga').val()");
   }],
   ["Altbestand-Umzug gesperrt (nur hostId)", (r) => {
     r.turnierGeheim.$tid.adminPinHash[".write"] = r.turnierGeheim.$tid.adminPinHash[".write"].replace(" || root.child('turniere/' + $tid + '/meta/adminPin').exists()", "");

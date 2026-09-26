@@ -765,7 +765,10 @@ function esSchritteSetzen(b) {
   // ⚠️ Wer schon beim Lieferanten liegt, darf seine Bestellung nicht mehr
   // umbauen – auch dann nicht, wenn er noch auf `neu` steht, weil er nicht
   // bezahlt hat. Das Essen ist ja bestellt.
-  b.aenderbar = b.status === "neu" && !b.inRunde;
+  // ⚠️ Auch nicht mit einer `rundeId`, deren Runde es nicht mehr gibt (Fixprüfung
+  // 26.09.2026, A3-07): die Regel weist den Besteller dort ab, die Oberfläche bot aber
+  // Ändern und Stornieren an. Die Verwaltung holt sie per „herausnehmen“ zurück.
+  b.aenderbar = b.status === "neu" && !b.inRunde && !b.rundeId;
 }
 
 // ⚠️ Die Nummer zählt JE TAG neu. Michel: „Donnerstag eins, zwei, drei, vier –
@@ -1537,7 +1540,7 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
 // fest – dort „ist bezahlt“ zu melden, schickte den Besteller mit einer
 // falschen Begründung weg (Bugjagd 25.09.d T5a).
 function esWarumFest(b) {
-  return b && b.status === "neu" && b.inRunde
+  return b && b.status === "neu" && (b.inRunde || b.rundeId)
     ? "Die Bestellung ist schon beim Lieferanten bestellt"
     : "Die Bestellung ist bezahlt";
 }
