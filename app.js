@@ -1629,6 +1629,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.27",
+    groups: [
+      { title: "Fehlerbehebungen bei Essen und Verwaltung", items: [
+          "Essen: „📣 Bescheid geben“ erreicht jetzt auch große Sammelbestellungen. Vorher bekam ab dem 26. Besteller niemand mehr eine Discord-Nachricht; jetzt schickt die App in mehreren Durchgängen, ohne die schon Erreichten doppelt anzuschreiben.",
+          "Veranstalter- und Orga-Konto (⭐/🛠): Nach dem Neuladen oder in einem zweiten Tab erneuert sich die Verwaltung wieder rechtzeitig von selbst. Vorher fiel sie 24 Stunden nach dem ersten Holen weg, bis die Seite sie später wieder auffrischte.",
+          "Essen: Lehnt die Datenbank das Lesen von Telefonnummer und Lieferanten-Mail einmal ab, versucht die App es nach einer Minute oder mit erneuerter Anmeldung wieder. Beim Speichern der Einstellungen werden die beiden Angaben nicht mehr mit leeren Feldern überschrieben, wenn sie gerade nicht gelesen waren."
+      ]},
+    ],
+  },
+  {
     version: "8.26",
     groups: [
       { title: "Veranstalter- und Orga-Konto verwalten ohne PIN", items: [
