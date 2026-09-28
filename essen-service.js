@@ -152,6 +152,8 @@ let esOrga = null;             // { bestellerTelefon, lieferantEmail } aus essen
 let esOrgaHorcher = null;
 let esOrgaVersuch = null;      // wofuer zuletzt versucht - kein Dauerfeuer bei verweigertem Zugriff
 let esOrgaUmzugLaeuft = false;
+let esOrgaFehlerAm = 0;         // wann die Datenbank den Horcher zuletzt abgewiesen hat (Bugjagd 28.09. F1)
+const ES_ORGA_NOCHMAL_MS = 60 * 1000;
 let esListener = null;
 // true, sobald Firebase das Lesen ablehnt – praktisch immer die fehlende Regel.
 let esZugriffFehler = false;
@@ -243,15 +245,19 @@ function esOrgaWert(feld) {
   return meta[feld] || "";   // alte Regeln bzw. Altbestand, der noch nicht umgezogen ist
 }
 
-// Nur die Verwaltung versucht zu lesen. Neu versucht wird nur, wenn sich der GRUND der
-// Verwaltung aendert (PIN bewiesen, anderer Plan) - sonst stuende bei verweigertem Zugriff
-// (alte Regeln ohne essenOrga) bei jedem Datenereignis ein Fehlversuch an.
+// Nur die Verwaltung versucht zu lesen. Neu versucht wird, wenn sich der GRUND der
+// Verwaltung aendert (PIN bewiesen, anderer Plan, Rolle erneuert) - sonst stuende bei
+// verweigertem Zugriff (alte Regeln ohne essenOrga) bei jedem Datenereignis ein Fehlversuch an.
+// ⚠️ Bugjagd 28.09. F1: Hat die Datenbank den Horcher abgewiesen (z. B. Claim kurz verfallen),
+// wird bei gleichem Grund nach ES_ORGA_NOCHMAL_MS wieder versucht, und eine erneuerte Rolle
+// (neues agelanBis) ist ein neuer Grund. Vorher blieb essenOrga bis zum Neuladen ungelesen.
 function esHorcheOrga() {
   if (!esIstAdmin()) return;
   const meta = (esRoh && esRoh.meta) || {};
   const grund = (esPinOk ? "pin" : "-") + "|" + (meta.hostId === esEigeneUid ? "host" : "-") + "|" + String(meta.erstelltAm || "") +
-    "|" + (typeof rolleGueltig === "function" && rolleGueltig() ? "rolle" : "-");
-  if (esOrgaVersuch === grund) return;
+    "|" + (typeof rolleGueltig === "function" && rolleGueltig() ? "rolle" : "-") +
+    "|" + (typeof rolleBis === "number" ? rolleBis : "");
+  if (esOrgaVersuch === grund && (esOrgaHorcher || Date.now() - esOrgaFehlerAm < ES_ORGA_NOCHMAL_MS)) return;
   esOrgaVersuch = grund;
   if (esOrgaHorcher) { try { esOrgaHorcher.off(); } catch (e) { /* egal */ } }
   const ref = db.ref(ES_ORGA_PFAD);
@@ -262,8 +268,9 @@ function esHorcheOrga() {
     esMelde();
   }, () => {
     // Verweigert: alte Regeln oder (noch) kein PIN-Beweis. Rueckfall auf meta.
-    esOrgaHorcher = null;
+    if (esOrgaHorcher === ref) esOrgaHorcher = null;
     esOrga = null;
+    esOrgaFehlerAm = Date.now();
   });
 }
 
@@ -1836,7 +1843,34 @@ async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, best
     annahmeOffen: !!annahmeOffen,
   });
   // E5: Telefon/Lieferanten-Mail in den Orga-Knoten (Rueckfall meta bei alten Regeln).
-  if (!(await esSchreibeOrgaDaten(bestellerTelefon, mail))) {
+  // ⚠️ Bugjagd 28.09. F1: Ist essenOrga gerade NICHT gelesen (esOrga === null), zeigte das
+  // Formular den Rueckfall aus meta - bei neuen Regeln also leere Felder. Dann erst frisch
+  // lesen: klappt das, gilt fuer jedes Feld, das noch den angezeigten Rueckfallwert traegt,
+  // der gespeicherte Wert. Sonst schriebe „Speichern“ Telefon und Mail mit "" ueber.
+  let telefonNeu = bestellerTelefon;
+  let mailNeu = mail;
+  if (esOrga === null) {
+    let frisch = null;
+    try {
+      const snap = await db.ref(ES_ORGA_PFAD).once("value");
+      frisch = snap.val() || {};
+    } catch (e) {
+      frisch = null;   // alte Regeln oder kein Leserecht: wie bisher (Rueckfall meta)
+    }
+    if (frisch) {
+      const alt = (esRoh && esRoh.meta) || {};
+      if (esText(telefonNeu, 40) === esText(alt.bestellerTelefon || "", 40) && frisch.bestellerTelefon) {
+        telefonNeu = frisch.bestellerTelefon;
+      }
+      if (esText(mailNeu, 120) === esText(alt.lieferantEmail || "", 120) && frisch.lieferantEmail) {
+        mailNeu = frisch.lieferantEmail;
+      }
+      esOrga = frisch;
+      esOrgaVersuch = null;   // Horcher wieder anhaengen
+      try { esHorcheOrga(); } catch (e) { /* naechstes Datenereignis versucht es erneut */ }
+    }
+  }
+  if (!(await esSchreibeOrgaDaten(telefonNeu, mailNeu))) {
     return { erfolg: false, fehler: "Telefon und Lieferanten-Mail ließen sich nicht speichern." };
   }
   return { erfolg: true };
