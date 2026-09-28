@@ -768,16 +768,56 @@ async function esBescheidGeben(runde, knopf) {
     // ⚠️ Die Zeiten gehen FERTIG FORMATIERT raus, nicht als Zeitstempel: der
     // Worker läuft in UTC und würde daraus eine Uhrzeit machen, die zwei
     // Stunden danebenliegt. Der Browser steht dort, wo die Veranstaltung ist.
-    const daten = await kontenRufe("discord-sammel", {
-      leute: namen.map((n) => ({
-        name: n,
-        posten: posten.get(n.toLowerCase()) || [],
-        bestelltAm: essenService.zeitLabel(bestelltAm.get(n.toLowerCase())),
-      })),
-      nicknames: namen,
-      titel: runde.titel,
-      daSeit: essenService.zeitLabel(Date.now()),
-    });
+    // ⚠️ Bugjagd 28.09. F9: in Haeppchen zu hoechstens ES_BESCHEID_JE_LAUF Leuten. Ein
+    // Worker-Aufruf darf nur 50 Unteranfragen machen (2 je Person); vorher bekam ab
+    // Person 26 niemand mehr Bescheid. Wen der Worker mit `nichtVersucht` zurueckgibt,
+    // schickt der naechste Durchgang noch einmal - ohne die schon Erreichten erneut
+    // anzuschreiben.
+    // So viele Leute je Worker-Aufruf: 24 x 2 Unteranfragen passen in 50.
+    const ES_BESCHEID_JE_LAUF = 24;
+    const ES_BESCHEID_DURCHGAENGE_MAX = 10;
+    const daSeit = essenService.zeitLabel(Date.now());
+    let warteschlange = namen.map((n) => ({
+      name: n,
+      posten: posten.get(n.toLowerCase()) || [],
+      bestelltAm: essenService.zeitLabel(bestelltAm.get(n.toLowerCase())),
+    }));
+    const daten = { geschickt: 0, offen: [] };
+    for (let durchgang = 0; warteschlange.length; durchgang++) {
+      const happen = warteschlange.slice(0, ES_BESCHEID_JE_LAUF);
+      warteschlange = warteschlange.slice(ES_BESCHEID_JE_LAUF);
+      if (durchgang >= ES_BESCHEID_DURCHGAENGE_MAX) {
+        happen.concat(warteschlange).forEach((l) => daten.offen.push({ nickname: l.name, grund: "Nicht versucht – zu viele Durchgänge auf einmal." }));
+        break;
+      }
+      let d;
+      try {
+        d = await kontenRufe("discord-sammel", {
+          leute: happen,
+          nicknames: happen.map((l) => l.name),
+          titel: runde.titel,
+          daSeit: daSeit,
+        });
+      } catch (e) {
+        // Schon im ersten Durchgang gescheitert: wie bisher als Fehler zeigen.
+        if (durchgang === 0) throw e;
+        happen.concat(warteschlange).forEach((l) => daten.offen.push({ nickname: l.name, grund: "Nicht verschickt: " + e.message }));
+        break;
+      }
+      daten.geschickt += d.geschickt || 0;
+      const nochmal = [];
+      (d.offen || []).forEach((o) => {
+        const l = o && o.nichtVersucht && happen.find((x) => x.name.toLowerCase() === String(o.nickname || "").toLowerCase());
+        if (l) nochmal.push({ l, o });
+        else daten.offen.push(o);
+      });
+      // Kein Fortschritt (der Worker hat niemanden versucht): nicht im Kreis schicken.
+      if (nochmal.length && nochmal.length === happen.length) {
+        nochmal.forEach((x) => daten.offen.push(x.o));
+      } else {
+        warteschlange = nochmal.map((x) => x.l).concat(warteschlange);
+      }
+    }
     esBescheidStand[runde.id] = {
       geschickt: daten.geschickt || 0,
       offen: daten.offen || [],

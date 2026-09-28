@@ -288,6 +288,13 @@ const DISCORD_TEST_PAUSE_MS = 60000;
 // ein Zeitbudget. Lieber sauber ablehnen als mittendrin sterben - dann wäre
 // unklar, wer schon Bescheid weiß und wer nicht.
 const DISCORD_SAMMEL_MAX = 60;
+// ⚠️ Bugjagd 28.09. F9: Ein Aufruf darf im Gratis-Tarif hoechstens 50 Unteranfragen
+// (fetch) machen, ab der 51. wirft fetch. Jede Person kostet 2, bei 429 eine mehr.
+// Deshalb ein Budget je Durchgang: wer nicht mehr hineinpasst, wird NICHT versucht
+// und kommt mit `nichtVersucht: true` zurueck - der Client schickt diese Leute im
+// naechsten Durchgang (Haeppchen zu DISCORD_SAMMEL_JE_LAUF). Vorher hiess es bei
+// allen ab Person 26 faelschlich „Discord war nicht erreichbar.“.
+const DISCORD_FETCH_BUDGET = 48;
 // Wie viele Zeilen "was du bestellt hast" hoechstens in einer Nachricht stehen.
 const DISCORD_POSTEN_MAX = 20;
 
@@ -331,7 +338,7 @@ function discordIdPruefen(wert) {
 //     aendern, die Person muss es selbst umstellen.
 // Beides MUSS der Aufrufer dem Menschen zeigen. Sonst denkt der Veranstalter,
 // alle waeren informiert, und drei Leute holen ihr Essen nie ab.
-async function discordDm(env, empfaengerId, text) {
+async function discordDm(env, empfaengerId, text, budget) {
   if (!env.DISCORD_BOT_TOKEN) {
     return { ok: false, grund: "Der Discord-Bot ist noch nicht eingerichtet (Secret DISCORD_BOT_TOKEN fehlt)." };
   }
@@ -349,7 +356,7 @@ async function discordDm(env, empfaengerId, text) {
   const kanal = await discordRufe(DISCORD_API + "/users/@me/channels", {
     method: "POST", headers: kopf,
     body: JSON.stringify({ recipient_id: geprueft.id }),
-  });
+  }, budget);
   if (!kanal.ok) return { ok: false, grund: discordGrund(kanal.status, true) };
   const kanalId = kanal.daten && kanal.daten.id;
   if (!kanalId) return { ok: false, grund: "Discord hat keinen Kanal zurückgegeben." };
@@ -358,7 +365,7 @@ async function discordDm(env, empfaengerId, text) {
   const nachricht = await discordRufe(DISCORD_API + "/channels/" + kanalId + "/messages", {
     method: "POST", headers: kopf,
     body: JSON.stringify({ content: String(text).slice(0, 1900) }),
-  });
+  }, budget);
   if (!nachricht.ok) return { ok: false, grund: discordGrund(nachricht.status, false) };
   return { ok: true };
 }
@@ -381,8 +388,10 @@ function discordGrund(status, beimOeffnen) {
 // wiederholen wuerde die Sperre nur verlaengern.
 // ⚠️ Nur einmal wiederholt und hoechstens 10 Sekunden gewartet: ein Worker hat
 // ein Zeitbudget, eine Warteschleife wuerde den ganzen Sammelversand mitreissen.
-async function discordRufe(url, optionen) {
+// `budget` (optional, { rest }) zaehlt die fetch-Aufrufe eines Durchgangs mit (F9).
+async function discordRufe(url, optionen, budget) {
   let antwort;
+  if (budget) budget.rest--;
   try {
     antwort = await fetch(url, optionen);
   } catch (e) {
@@ -395,7 +404,9 @@ async function discordRufe(url, optionen) {
       if (b && typeof b.retry_after === "number") warten = b.retry_after;
     } catch (e) { /* ohne Angabe bleibt es bei einer Sekunde */ }
     if (warten > 10) return { ok: false, status: 429, daten: null };
+    if (budget && budget.rest < 1) return { ok: false, status: 429, daten: null };
     await new Promise((r) => setTimeout(r, Math.ceil(warten * 1000)));
+    if (budget) budget.rest--;
     try {
       antwort = await fetch(url, optionen);
     } catch (e) {
@@ -1117,6 +1128,7 @@ async function discordSammel(request, body, env, cors) {
 
   const erreicht = [];
   const offen = [];
+  const budget = { rest: DISCORD_FETCH_BUDGET };
   // \u26a0\ufe0f Nacheinander, nicht alle auf einmal: Discord bremst beim Massen\u00f6ffnen
   // von DM-Kan\u00e4len, und ein Schwall parallel liefe direkt in die Sperre.
   for (const name of namen) {
@@ -1165,7 +1177,12 @@ async function discordSammel(request, body, env, cors) {
       zeiten +
       (zusatz ? "\n\n" + zusatz : "");
 
-    const ergebnis = await discordDm(env, konto.discordId, text);
+    // F9: passt diese Person nicht mehr ins fetch-Budget, ehrlich „nicht versucht“.
+    if (budget.rest < 2) {
+      offen.push({ nickname: konto.nick || name, grund: "Nicht versucht – zu viele auf einmal, kommt im nächsten Durchgang dran.", nichtVersucht: true });
+      continue;
+    }
+    const ergebnis = await discordDm(env, konto.discordId, text, budget);
     if (ergebnis.ok) erreicht.push(konto.nick || name);
     else offen.push({ nickname: konto.nick || name, grund: ergebnis.grund });
   }
