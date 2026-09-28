@@ -574,7 +574,7 @@ function planeRolleErneuern(wartezeit) {
     // Rechtzeitig vor agelanBis, spaetestens nach 6 h.
     ms = rolleBis > Date.now() ? Math.min(ROLLE_ERNEUERN_MS, rolleBis - Date.now() - 30 * 60 * 1000) : ROLLE_NOCHMAL_MS;
   }
-  rolleTimer = setTimeout(() => { holeFirebaseRolle("zeit"); }, Math.max(60 * 1000, ms));
+  rolleTimer = setTimeout(() => { rolleTimer = null; holeFirebaseRolle("zeit"); }, Math.max(60 * 1000, ms));
 }
 
 // Custom Token beim Worker holen und damit anmelden. Liefert true, wenn die Rolle danach gilt.
@@ -645,11 +645,18 @@ function rolleNachAblehnung() {
 
 // Jede neue Fassung des ID-Tokens (Anmeldung, stuendliche Auffrischung): Claims lesen.
 // Fehlen sie bei einem ⭐/🛠 (erste Anmeldung, verfallen), wird neu geholt.
+// ⚠️ Bugjagd 28.09. F8: Traegt der gespeicherte Nutzer die Claims schon (Neuladen, zweiter
+// Tab), wird nicht geholt - dann muss HIER das Erneuern vor agelanBis geplant werden. Sonst
+// fiel die Verwaltung 24 h nach dem ersten Holen bis zur naechsten Auffrischung weg.
 if (rolleMoeglich() && typeof auth.onIdTokenChanged === "function") {
   auth.onIdTokenChanged((user) => {
     if (!user) { rolleUebernehmen(null); return; }
     user.getIdTokenResult().then((r) => rolleUebernehmen(r && r.claims)).then(() => {
-      if (!rolleGueltig() && kontoIstVeranstalter() && rolleStand !== "aus") holeFirebaseRolle("claims");
+      if (rolleGueltig()) {
+        if (!rolleTimer && !rolleLaeuft) planeRolleErneuern();
+      } else if (kontoIstVeranstalter() && rolleStand !== "aus") {
+        holeFirebaseRolle("claims");
+      }
     }).catch(() => { /* bleibt beim PIN-Weg */ });
   });
 } else {
