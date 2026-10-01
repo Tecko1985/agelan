@@ -193,6 +193,26 @@ function ubKachelLieferungen() {
       "noch nicht beim Lieferanten");
   }
 
+  // Wer noch nicht bezahlt hat – auf dem Bildschirm für alle, damit man zur
+  // Kasse kommt (Michel am 2026-10-01). ⚠️ Nur Namen, KEINE Beträge; Orga-Essen
+  // nicht (dafür zahlt nie jemand). Mehrere Bestellungen derselben Person
+  // stehen einmal mit Anzahl da.
+  const unbezahlt = new Map();
+  z.bestellungen.filter((b) => b.status === "neu" && !b.orga).forEach((b) => {
+    const name = String(b.name || "?");
+    unbezahlt.set(name, (unbezahlt.get(name) || 0) + 1);
+  });
+  if (unbezahlt.size) {
+    const namen = [...unbezahlt.entries()].sort((a, b) => a[0].localeCompare(b[0], "de"));
+    const zeigen = namen.slice(0, 16);
+    inhalt += '<div class="ub-block ub-block-warn">' +
+      '<p class="ub-block-titel">💶 Noch nicht bezahlt – bitte zur Kasse (' + namen.length + ")</p>" +
+      '<p class="ub-unbezahlt">' + zeigen.map(([name, n]) =>
+        '<span class="ub-name">' + escapeHtml(name) + (n > 1 ? " (" + n + ")" : "") + "</span>").join("") +
+      (namen.length > zeigen.length ? '<span class="ub-name ub-name-mehr">+ ' + (namen.length - zeigen.length) + " weitere</span>" : "") +
+      "</p></div>";
+  }
+
   // Jede Lieferung mit ihren Zeiten: wann beim Lieferanten bestellt, ob und
   // seit wann sie da ist, wie viel schon abgeholt ist.
   // ⚠️ „Da" ist `bescheidAm` – der Moment, in dem die Orga „Bescheid geben"

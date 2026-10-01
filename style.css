@@ -1766,3 +1766,12 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
   background: rgba(180, 83, 9, 0.10); color: var(--text); font-size: 14px;
 }
 .es-mail-veraltet .btn { width: auto; }
+
+/* Übersicht: Namen „noch nicht bezahlt“ als Chips */
+.ub-unbezahlt { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 4px 0 0; }
+.ub-name {
+  padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 14px;
+  background: rgba(180, 35, 24, 0.08); border: 1px solid rgba(180, 35, 24, 0.35); color: var(--text);
+}
+.ub-name-mehr { font-weight: 400; color: var(--muted); }
+.ub-buehne .ub-name { font-size: clamp(15px, 1.9vw, 21px); padding: 6px 14px; }

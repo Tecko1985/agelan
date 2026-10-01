@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.41",
+    groups: [
+      { title: "Übersicht: wer noch zahlen muss", items: [
+          "Die Essen-Kachel der Übersicht zeigt „💶 Noch nicht bezahlt – bitte zur Kasse“ mit den Namen aller, deren Bestellung noch offen ist – ohne Beträge, ohne Orga-Essen. Wer mehrere offene Bestellungen hat, steht einmal mit Anzahl da."
+      ]},
+    ],
+  },
+  {
     version: "8.40",
     groups: [
       { title: "Live-Verbindung und Frühstücks-Export", items: [
