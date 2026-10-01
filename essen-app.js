@@ -96,11 +96,22 @@ function esFesterName() {
   }
 }
 
+// Stückpreis einer Korbzeile: Karte + gewählte Extras. Nur Anzeige – den
+// echten Preis rechnet essenService.bestelle aus dem Sonderwunsch-Text.
+function esPosStueckCent(pos, g) {
+  return g ? g.preisCent + essenService.extrasCent(essenService.extrasText(pos.extras, "")) : 0;
+}
+
+// Wozu Extras keinen Sinn ergeben: Getränke, Salate (Dressing kommt mit), Desserts.
+function esExtrasMoeglich(g) {
+  return !!g && !/getr[äa]nk|drink|dessert|nachtisch|salat/i.test((g.kategorie || "") + " " + (g.name || ""));
+}
+
 function esKorbSummeCent() {
   if (!esZustand) return 0;
   return esEntwurf.positionen.reduce((summe, pos) => {
     const g = esZustand.karte.find((x) => x.id === pos.gerichtId);
-    return summe + (g ? g.preisCent * pos.anzahl : 0);
+    return summe + esPosStueckCent(pos, g) * pos.anzahl;
   }, 0);
 }
 
@@ -286,7 +297,7 @@ function esRenderKarte(z) {
 // der Zeile aber schon ein Sonderwunsch, ist sie etwas Eigenes und bekommt eine
 // neue Zeile daneben.
 function esLegeInKorb(gerichtId) {
-  const vorhanden = esEntwurf.positionen.find((p) => p.gerichtId === gerichtId && !p.sonderwunsch);
+  const vorhanden = esEntwurf.positionen.find((p) => p.gerichtId === gerichtId && !p.sonderwunsch && !p.extras.length);
   if (vorhanden) {
     if (vorhanden.anzahl < essenService.MAX_STUECK) vorhanden.anzahl += 1;
     esRenderKorb();
@@ -298,7 +309,7 @@ function esLegeInKorb(gerichtId) {
   }
   esLfdNr += 1;
   const lid = "l" + esLfdNr;
-  esEntwurf.positionen.push({ lid, gerichtId, anzahl: 1, sonderwunsch: "" });
+  esEntwurf.positionen.push({ lid, gerichtId, anzahl: 1, sonderwunsch: "", extras: [] });
   esRenderKorb();
   // Direkt in das Sonderwunsch-Feld der neuen Zeile: wer gerade „Pommes"
   // angeklickt hat, will als Nächstes die Spezialsoße dazuschreiben.
@@ -329,10 +340,12 @@ function esAendereAnzahl(lid, delta) {
     if (plus) plus.disabled = pos.anzahl >= essenService.MAX_STUECK;
     const gericht = esZustand.karte.find((g) => g.id === pos.gerichtId);
     const preis = zeile.querySelector(".es-korb-preis");
-    if (preis && gericht) preis.textContent = essenService.centLabel(gericht.preisCent * pos.anzahl);
+    if (preis && gericht) preis.textContent = essenService.centLabel(esPosStueckCent(pos, gericht) * pos.anzahl);
   }
   const summe = esEl("es-korb-summe");
   if (summe) summe.textContent = essenService.centLabel(esKorbSummeCent());
+  const stueck = esEl("es-korb-stueck");
+  if (stueck) stueck.textContent = esEntwurf.positionen.reduce((s, p) => s + p.anzahl, 0) + " Stück";
 }
 
 // Preise im gefüllten Korb nachziehen, OHNE neu zu zeichnen (siehe esRender).
@@ -344,7 +357,7 @@ function esKorbPreiseAuffrischen() {
     const zeile = document.querySelector('[data-es-zeile="' + pos.lid + '"]');
     const preis = zeile && zeile.querySelector(".es-korb-preis");
     const gericht = esZustand.karte.find((g) => g.id === pos.gerichtId);
-    if (preis && gericht) preis.textContent = essenService.centLabel(gericht.preisCent * pos.anzahl);
+    if (preis && gericht) preis.textContent = essenService.centLabel(esPosStueckCent(pos, gericht) * pos.anzahl);
   });
   const summe = esEl("es-korb-summe");
   if (summe) summe.textContent = essenService.centLabel(esKorbSummeCent());
@@ -375,7 +388,7 @@ function esRenderKorb() {
         <div class="es-korb-zeile${weg ? " fehlt" : ""}" data-es-zeile="${escapeHtml(pos.lid)}">
           <div class="es-korb-kopf">
             <span class="es-korb-name">${escapeHtml(g ? g.name : "Gericht ist von der Karte")}</span>
-            <span class="es-korb-preis">${g ? essenService.centLabel(g.preisCent * pos.anzahl) : ""}</span>
+            <span class="es-korb-preis">${g ? essenService.centLabel(esPosStueckCent(pos, g) * pos.anzahl) : ""}</span>
             <button type="button" class="mini-btn" data-es-raus="${escapeHtml(pos.lid)}" title="Wieder runter" aria-label="Wieder runter">🗑</button>
           </div>
           <div class="es-korb-unten">
@@ -384,16 +397,27 @@ function esRenderKorb() {
               <span class="fr-stepper-zahl">${pos.anzahl}</span>
               <button type="button" data-es-mehr="${escapeHtml(pos.lid)}" ${pos.anzahl >= essenService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(g ? g.name : "diesem Gericht")}">+</button>
             </div>
+            ${esExtrasMoeglich(g) ? `<select class="eingabe es-extra-wahl" data-es-extra="${escapeHtml(pos.lid)}"
+              aria-label="Extra zu ${escapeHtml(g.name)} dazunehmen" ${pos.extras.length >= essenService.MAX_EXTRAS ? "disabled" : ""}>
+              <option value="">➕ Extra dazu …</option>
+              ${essenService.EXTRAS.filter((e) => !pos.extras.includes(e.name)).map((e) =>
+                `<option value="${escapeHtml(e.name)}">${escapeHtml(e.name)} (+${essenService.centLabel(e.cent)})</option>`).join("")}
+            </select>` : ""}
             <input type="text" class="eingabe es-wunsch" data-es-wunsch="${escapeHtml(pos.lid)}"
-              maxlength="${essenService.MAX_SONDERWUNSCH}" autocomplete="off"
-              placeholder="Sonderwunsch, z. B. mit Spezialsoße" value="${escapeHtml(pos.sonderwunsch)}"
+              maxlength="${essenService.MAX_WUNSCH_FREI}" autocomplete="off"
+              placeholder="Sonstiges, z. B. ohne Zwiebeln" value="${escapeHtml(pos.sonderwunsch)}"
               aria-label="Sonderwunsch zu ${escapeHtml(g ? g.name : "diesem Gericht")}">
           </div>
+          ${pos.extras.length ? `<div class="es-extras">${pos.extras.map((name) => {
+            const e = essenService.EXTRAS.find((x) => x.name === name);
+            return `<button type="button" class="es-extra-chip" data-es-extra-weg="${escapeHtml(pos.lid)}" data-name="${escapeHtml(name)}"
+              title="${escapeHtml(name)} wieder weg">+ ${escapeHtml(name)} <span>${e ? essenService.centLabel(e.cent) : ""}</span> ✕</button>`;
+          }).join("")}</div>` : ""}
         </div>`;
       }).join("")}
 
       <div class="fr-summe-zeile">
-        <span>${esEntwurf.positionen.reduce((s, p) => s + p.anzahl, 0)} Stück</span>
+        <span id="es-korb-stueck">${esEntwurf.positionen.reduce((s, p) => s + p.anzahl, 0)} Stück</span>
         <span id="es-korb-summe">${essenService.centLabel(esKorbSummeCent())}</span>
       </div>
 
@@ -417,6 +441,24 @@ function esRenderKorb() {
   box.querySelectorAll("[data-es-mehr]").forEach((b) => b.addEventListener("click", () => esAendereAnzahl(b.dataset.esMehr, 1)));
   box.querySelectorAll("[data-es-weniger]").forEach((b) => b.addEventListener("click", () => esAendereAnzahl(b.dataset.esWeniger, -1)));
   box.querySelectorAll("[data-es-raus]").forEach((b) => b.addEventListener("click", () => esEntferneAusKorb(b.dataset.esRaus)));
+  // ⚠️ Extras zeichnen den Korb neu (Auswahlliste und Preis ändern sich). Ein
+  // gerade getippter Sonstiges-Text steht da schon in esEntwurf – geht nichts verloren.
+  box.querySelectorAll("[data-es-extra]").forEach((wahl) => {
+    wahl.addEventListener("change", () => {
+      const pos = esEntwurf.positionen.find((p) => p.lid === wahl.dataset.esExtra);
+      if (pos && wahl.value && !pos.extras.includes(wahl.value) && pos.extras.length < essenService.MAX_EXTRAS) {
+        pos.extras.push(wahl.value);
+      }
+      esRenderKorb();
+    });
+  });
+  box.querySelectorAll("[data-es-extra-weg]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const pos = esEntwurf.positionen.find((p) => p.lid === b.dataset.esExtraWeg);
+      if (pos) pos.extras = pos.extras.filter((n) => n !== b.dataset.name);
+      esRenderKorb();
+    });
+  });
   box.querySelectorAll("[data-es-wunsch]").forEach((feld) => {
     feld.addEventListener("input", () => {
       const pos = esEntwurf.positionen.find((p) => p.lid === feld.dataset.esWunsch);
@@ -459,7 +501,7 @@ async function esSendeBestellung() {
     positionen: esEntwurf.positionen.map((p) => ({
       gerichtId: p.gerichtId,
       anzahl: p.anzahl,
-      sonderwunsch: p.sonderwunsch,
+      sonderwunsch: essenService.extrasText(p.extras, p.sonderwunsch),
     })),
   });
   if (!res.erfolg) { esZeigeFehler("es-korb-fehler", res.fehler); return; }
@@ -519,7 +561,8 @@ function esLadeInKorb(bestellungId) {
     notiz: b.notiz,
     positionen: b.positionen.map((p) => {
       esLfdNr += 1;
-      return { lid: "l" + esLfdNr, gerichtId: p.gerichtId, anzahl: p.anzahl, sonderwunsch: p.sonderwunsch };
+      const w = essenService.extrasZerlegen(p.sonderwunsch);
+      return { lid: "l" + esLfdNr, gerichtId: p.gerichtId, anzahl: p.anzahl, sonderwunsch: w.rest, extras: w.extras };
     }),
   };
   esRenderKorb();

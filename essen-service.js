@@ -89,6 +89,31 @@ const ES_MAX_STUECK = 9;          // je Position – schützt vor Vertippern
 const ES_MAX_PREIS_CENT = 10000;  // 100 € für ein Gericht ist die Obergrenze der Vernunft
 const ES_MAX_BESTELLUNGEN = 300;
 const ES_MAX_SONDERWUNSCH = 120;
+// Extras zum Auswählen im Sonderwunsch (Vorschlag Michel, 2026-10-01): Käse und
+// Thunfisch 0,50 €, alles andere 1 €. Gewählte Extras stehen VORN im
+// Sonderwunsch-Text („+ Käse, + Salami · ohne Zwiebeln“) – so braucht es kein
+// neues Datenbankfeld, die Küche liest sie in der Mail mit, und der Preis wird
+// hier im Service aus dem Text berechnet, nicht vom Gerät mitgeschickt.
+// ⚠️ Namen nie umbenennen, solange Bestellungen laufen: ein alter Text mit dem
+// alten Namen kostet sonst beim Ändern plötzlich nichts mehr extra.
+const ES_EXTRAS = [
+  { name: "Käse", cent: 50 },
+  { name: "Thunfisch", cent: 50 },
+  { name: "Salami", cent: 100 },
+  { name: "Schinken", cent: 100 },
+  { name: "Champignons", cent: 100 },
+  { name: "Paprika", cent: 100 },
+  { name: "Zwiebeln", cent: 100 },
+  { name: "Peperoni", cent: 100 },
+  { name: "Oliven", cent: 100 },
+  { name: "Mais", cent: 100 },
+  { name: "Ananas", cent: 100 },
+  { name: "Spinat", cent: 100 },
+  { name: "Knoblauch", cent: 100 },
+  { name: "Hähnchen", cent: 100 },
+];
+const ES_MAX_EXTRAS = 4;          // je Position – sonst passt der Text nicht in 120 Zeichen
+const ES_MAX_WUNSCH_FREI = 50;    // freier Text neben den Extras
 const ES_MAX_RUNDEN = 60;         // Sammelbestellungen, die an einem Wochenende rausgehen
 const ES_MAX_NUMMER = 10;         // „12", „3a", „A17" – laenger ist keine Bestellnummer
 // Was als Bestellnummer am Zeilenanfang eines Imports durchgeht.
@@ -1443,6 +1468,37 @@ async function esImportiereKarte(gerichte, ersetzen) {
   return { erfolg: true, anzahl: gerichte.length };
 }
 
+// --- Extras im Sonderwunsch ----------------------------------------------------
+// Text → { extras: ["Käse", …], rest: "ohne Zwiebeln" }. Nur wenn der Kopf
+// (vor „ · “) ganz aus bekannten „+ Name“ besteht, sind es Extras – sonst ist
+// alles freier Text (alte Bestellungen, getippte Wünsche).
+function esExtrasZerlegen(text) {
+  const s = String(text || "").trim();
+  const i = s.indexOf(" · ");
+  const kopf = i >= 0 ? s.slice(0, i) : s;
+  const extras = [];
+  for (const teil of kopf.split(",")) {
+    const m = /^\+\s*(.+)$/.exec(teil.trim());
+    const e = m && ES_EXTRAS.find((x) => x.name.toLowerCase() === m[1].trim().toLowerCase());
+    if (!e) return { extras: [], rest: s };
+    if (!extras.includes(e.name)) extras.push(e.name);
+  }
+  return { extras, rest: i >= 0 ? s.slice(i + 3).trim() : "" };
+}
+
+// Umgekehrt. Extras in der Reihenfolge der Liste – so landen „+ Käse, + Salami“
+// und „+ Salami, + Käse“ in der Sammelbestellung in derselben Zeile.
+function esExtrasText(extras, rest) {
+  const gewaehlt = ES_EXTRAS.filter((e) => (extras || []).includes(e.name)).slice(0, ES_MAX_EXTRAS);
+  const kopf = gewaehlt.map((e) => "+ " + e.name).join(", ");
+  return [kopf, esText(rest, ES_MAX_WUNSCH_FREI)].filter(Boolean).join(" · ");
+}
+
+function esExtrasCent(text) {
+  return esExtrasZerlegen(text).extras
+    .reduce((summe, name) => summe + ES_EXTRAS.find((e) => e.name === name).cent, 0);
+}
+
 // positionen = [{ gerichtId, anzahl, sonderwunsch }]
 // Name und Preis holt der Service selbst aus der Karte – der Client darf sie
 // nicht mitgeben, sonst könnte man sich seinen Preis selbst aussuchen.
@@ -1484,13 +1540,15 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
     const anzahl = Math.round(esZahl(pos && pos.anzahl, 0));
     if (anzahl <= 0) return;
     if (anzahlPositionen >= ES_MAX_POSITIONEN) return;
+    const wunsch = esText(pos && pos.sonderwunsch, ES_MAX_SONDERWUNSCH);
     sauber["pos" + anzahlPositionen] = {
       gerichtId: gericht.id,
       nummer: gericht.nummer,
       name: gericht.name,
-      preisCent: gericht.preisCent,
+      // Stückpreis = Karte + Extras, festgeschrieben wie bisher der Kartenpreis.
+      preisCent: Math.min(ES_MAX_PREIS_CENT, gericht.preisCent + esExtrasCent(wunsch)),
       anzahl: Math.min(ES_MAX_STUECK, anzahl),
-      sonderwunsch: esText(pos && pos.sonderwunsch, ES_MAX_SONDERWUNSCH),
+      sonderwunsch: wunsch,
       sort: anzahlPositionen,
     };
     anzahlPositionen += 1;
@@ -1994,6 +2052,12 @@ const essenService = {
   MAX_POSITIONEN: ES_MAX_POSITIONEN,
   MAX_STUECK: ES_MAX_STUECK,
   MAX_SONDERWUNSCH: ES_MAX_SONDERWUNSCH,
+  EXTRAS: ES_EXTRAS,
+  MAX_EXTRAS: ES_MAX_EXTRAS,
+  MAX_WUNSCH_FREI: ES_MAX_WUNSCH_FREI,
+  extrasZerlegen: esExtrasZerlegen,
+  extrasText: esExtrasText,
+  extrasCent: esExtrasCent,
   STATUS_KETTE: ES_STATUS_KETTE,
   STATUS_TEXT: ES_STATUS_TEXT,
   onZustandsAenderung: esOnZustandsAenderung,

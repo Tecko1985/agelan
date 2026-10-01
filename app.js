@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.43",
+    groups: [
+      { title: "Essen: Extras zum Auswählen", items: [
+          "Im Warenkorb gibt es je Gericht eine Auswahl „➕ Extra dazu …“ mit typischen Zutaten. Käse und Thunfisch kosten 0,50 €, alle anderen Extras 1 € – der Preis der Zeile rechnet sich sofort mit. Gewählte Extras stehen als Knöpfe darunter und lassen sich mit ✕ wieder entfernen.",
+          "Daneben bleibt ein Feld für Sonstiges (z. B. „ohne Zwiebeln“) – das kostet nichts extra. Bei Getränken, Salaten und Desserts gibt es keine Extras."
+      ]},
+    ],
+  },
+  {
     version: "8.42",
     groups: [
       { title: "Speisekarte: Salate", items: [
