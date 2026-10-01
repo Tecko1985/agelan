@@ -376,7 +376,7 @@ function esRenderKorb() {
     return;
   }
 
-  const name = esFesterName() || essenService.getGespeicherterName();
+  const name = (esEntwurf.bestellungId && esEntwurf.name) || esFesterName() || essenService.getGespeicherterName();
   box.innerHTML = `
     <div class="karte-block es-korb-karte">
       <h3 class="es-abschnitt">${esEntwurf.bestellungId ? "Bestellung ändern" : "Deine Bestellung"}</h3>
@@ -424,7 +424,7 @@ function esRenderKorb() {
       ${name
         ? `<p class="fr-besteller">Bestellung für <b>${escapeHtml(name)}</b></p>`
         : `<label class="feld-label" for="es-korb-name">Dein Name</label>
-           <input type="text" id="es-korb-name" class="eingabe" maxlength="40" autocomplete="off">`}
+           <input type="text" id="es-korb-name" class="eingabe" maxlength="40" autocomplete="off" value="${escapeHtml(esEntwurf.name || "")}">`}
 
       <label class="feld-label" for="es-korb-notiz">Notiz für den Veranstalter (freiwillig)</label>
       <input type="text" id="es-korb-notiz" class="eingabe" maxlength="200" autocomplete="off"
@@ -467,6 +467,10 @@ function esRenderKorb() {
   });
   const notiz = esEl("es-korb-notiz");
   if (notiz) notiz.addEventListener("input", () => { esEntwurf.notiz = notiz.value; });
+  // ⚠️ Auch den Namen im Entwurf merken: der Korb zeichnet sich bei jedem Extra,
+  // jedem 🗑 und jedem weiteren Gericht neu – ein getippter Name war dann weg.
+  const nameEin = esEl("es-korb-name");
+  if (nameEin) nameEin.addEventListener("input", () => { esEntwurf.name = nameEin.value; });
 
   esEl("es-btn-abschicken").addEventListener("click", esSendeBestellung);
   esEl("es-btn-korb-leeren").addEventListener("click", () => {
@@ -492,7 +496,8 @@ async function esSendeBestellung() {
   }
 
   const nameFeld = esEl("es-korb-name");
-  const name = esFesterName() || (nameFeld ? nameFeld.value : "") || essenService.getGespeicherterName();
+  const name = (esEntwurf.bestellungId && esEntwurf.name) ||
+    esFesterName() || (nameFeld ? nameFeld.value : "") || essenService.getGespeicherterName();
 
   const res = await essenService.bestelle({
     name,
@@ -509,6 +514,17 @@ async function esSendeBestellung() {
 }
 
 // --- Meine Bestellungen ------------------------------------------------------
+// Michel am 01.10.2026: dazuschreiben, welche Bestellung das war – also mit
+// welcher Sammelbestellung („Bestellung 2 am Donnerstag“) sie zum Lieferanten
+// ging, und wann sie abgegeben wurde. Gleiche Benennung wie im Mail-Betreff.
+function esWelcheBestellung(z, b) {
+  const runde = b.rundeId ? z.runden.find((r) => r.id === b.rundeId) : null;
+  const wann = "abgegeben " + escapeHtml(essenService.zeitLabel(b.erstelltAm));
+  return runde
+    ? "📦 <b>" + escapeHtml(esMailBetreff(z, runde)) + "</b> · " + wann
+    : "Noch in keiner Sammelbestellung · " + wann;
+}
+
 // Die Bestellnummer der Karte vor dem Gericht („Nr. 12 Bolognese“) – an der
 // Kasse und beim Ausgeben sucht man danach, nicht nach dem Namen.
 function esNrHtml(p) {
@@ -535,6 +551,7 @@ function esRenderMeine(z) {
             p.anzahl + "× " + esNrHtml(p) + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
           ).join("<br>")}</div>
           ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
+          <div class="hinweis-text es-best-welche">${esWelcheBestellung(z, b)}</div>
           ${b.aenderbar ? `
             <div class="es-best-aktionen">
               <button type="button" class="mini-btn" data-es-bearbeiten="${escapeHtml(b.id)}">Ändern</button>
@@ -564,6 +581,9 @@ function esLadeInKorb(bestellungId) {
       !confirm("In deinem Korb liegt noch etwas, das nicht abgeschickt ist. Verwerfen und diese Bestellung zum Ändern laden?")) return;
   esEntwurf = {
     bestellungId: b.id,
+    // ⚠️ Ändert der Veranstalter eine FREMDE Bestellung, bleibt sie auf deren
+    // Namen – vorher landete sie still unter seinem eigenen Spitznamen.
+    name: b.name,
     notiz: b.notiz,
     positionen: b.positionen.map((p) => {
       esLfdNr += 1;
@@ -670,7 +690,18 @@ function esHakenSetzen(rundeId, schluessel, an) {
 }
 
 function esHakenSchluessel(p) {
-  return JSON.stringify([p.nummer || "", p.name, (p.sonderwunsch || "").toLowerCase()]);
+  return JSON.stringify([p.gerichtId || "", p.nummer || "", p.name, (p.sonderwunsch || "").toLowerCase()]);
+}
+
+// Haken von Lieferungen, die es nicht mehr gibt, wegräumen – sonst wächst der
+// Eintrag über jede LAN weiter.
+function esHakenAufraeumen(runden) {
+  const alle = esHakenLesen();
+  const da = new Set((runden || []).map((r) => r.id));
+  const weg = Object.keys(alle).filter((id) => !da.has(id));
+  if (!weg.length) return;
+  weg.forEach((id) => delete alle[id]);
+  try { localStorage.setItem(ES_HAKEN_KEY, JSON.stringify(alle)); } catch (e) { /* privater Modus */ }
 }
 
 function esPruefListeHtml(r) {
@@ -979,6 +1010,9 @@ async function esBescheidGeben(runde, knopf) {
 
 function esRenderAdminBestellungen(z) {
   const box = esEl("es-admin-bestellungen");
+  // ⚠️ Nur aufräumen, wenn Lieferungen geladen sind – beim allerersten Zeichnen
+  // ist die Liste noch leer und würde sonst alle Haken wegwerfen.
+  if (z.vorhanden && z.runden.length) esHakenAufraeumen(z.runden);
   if (!z.bestellungen.length) {
     box.innerHTML = `<p class="fr-leer-hinweis">Noch keine Bestellungen.</p>`;
     return;

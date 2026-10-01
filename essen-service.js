@@ -609,6 +609,7 @@ function esSammelliste(bestellungen) {
       const schluessel = JSON.stringify([p.gerichtId || p.name, p.nummer || "", p.name, p.sonderwunsch.toLowerCase()]);
       if (!nach.has(schluessel)) {
         nach.set(schluessel, {
+          gerichtId: p.gerichtId,
           nummer: p.nummer,
           name: p.name,
           sonderwunsch: p.sonderwunsch,
@@ -1488,10 +1489,18 @@ function esExtrasZerlegen(text) {
 
 // Umgekehrt. Extras in der Reihenfolge der Liste – so landen „+ Käse, + Salami“
 // und „+ Salami, + Käse“ in der Sammelbestellung in derselben Zeile.
+// ⚠️ Der freie Text bekommt den Platz, den die Extras übrig lassen – nicht fest
+// 50 Zeichen: ein älterer, längerer Sonderwunsch würde sonst beim bloßen
+// Ändern der Anzahl still abgeschnitten.
 function esExtrasText(extras, rest) {
   const gewaehlt = ES_EXTRAS.filter((e) => (extras || []).includes(e.name)).slice(0, ES_MAX_EXTRAS);
   const kopf = gewaehlt.map((e) => "+ " + e.name).join(", ");
-  return [kopf, esText(rest, ES_MAX_WUNSCH_FREI)].filter(Boolean).join(" · ");
+  const platz = ES_MAX_SONDERWUNSCH - (kopf ? kopf.length + 3 : 0);
+  // ⚠️ Getippter Text darf nicht mit „+“ anfangen: „+ Käse“ von Hand sähe für
+  // die Küche aus wie ein Extra, würde aber je nach Lage berechnet oder nicht.
+  // Extras gibt es nur über die Auswahl.
+  const frei = String(rest == null ? "" : rest).replace(/^[\s+]+/, "");
+  return [kopf, esText(frei, platz)].filter(Boolean).join(" · ");
 }
 
 function esExtrasCent(text) {

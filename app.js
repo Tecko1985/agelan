@@ -1629,6 +1629,21 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.47",
+    groups: [
+      { title: "Essen: welche Bestellung", items: [
+          "Bei „Deine Bestellungen“ steht jetzt, mit welcher Sammelbestellung das Essen zum Lieferanten ging (z. B. „📦 Bestellung 2 am Donnerstag“) und wann es abgegeben wurde."
+      ]},
+      { title: "Fehler behoben", items: [
+          "Warenkorb: Ein eingetippter Name ging verloren, sobald man ein Extra wählte, ein Gericht dazunahm oder eins entfernte.",
+          "Ein älterer, längerer Sonderwunsch wurde beim Ändern der Bestellung still auf 50 Zeichen gekürzt.",
+          "Von Hand getipptes „+ Käse“ im Sonderwunsch sah aus wie ein Extra, wurde aber je nach Lage berechnet oder nicht. Extras gibt es jetzt nur über die Auswahl.",
+          "Ändert der Veranstalter eine fremde Bestellung, bleibt sie auf dem Namen des Bestellers – vorher landete sie unter dem eigenen Spitznamen.",
+          "Lieferung prüfen: zwei gleichnamige Gerichte ohne Nummer werden getrennt abgehakt; Haken alter Lieferungen werden aufgeräumt."
+      ]},
+    ],
+  },
+  {
     version: "8.46",
     groups: [
       { title: "Essen: Nummern in der Bestellzeile", items: [
