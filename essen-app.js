@@ -509,6 +509,12 @@ async function esSendeBestellung() {
 }
 
 // --- Meine Bestellungen ------------------------------------------------------
+// Die Bestellnummer der Karte vor dem Gericht („Nr. 12 Bolognese“) – an der
+// Kasse und beim Ausgeben sucht man danach, nicht nach dem Namen.
+function esNrHtml(p) {
+  return p.nummer ? `<span class="es-pos-nr">Nr. ${escapeHtml(p.nummer)}</span> ` : "";
+}
+
 function esRenderMeine(z) {
   const box = esEl("es-meine");
   if (!z.meine.length) { box.innerHTML = ""; return; }
@@ -526,7 +532,7 @@ function esRenderMeine(z) {
               : `<span class="es-best-summe">${essenService.centLabel(b.summeCent)}</span>`}
           </div>
           <div class="es-best-positionen">${b.positionen.map((p) =>
-            p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
+            p.anzahl + "× " + esNrHtml(p) + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
           ).join("<br>")}</div>
           ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
           ${b.aenderbar ? `
@@ -607,7 +613,7 @@ function esBestellungHtml(b) {
         </summary>
         <div class="es-admin-inhalt">
           <div class="es-best-positionen">${b.positionen.map((p) =>
-            p.anzahl + "× " + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
+            p.anzahl + "× " + esNrHtml(p) + escapeHtml(p.name) + (p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : "")
           ).join("<br>")}</div>
           ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
           <div class="hinweis-text es-zeitstempel">Bestellt: <b>${escapeHtml(essenService.zeitLabel(b.erstelltAm))}</b></div>
@@ -1257,7 +1263,7 @@ function esRenderSammelmail(z) {
       ${brief.liste.map((p) => `
         <div class="fr-einkauf-zeile es-mail-zeile">
           <span>
-            <b>${p.anzahl}×</b> ${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}
+            <b>${p.anzahl}×</b> ${esNrHtml(p)}${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}
             ${p.preisEinheitlich && p.preisCent ? `<span class="es-stueckpreis">à ${essenService.centLabel(p.preisCent)}</span>` : ""}
             ${p.anzahlOrga ? `<span class="es-orga-vermerk">${p.anzahlOrga >= p.anzahl ? "🛠 Organisation" : "davon " + p.anzahlOrga + "× 🛠 Organisation"}</span>` : ""}
           </span>

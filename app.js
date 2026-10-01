@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.44",
+    groups: [
+      { title: "Essen: Nummern an den Bestellungen", items: [
+          "In „Alle Bestellungen“, bei „Deine Bestellungen“ und in der Mail-Vorschau steht vor jedem Gericht die Nummer der Speisekarte, z. B. „1× Nr. 12 Bolognese“."
+      ]},
+    ],
+  },
+  {
     version: "8.43",
     groups: [
       { title: "Essen: Extras zum Auswählen", items: [
