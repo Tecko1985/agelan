@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.18">
+<link rel="stylesheet" href="style.css?v=6.19">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -400,7 +400,7 @@
       <h2>Anmeldung</h2>
       <p class="untertitel">Trage deinen Namen und dein 1vs1-Elo ein.</p>
       <label class="feld-label" for="login-name">Name</label>
-      <input type="text" id="login-name" class="eingabe" placeholder="Dein Name" maxlength="24" autocomplete="off">
+      <input type="text" id="login-name" class="eingabe" placeholder="Dein Name" maxlength="40" autocomplete="off">
 
       <!-- ⚠️ Gemeint ist immer das 1vs1-Elo, auch wenn das Turnier 2vs2 ist. Steht das
            nicht dran, tragen die Leute bei einem 2vs2-Turnier ihr Team-Elo ein – und die
@@ -1407,8 +1407,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.20',
-    'app.js?v=3.95',
+    'turnier-service.js?v=2.21',
+    'app.js?v=3.96',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

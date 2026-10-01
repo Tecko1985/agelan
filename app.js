@@ -1282,10 +1282,22 @@ function wireEvents() {
     turnierService.waehleTurnier(null);
   });
 
+  // Name fürs Einschreiben: mit Konto fest der Kontoname, nicht änderbar
+  // (Michel am 02.10.2026). Ohne Konto bleibt das Feld frei.
+  function loginNameSetzen() {
+    const feld = document.getElementById("login-name");
+    let fest = "";
+    try { fest = (window.__AGELAN_KONTO__ && window.__AGELAN_KONTO__.nickname) || ""; } catch (e) { fest = ""; }
+    feld.value = fest || turnierService.getGespeicherterName();
+    feld.readOnly = !!fest;
+    feld.classList.toggle("feld-fest", !!fest);
+    feld.title = fest ? "Dein Kontoname – im Turnier stehst du immer unter diesem Namen." : "";
+  }
+
   // Mitmachen / Zuschauen
   document.getElementById("btn-mitmachen").addEventListener("click", () => {
     willMitmachen = true;
-    document.getElementById("login-name").value = turnierService.getGespeicherterName();
+    loginNameSetzen();
     render(zustand);
   });
   document.getElementById("btn-nur-zuschauen").addEventListener("click", () => {
@@ -1340,7 +1352,7 @@ function wireEvents() {
   // Lobby: als Veranstalter selbst mitspielen
   document.getElementById("btn-lobby-selbst-anmelden").addEventListener("click", () => {
     willMitmachen = true;
-    document.getElementById("login-name").value = turnierService.getGespeicherterName();
+    loginNameSetzen();
     render(zustand);
   });
 
@@ -1643,6 +1655,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.55",
+    groups: [
+      { title: "Turnier: Name = Kontoname", items: [
+          "Beim Einschreiben ins Turnier steht fest der Kontoname im Feld und lässt sich nicht mehr ändern. So taucht im Turnier niemand unter einem Namen auf, den es in der Kontoliste nicht gibt."
+      ]},
+    ],
+  },
   {
     version: "8.54",
     groups: [

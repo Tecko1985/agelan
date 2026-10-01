@@ -1302,6 +1302,14 @@ async function tritBei({ name, rating, trotzdem }) {
   await authBereit;
   if (!letzterZustand || !letzterZustand.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
   if (letzterZustand.meta.phase !== "anmeldung") return { erfolg: false, fehler: "Die Anmeldung ist bereits geschlossen." };
+  // ⚠️ Mit Konto zählt NUR der Kontoname (Michel am 02.10.2026: „der name darf
+  // nicht änderbar sein“) – sonst stand „Raxx | Christoph“ im Turnier, den es
+  // in keiner Kontoliste gab. Das Feld ist dann gesperrt; hier zieht es nach,
+  // falls jemand die Sperre im Browser aushebelt.
+  try {
+    const konto = window.__AGELAN_KONTO__;
+    if (konto && konto.nickname) name = String(konto.nickname).slice(0, 40);
+  } catch (e) { /* ohne Konto: eingetippter Name */ }
   if (!name || !name.trim()) return { erfolg: false, fehler: "Bitte einen Namen eingeben." };
   const r = Math.round(Number(rating));
   if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
