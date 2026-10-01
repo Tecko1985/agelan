@@ -1297,6 +1297,7 @@ main#app.ub-breit { max-width: 980px; }
 .es-gericht-info { flex: 1 1 auto; min-width: 0; }
 .es-gericht-name { font-weight: 600; }
 .es-gericht-beschreibung { font-size: 13px; color: var(--muted); }
+.es-gericht-salat { font-size: 13px; color: var(--muted); font-style: italic; }
 .es-gericht-preis { flex: 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; }
 /* 40 px, damit der Knopf am Handy sicher zu treffen ist. */
 .es-plus {

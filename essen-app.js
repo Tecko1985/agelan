@@ -154,6 +154,14 @@ function esRenderKopf(z) {
 }
 
 // --- Speisekarte -------------------------------------------------------------
+// Salate kommen mit Essig und Öl oder Dressing nach Art des Hauses (Michel,
+// 2026-10-01). Die Karte liegt in Firebase – darum hier für jedes Gericht,
+// das „Salat“ im Namen oder in der Kategorie trägt, statt in jeder Beschreibung.
+const ES_SALAT_HINWEIS = "Wird mit Essig und Öl oder Dressing nach Art des Hauses geliefert.";
+function esIstSalat(g) {
+  return /salat/i.test((g.name || "") + " " + (g.kategorie || ""));
+}
+
 // Eine Zeile der Speisekarte.
 function esGerichtHtml(g, darfBestellen) {
   return `
@@ -162,6 +170,7 @@ function esGerichtHtml(g, darfBestellen) {
             <div class="es-gericht-info">
               <div class="es-gericht-name">${escapeHtml(g.name)}</div>
               ${g.beschreibung ? `<div class="es-gericht-beschreibung">${escapeHtml(g.beschreibung)}</div>` : ""}
+              ${esIstSalat(g) ? `<div class="es-gericht-salat">🥗 ${ES_SALAT_HINWEIS}</div>` : ""}
             </div>
             <div class="es-gericht-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}</div>
             <button type="button" class="es-plus" data-es-hinzu="${escapeHtml(g.id)}"

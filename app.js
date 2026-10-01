@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.42",
+    groups: [
+      { title: "Speisekarte: Salate", items: [
+          "Bei jedem Salat steht jetzt dabei: „Wird mit Essig und Öl oder Dressing nach Art des Hauses geliefert.“"
+      ]},
+    ],
+  },
+  {
     version: "8.41",
     groups: [
       { title: "Übersicht: wer noch zahlen muss", items: [
