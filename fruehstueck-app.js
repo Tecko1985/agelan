@@ -369,7 +369,7 @@ function frBestellerlisteHtml(tag) {
 }
 
 // Export als reiner Text (Michel am 2026-10-01: „Export als Text, rein mit den
-// Bestellmengen“): oben die Mengen je Paket, darunter wer was – ohne Preise.
+// Bestellmengen“): nur die Mengen je Paket und die Summe – ohne Namen und Preise.
 function frExportText(tag) {
   const summe = new Map();
   tag.bestellungen.forEach((b) => b.positionen.forEach((p) => {
@@ -377,11 +377,8 @@ function frExportText(tag) {
   }));
   const zeilen = ["Frühstück " + tag.tagLang + ", " + tag.label, ""];
   summe.forEach((n, name) => zeilen.push(n + "× " + name));
-  zeilen.push("Gesamt: " + tag.stueckGesamt + " Stück, " + tag.anzahlBesteller + " Besteller", "");
-  tag.bestellungen.forEach((b) => {
-    zeilen.push(b.name + ": " + b.positionen.map((p) => p.anzahl + "× " + p.name).join(", ") +
-      (b.notiz ? "  (" + b.notiz + ")" : ""));
-  });
+  // ⚠️ Nur die Mengen, keine Namen (Michel: „keine User, nur die Bestellmenge“).
+  zeilen.push("Gesamt: " + tag.stueckGesamt + " Stück");
   return zeilen.join("\n");
 }
 

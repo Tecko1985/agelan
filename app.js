@@ -1633,7 +1633,7 @@ const APP_CHANGELOG = [
     groups: [
       { title: "Live-Verbindung und Frühstücks-Export", items: [
           "Kommt das Gerät zurück – Tab wieder vorn, Fenster wieder im Fokus, WLAN wieder da –, baut die Seite die Verbindung zur Datenbank sofort neu auf. Neue Bestellungen stehen an der Kasse dann gleich da, ohne Neuladen. Fehlt die Verbindung, steht oben „🔴 Keine Verbindung“.",
-          "Frühstück: Unter den Bestellungen eines Morgens kopiert „📋 Als Text kopieren“ die Mengen je Paket und wer was bestellt hat – ohne Preise, zum Einfügen in WhatsApp oder eine Mail."
+          "Frühstück: Unter den Bestellungen eines Morgens kopiert „📋 Als Text kopieren“ nur die Mengen je Paket und die Summe – ohne Namen und Preise, zum Einfügen in WhatsApp oder eine Mail."
       ]},
     ],
   },
