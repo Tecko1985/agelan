@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.32",
+    groups: [
+      { title: "Hell und Dunkel nach der Sonne", items: [
+          "Oben auf der Übersicht gibt es ein großes Feld für Hell/Dunkel. Tippen schaltet Automatisch → Hell → Dunkel. Die Wahl gilt für dieses Gerät.",
+          "Automatisch (Standard) richtet sich nach Sonnenaufgang und Sonnenuntergang in Volkmarsen: tagsüber hell, abends und nachts dunkel. Das Feld zeigt, wann als Nächstes umgeschaltet wird; die Seite wechselt von selbst, ohne Neuladen."
+      ]},
+    ],
+  },
+  {
     version: "8.31",
     groups: [
       { title: "Übersicht neu sortiert und einstellbar", items: [

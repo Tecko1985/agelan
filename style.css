@@ -18,18 +18,17 @@
   --radius-sm: 8px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f172a;
-    --card-bg: #1e293b;
-    --border: #334155;
-    --text: #e5e9f0;
-    --muted: #94a3b8;
-    /* #1b2d4f kaeme auf --card-bg auf 1,07 und auf --bg auf 1,30 - der aktive
-       Reiter, Ueberschriften und die Stepper-Zeichen verschwanden. */
-    --primary-akzent: #7fb3f5;
-    --gold-text: var(--gold);
-  }
+/* Dunkelmodus: haengt seit 2026-10-01 an data-theme (thema.js), nicht mehr an prefers-color-scheme. */
+:root[data-theme="dark"] {
+  --bg: #0f172a;
+  --card-bg: #1e293b;
+  --border: #334155;
+  --text: #e5e9f0;
+  --muted: #94a3b8;
+  /* #1b2d4f kaeme auf --card-bg auf 1,07 und auf --bg auf 1,30 - der aktive
+     Reiter, Ueberschriften und die Stepper-Zeichen verschwanden. */
+  --primary-akzent: #7fb3f5;
+  --gold-text: var(--gold);
 }
 
 * { box-sizing: border-box; }
@@ -754,11 +753,9 @@ main#app.ub-breit { max-width: 980px; }
 .fk-zeile { font-size: 13px; color: var(--muted); line-height: 1.35; }
 .fk-warnung { font-size: 13px; color: var(--gold-text); line-height: 1.35; }
 
-@media (prefers-color-scheme: dark) {
-  .fk-zahlen { color: #7dabe8; }
-  .format-karte.aktiv { border-color: #7dabe8; box-shadow: inset 0 0 0 1px #7dabe8; }
-  .format-karte:hover:not(:disabled) { border-color: #7dabe8; }
-}
+:root[data-theme="dark"] .fk-zahlen { color: #7dabe8; }
+:root[data-theme="dark"] .format-karte.aktiv { border-color: #7dabe8; box-shadow: inset 0 0 0 1px #7dabe8; }
+:root[data-theme="dark"] .format-karte:hover:not(:disabled) { border-color: #7dabe8; }
 
 /* --- Meldung über fehlgeschlagene Schreibvorgänge ---------------------- */
 /* Sitzt über allem, auch über den Dialogen: wenn nicht gespeichert wurde,
@@ -802,9 +799,7 @@ main#app.ub-breit { max-width: 980px; }
 .fr-annahme-stand.zu { color: #b91c1c; font-weight: 700; }
 .fr-schalter { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 15px; cursor: pointer; }
 .fr-schalter input { width: 20px; height: 20px; }
-@media (prefers-color-scheme: dark) {
-  .fr-annahme-stand.zu { color: #fca5a5; }
-}
+:root[data-theme="dark"] .fr-annahme-stand.zu { color: #fca5a5; }
 .fr-paket { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
 .fr-paket:first-of-type { border-top: none; }
 .fr-paket-info { flex: 1 1 auto; min-width: 0; }
@@ -1079,12 +1074,10 @@ main#app.ub-breit { max-width: 980px; }
 }
 /* ⚠️ Im Dunkelmodus stuende sonst ein hellgelber Kasten im dunklen Dialog -
    lesbar, aber er brennt. Gedaempfter Grund, heller Text, gleicher Sinn. */
-@media (prefers-color-scheme: dark) {
-  .konto-erinnerung {
-    border-color: #6b5410;
-    background: #2e2712;
-    color: #f0c46b;
-  }
+:root[data-theme="dark"] .konto-erinnerung {
+  border-color: #6b5410;
+  background: #2e2712;
+  color: #f0c46b;
 }
 .konto-hinweis[hidden] { display: none; }
 .konto-hinweis {
@@ -1418,9 +1411,7 @@ main#app.ub-breit { max-width: 980px; }
   color: #8a6100;
   margin-top: 0;
 }
-@media (prefers-color-scheme: dark) {
-  .es-altbestand-note { color: #f0c46b; }
-}
+:root[data-theme="dark"] .es-altbestand-note { color: #f0c46b; }
 
 /* --- Speisekarte: Suche, Bestellnummer, Gruppen zum Aufklappen --- */
 .es-suche-zeile { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
@@ -1445,9 +1436,8 @@ main#app.ub-breit { max-width: 980px; }
    der dunklen Karte auf 2.01 – die Nummer waere kaum zu lesen. Gemessen am
    04.09.2026. Muss NACH den Grundregeln stehen: gleiche Spezifitaet, spaetere
    Regel gewinnt. Gleiche Aufhellung wie beim Statistik-Balken. */
-@media (prefers-color-scheme: dark) {
-  .es-gericht-nr, .es-pv-nr { color: #7fb3f5; }
-}
+:root[data-theme="dark"] .es-gericht-nr,
+:root[data-theme="dark"] .es-pv-nr { color: #7fb3f5; }
 
 .es-gruppe { border-top: 1px solid var(--border); }
 .es-gruppe:first-of-type { border-top: none; }
@@ -1521,9 +1511,7 @@ main#app.ub-breit { max-width: 980px; }
    Gemessen am 2026-09-04. Dieselbe Aufhellung wie bei `.status-bezahlt`.
    ⚠️ Muss NACH der Grundregel stehen: gleiche Spezifitaet, da gewinnt die
    spaetere Regel. Zuerst stand der Block davor und wirkte nicht. */
-@media (prefers-color-scheme: dark) {
-  .es-stat-balken > i { background: #7fb3f5; }
-}
+:root[data-theme="dark"] .es-stat-balken > i { background: #7fb3f5; }
 
 /* --- Sammelmail --- */
 .es-mail-wahl { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 14px; }
@@ -1566,12 +1554,10 @@ main#app.ub-breit { max-width: 980px; }
    einen Kontrast von 3 – gemessen: Blau 2,01 und Grün 2,73, also unlesbar.
    Die Umkehrung ist deshalb Pflicht, nicht Kosmetik. Gemessene Werte dunkel:
    6,85 / 6,74 / 5,38 / 7,61. */
-@media (prefers-color-scheme: dark) {
-  .status-neu      { --es-farbe: #f0a04b; }
-  .status-bezahlt  { --es-farbe: #7fb3f5; }
-  .status-bestellt { --es-farbe: #a78bfa; }
-  .status-abgeholt { --es-farbe: #34d399; }
-}
+:root[data-theme="dark"] .status-neu { --es-farbe: #f0a04b; }
+:root[data-theme="dark"] .status-bezahlt { --es-farbe: #7fb3f5; }
+:root[data-theme="dark"] .status-bestellt { --es-farbe: #a78bfa; }
+:root[data-theme="dark"] .status-abgeholt { --es-farbe: #34d399; }
 
 /* Sperr-Hinweis, wenn die Firebase-Regeln fuer `essen` noch fehlen. */
 .es-regelwarnung { border-left: 4px solid #dc2626; }
@@ -1679,12 +1665,10 @@ main#app.ub-breit { max-width: 980px; }
    Element wäre es eine Falle. */
 .ub-weiter { margin-top: auto; padding-top: 10px; align-self: flex-start; }
 
-@media (prefers-color-scheme: dark) {
-  /* #b42318 liegt auf dem dunklen Kartengrund bei 2,6 und ist als TEXT nicht
-     lesbar. Als Grund einer Pille mit weißer Schrift bleibt er (6,40 gegen
-     #fff) – nur die Textfassung muss aufgehellt werden. */
-  .ub-block-warn .ub-block-titel { color: #fca5a5; }
-}
+/* #b42318 liegt auf dem dunklen Kartengrund bei 2,6 und ist als TEXT nicht
+   lesbar. Als Grund einer Pille mit weißer Schrift bleibt er (6,40 gegen
+   #fff) – nur die Textfassung muss aufgehellt werden. */
+:root[data-theme="dark"] .ub-block-warn .ub-block-titel { color: #fca5a5; }
 
 /* Übersicht seit 2026-10-01: Essen, Frühstück und Turnier über die volle Breite,
    oben in der Kachel ein großer Status („gibt es gerade Essen?“). */
@@ -1704,7 +1688,22 @@ main#app.ub-breit { max-width: 980px; }
 .ub-einstellungen { display: grid; gap: 8px; margin: 8px 0 4px; }
 .ub-wahl { display: flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; }
 .ub-wahl input { width: 18px; height: 18px; }
-@media (prefers-color-scheme: dark) {
-  .ub-status-an .ub-status-titel { color: #6ee7b7; }
-  .ub-status-aus .ub-status-titel { color: #fca5a5; }
+:root[data-theme="dark"] .ub-status-an .ub-status-titel { color: #6ee7b7; }
+:root[data-theme="dark"] .ub-status-aus .ub-status-titel { color: #fca5a5; }
+
+/* Großes Umschaltfeld Hell/Dunkel (thema.js), oben auf der Übersicht. */
+.thema-feld {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 14px;
+  width: 100%; margin: 0 0 14px; padding: 16px 18px; text-align: left; cursor: pointer;
+  background: var(--card-bg); color: var(--text);
+  border: 2px solid var(--border); border-radius: var(--radius);
+  font: inherit;
+}
+.thema-feld:hover { border-color: var(--primary-akzent); }
+.thema-titel { grid-column: 1; font-size: 19px; font-weight: 800; }
+.thema-dazu { grid-column: 1; font-size: 14px; color: var(--muted); }
+.thema-weiter {
+  grid-column: 2; grid-row: 1 / span 2; font-size: 13px; font-weight: 700;
+  padding: 8px 12px; border-radius: 999px; background: var(--bg); color: var(--primary-akzent);
+  white-space: nowrap;
 }

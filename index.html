@@ -7,7 +7,9 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.2">
+<link rel="stylesheet" href="style.css?v=6.3">
+<!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
+<script src="thema.js?v=1.0"></script>
 </head>
 <body>
 
@@ -311,6 +313,8 @@
   </div>
   <!-- Die Kacheln entstehen in uebersicht-app.js. Ein leeres Ziel hier, damit
        ein Renderfehler nicht die ganze Seite zerlegt. -->
+  <!-- Großes Umschaltfeld Hell/Dunkel; Inhalt und Klick kommen aus thema.js. -->
+  <button type="button" class="thema-feld" data-thema-feld></button>
   <div id="ub-kacheln"></div>
  </div>
 
