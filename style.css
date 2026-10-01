@@ -1802,3 +1802,15 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 .fr-kasse-icon { font-size: 30px; flex: none; }
 :root[data-theme="dark"] .fr-kasse-hinweis { background: rgba(245, 158, 11, 0.16); color: #fde68a; }
 :root[data-theme="dark"] .fr-kasse-hinweis b { color: #fcd34d; }
+
+/* Frühstück: zwischen den Morgen blättern (2026-10-01). ⚠️ Die Regel des
+   Streamplans blendet .sk-tagchips ab 760 px aus (dort stehen alle Tage
+   nebeneinander) – das Frühstück zeigt aber immer nur EINEN Morgen. */
+#fr-tagchips { display: flex; }
+.fr-tag-nav { display: flex; align-items: center; gap: 10px; }
+.fr-tag-nav-mitte { flex: 1 1 auto; min-width: 0; text-align: center; }
+.fr-tag-nav-mitte h3 { margin-bottom: 2px; }
+.fr-tag-pfeil { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
+  background: transparent; color: inherit; font-size: 28px; line-height: 1; cursor: pointer; padding: 0 0 4px; }
+.fr-tag-pfeil:hover:not(:disabled) { border-color: currentColor; }
+.fr-tag-pfeil:disabled { opacity: 0.25; cursor: default; }

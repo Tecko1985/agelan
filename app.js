@@ -1629,6 +1629,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.51",
+    groups: [
+      { title: "Frühstück: zwischen den Tagen blättern", items: [
+          "In der Tageskarte gibt es links und rechts Pfeile ‹ › zum vorherigen und nächsten Morgen – so lässt sich auch schon für die folgenden Tage bestellen.",
+          "Die Tag-Knöpfe über der Karte waren am PC versteckt (eine Regel des Streamplans hat sie mit ausgeblendet). Jetzt stehen sie überall da.",
+          "Wer am aktuellen Morgen etwas geändert, aber nicht gespeichert hat, wird vor dem Wechsel gefragt."
+      ]},
+    ],
+  },
+  {
     version: "8.50",
     groups: [
       { title: "Frühstück: Name änderbar", items: [

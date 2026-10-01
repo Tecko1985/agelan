@@ -87,13 +87,22 @@ function frRenderChips(z) {
       ${escapeHtml(t.label)}${t.offen ? "" : " · zu"}
     </button>`).join("");
   box.querySelectorAll("button[data-datum]").forEach((b) => {
-    b.addEventListener("click", () => {
-      frAktiverTag = b.dataset.datum;
-      frEntwurf = null;
-      frRenderChips(z);
-      frRenderTagInhalt(z);
-    });
+    b.addEventListener("click", () => frWechsleTag(z, b.dataset.datum));
   });
+}
+
+// Zu einem anderen Morgen wechseln – über die Tag-Knöpfe oder die Pfeile ‹ ›
+// in der Tageskarte (Michel am 01.10.2026: „auch schon für Samstag bestellen“).
+// ⚠️ Ein angefangener, nicht gespeicherter Entwurf gehört zu SEINEM Morgen –
+// vorher fragen, statt ihn still wegzuwerfen.
+function frWechsleTag(z, datum) {
+  if (!datum || datum === frAktiverTag) return;
+  if (frEntwurf && frEntwurf.beruehrt &&
+      !confirm("Deine Änderung für diesen Morgen ist noch nicht gespeichert. Trotzdem zum anderen Tag wechseln?")) return;
+  frAktiverTag = datum;
+  frEntwurf = null;
+  frRenderChips(z);
+  frRenderTagInhalt(z);
 }
 
 // Kurzform des gespeicherten Standes. Damit laesst sich erkennen, ob sich die
@@ -207,10 +216,24 @@ function frRenderTagInhalt(z) {
   let cursor = null;
   if (fokusId) { try { cursor = [aktiv.selectionStart, aktiv.selectionEnd]; } catch (e) { cursor = null; } }
 
+  const tagIndex = z.tage.indexOf(tag);
+  const vorTag = z.tage[tagIndex - 1] || null;
+  const nachTag = z.tage[tagIndex + 1] || null;
+  const pfeil = (ziel, zeichen, richtung) => z.tage.length < 2 ? "" :
+    `<button type="button" class="fr-tag-pfeil" data-fr-tag="${ziel ? escapeHtml(ziel.datum) : ""}" ${ziel ? "" : "disabled"}
+      title="${ziel ? escapeHtml(richtung + ": " + ziel.tagLang + ", " + ziel.label) : "Kein " + (richtung === "Vorheriger Tag" ? "früherer" : "weiterer") + " Morgen"}"
+      aria-label="${escapeHtml(richtung)}">${zeichen}</button>`;
+
   box.innerHTML = `
     <div class="fr-tagkarte">
-      <h3>${escapeHtml(tag.tagLang)}, ${escapeHtml(tag.label)}</h3>
-      <p class="fr-schluss${tag.vorbei ? " zu" : ""}">${tag.zeitOffen ? "Bestellschluss: " : "Bestellschluss war: "}${escapeHtml(tag.schlussLabel)}</p>
+      <div class="fr-tag-nav">
+        ${pfeil(vorTag, "‹", "Vorheriger Tag")}
+        <div class="fr-tag-nav-mitte">
+          <h3>${escapeHtml(tag.tagLang)}, ${escapeHtml(tag.label)}</h3>
+          <p class="fr-schluss${tag.vorbei ? " zu" : ""}">${tag.zeitOffen ? "Bestellschluss: " : "Bestellschluss war: "}${escapeHtml(tag.schlussLabel)}</p>
+        </div>
+        ${pfeil(nachTag, "›", "Nächster Tag")}
+      </div>
 
       ${!bearbeitbar ? `<p class="hinweis-text">${tag.zeitOffen
           ? "Geschlossen – der Veranstalter nimmt gerade keine Bestellungen an."
@@ -251,6 +274,7 @@ function frRenderTagInhalt(z) {
     ${z.istAdmin ? frEinkaufslisteHtml(tag, z.pakete) + frBestellerlisteHtml(tag) : ""}
   `;
 
+  box.querySelectorAll("[data-fr-tag]").forEach((b) => b.addEventListener("click", () => frWechsleTag(z, b.dataset.frTag)));
   box.querySelectorAll("[data-fr-mehr]").forEach((b) => b.addEventListener("click", () => frAendereEntwurf(b.dataset.frMehr, 1)));
   box.querySelectorAll("[data-fr-weniger]").forEach((b) => b.addEventListener("click", () => frAendereEntwurf(b.dataset.frWeniger, -1)));
 
