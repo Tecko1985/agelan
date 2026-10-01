@@ -317,7 +317,11 @@ function ubKachelFruehstueck() {
   const heute = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   // ⚠️ Nach dem FRÜHSTÜCKSTAG gefiltert, nicht nach dem Bestellschluss: heute
   // Morgen ist der Schluss längst vorbei, die Pakete werden aber gerade verteilt.
-  const kommende = z.tage.filter((t) => t.datum >= heute).slice(0, 3);
+  // Ab 12 Uhr ist das heutige Frühstück gegessen und fällt raus – sonst stand
+  // nachmittags noch „Do 1.10. · Bestellschluss vorbei“ direkt unter dem grünen
+  // Kasten für morgen, und es las sich, als sei die Bestellung für morgen zu.
+  const vormittag = d.getHours() < 12;
+  const kommende = z.tage.filter((t) => t.datum > heute || (t.datum === heute && vormittag)).slice(0, 3);
   const naechster = z.tage.find((t) => t.offen) || null;
   let inhalt = "";
 
@@ -348,8 +352,10 @@ function ubKachelFruehstueck() {
         .join(", ");
       const schluss = t.offen
         ? "bestellbar bis " + t.schlussLabel
-        : (t.vorbei ? "Bestellschluss vorbei" : "Annahme gerade geschlossen");
-      return ubZeile(t.label, stand, (welche ? welche + " · " : "") + schluss, t.offen ? "ub-live" : "");
+        : (t.datum === heute
+          ? "Frühstück heute früh – bestellt wurde bis " + t.schlussLabel
+          : (t.vorbei ? "Bestellung geschlossen seit " + t.schlussLabel : "Annahme gerade geschlossen"));
+      return ubZeile(t.datum === heute ? "heute" : t.label, stand, (welche ? welche + " · " : "") + schluss, t.offen ? "ub-live" : "");
     }).join("");
   }
 
