@@ -444,6 +444,34 @@ function ubEinstellungenZeichnen() {
   ).join("");
 }
 
+// Schreiben mit der ⭐/🛠-Rolle. ⚠️ Die Rolle (Claim agelanOrga) holt das Gerät
+// beim Laden und sie läuft ab; lehnt die Datenbank ab, wird sie EINMAL neu
+// geholt und dann noch einmal geschrieben – wie in den anderen Bereichen
+// (rolleNachAblehnung). Ohne das kam „PERMISSION_DENIED“, obwohl das Konto ⭐
+// ist (Michel am 2026-10-01 bei den Infos).
+async function ubMitRolleSchreiben(pfad, wert) {
+  try {
+    await db.ref(pfad).set(wert);
+    return;
+  } catch (err) {
+    const abgelehnt = /permission/i.test(String(err && (err.code || err.message) || ""));
+    if (!abgelehnt || typeof holeFirebaseRolle !== "function") throw err;
+    const ok = await holeFirebaseRolle("abgelehnt");
+    if (!ok) throw new Error(ubRolleGrund());
+    await db.ref(pfad).set(wert);
+  }
+}
+
+// Warum die Datenbank das Gerät nicht als ⭐/🛠 kennt – für die Fehlermeldung.
+function ubRolleGrund() {
+  const konto = typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
+  if (!konto) return "Dieses Gerät ist nicht mit einem ⭐/🛠-Konto angemeldet.";
+  const stand = typeof rolleStand === "string" ? rolleStand : "";
+  if (stand === "aus") return "Die Datenbank nimmt die ⭐/🛠-Rolle nicht an – sind die Regeln veröffentlicht?";
+  if (stand === "holt") return "Die ⭐/🛠-Rolle wird gerade noch geholt – in ein paar Sekunden noch einmal speichern.";
+  return "Die ⭐/🛠-Rolle ließ sich nicht holen (" + (stand || "unbekannt") + ") – Seite neu laden und noch einmal versuchen.";
+}
+
 function ubAuswahlBinden() {
   if (ubAuswahlGebunden || typeof db === "undefined" || typeof auth === "undefined") return;
   ubAuswahlGebunden = true;
@@ -484,12 +512,11 @@ function ubAuswahlBinden() {
       knopfInfos.disabled = true;
       if (meldung) meldung.textContent = "";
       try {
-        await db.ref("uebersicht/infos").set(text);
+        await ubMitRolleSchreiben("uebersicht/infos", text);
         if (meldung) meldung.textContent = text.trim() ? "Gespeichert – steht jetzt auf der Übersicht." : "Geleert – die Kachel Infos ist ausgeblendet.";
       } catch (err) {
         if (meldung) {
-          meldung.textContent = "Nicht gespeichert: " + (err && err.message || err) +
-            " – geht nur mit ⭐/🛠-Konto (und erst, wenn die Datenbank-Regeln veröffentlicht sind).";
+          meldung.textContent = "Nicht gespeichert: " + (err && err.message || err);
         }
       } finally {
         knopfInfos.disabled = false;
@@ -505,12 +532,11 @@ function ubAuswahlBinden() {
       const fehler = ubEl("ub-einstellungen-fehler");
       if (fehler) fehler.textContent = "";
       try {
-        await db.ref("uebersicht/kacheln/" + cb.dataset.ubKachel).set(cb.checked);
+        await ubMitRolleSchreiben("uebersicht/kacheln/" + cb.dataset.ubKachel, cb.checked);
       } catch (err) {
         cb.checked = !cb.checked;   // zurückdrehen, sonst behauptet der Haken etwas Falsches
         if (fehler) {
-          fehler.textContent = "Nicht gespeichert: " + (err && err.message || err) +
-            " – geht nur mit ⭐/🛠-Konto (und erst, wenn die Datenbank-Regeln veröffentlicht sind).";
+          fehler.textContent = "Nicht gespeichert: " + (err && err.message || err);
         }
       }
     });
