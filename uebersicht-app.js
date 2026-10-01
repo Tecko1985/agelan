@@ -475,32 +475,25 @@ async function ubMitRolleSchreiben(pfad, wert, melden) {
     if (!abgelehnt || typeof holeFirebaseRolle !== "function") throw err;
     schritt("Datenbank sagt nein – hole die ⭐/🛠-Berechtigung neu …");
     const ok = await ubMitGrenze(holeFirebaseRolle("abgelehnt"), "beim Holen der ⭐/🛠-Berechtigung");
-    if (!ok) throw new Error(ubRolleGrund() + await ubWorkerAntwort());
+    if (!ok) throw new Error("Die Datenbank erkennt dieses Gerät nicht als ⭐/🛠." + await ubWorkerAntwort());
     schritt("Berechtigung da – speichere noch einmal …");
     await ubMitGrenze(db.ref(pfad).set(wert), "von der Datenbank (zweiter Versuch)");
   }
 }
 
-// Warum die Datenbank das Gerät nicht als ⭐/🛠 kennt – für die Fehlermeldung.
-function ubRolleGrund() {
-  const konto = typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
-  if (!konto) return "Dieses Gerät ist nicht mit einem ⭐/🛠-Konto angemeldet.";
-  const stand = typeof rolleStand === "string" ? rolleStand : "";
-  if (stand === "aus") return "Die Datenbank nimmt die ⭐/🛠-Rolle nicht an – sind die Regeln veröffentlicht?";
-  if (stand === "holt") return "Die ⭐/🛠-Rolle wird gerade noch geholt – in ein paar Sekunden noch einmal speichern.";
-  return "Die ⭐/🛠-Rolle ließ sich nicht holen (" + (stand || "unbekannt") + ") – Seite neu laden und noch einmal versuchen.";
-}
+// Wenn die Rolle nicht kommt: den Worker direkt fragen und die URSACHE in einem
+// Satz nennen. holeFirebaseRolle() verschluckt sie. Einzelheiten nur in der Konsole.
+// ⚠️ Gefunden so am 2026-10-01: im Worker-Secret FIREBASE_DIENSTKONTO steckte das
+// Dienstkonto eines ANDEREN Firebase-Projekts (spiele-sc1911) – Google lehnte jedes
+// Custom Token ab (auth/invalid-custom-token), und alles lief still über die PINs.
+const UB_PROJEKT = "agelan-ab042";
 
-// Wenn die Rolle nicht kommt: den Worker noch einmal direkt fragen und SEINE
-// Antwort zeigen (Status + Fehlertext). holeFirebaseRolle() verschluckt sie –
-// ohne das war nicht zu sehen, ob das Konto, das Geräte-Token oder der Worker
-// selbst das Problem ist. Meldet nichts an, liest nur die Antwort.
 async function ubWorkerAntwort() {
   try {
     const k = window.__AGELAN_KONTO__;
     const user = typeof auth !== "undefined" ? auth.currentUser : null;
-    if (!k || !k.token) return " [Kein Konto-Token im Browser.]";
-    if (!user) return " [Keine Firebase-Anmeldung im Browser.]";
+    if (!k || !k.token) return " Dieses Gerät ist nicht mit einem Konto angemeldet.";
+    if (!user) return " Der Browser ist nicht bei der Datenbank angemeldet – Seite neu laden.";
     const idToken = await user.getIdToken();
     const antwort = await ubMitGrenze(fetch(ROLLE_GATEWAY, {
       method: "POST",
@@ -508,60 +501,39 @@ async function ubWorkerAntwort() {
       body: JSON.stringify({ action: "firebase-rolle", token: k.token, idToken: idToken }),
     }), "vom Worker");
     const b = await antwort.json().catch(() => ({}));
-    if (antwort.ok && b && b.ok) {
-      if (b.uid !== user.uid) return " [Worker-uid " + b.uid + " passt nicht zu " + user.uid + "]";
-      // Denselben Schritt wie holeFirebaseRolle gehen, aber den FEHLER zeigen.
-      // ⚠️ Nur mit passender uid (oben geprüft) – sonst verlöre das Gerät seine Kennung.
-      let schritt = "Anmeldung mit dem Token";
-      try {
-        await ubMitGrenze(auth.signInWithCustomToken(b.customToken), "bei der Anmeldung");
-        schritt = "Claims lesen";
-        const r = await auth.currentUser.getIdTokenResult(true);
-        const c = (r && r.claims) || {};
-        if (c.agelanOrga !== true) return " [Angemeldet, aber ohne Claim agelanOrga – Claims: " + Object.keys(c).join(", ") + "]";
-        schritt = "Gegenprobe rolleProbe";
-        await ubMitGrenze(db.ref("rolleProbe").once("value"), "bei der Gegenprobe");
-        return " [Anmeldung und Gegenprobe klappen jetzt – bitte noch einmal speichern.]";
-      } catch (e) {
-        return " [" + schritt + " scheitert: " + ((e && e.code) || "") + " " + ((e && e.message) || e) + "]" +
-          (/invalid-custom-token/.test(String(e && e.code)) ? await ubTokenPruefen(b.customToken) : "");
-      }
+    if (!(antwort.ok && b && b.ok)) {
+      console.warn("[Übersicht] Worker-Antwort:", antwort.status, b);
+      if (b && b.nichtKonfiguriert) return " Ursache: Im Worker fehlt das Secret FIREBASE_DIENSTKONTO.";
+      return " Der Worker lehnt ab (" + antwort.status + (b && (b.fehler || b.error) ? ": " + (b.fehler || b.error) : "") + ").";
     }
-    return " [Worker antwortet " + antwort.status + ": " + (b.fehler || b.error || (b.nichtKonfiguriert ? "Dienstkonto fehlt" : "ohne Text")) + "]";
+    // Falsches Projekt erkennt man schon am Absender des Tokens – ohne Anmeldeversuch.
+    const iss = ubTokenAbsender(b.customToken);
+    if (iss && !iss.endsWith("@" + UB_PROJEKT + ".iam.gserviceaccount.com")) {
+      return " Ursache: Das Worker-Secret FIREBASE_DIENSTKONTO gehört zu einem anderen Firebase-Projekt (" +
+        iss.split("@")[1].split(".")[0] + " statt " + UB_PROJEKT + ").";
+    }
+    if (b.uid !== user.uid) return " Der Worker hat die Berechtigung für ein anderes Gerät ausgestellt.";
+    try {
+      await ubMitGrenze(auth.signInWithCustomToken(b.customToken), "bei der Anmeldung");
+      await ubMitGrenze(db.ref("rolleProbe").once("value"), "bei der Gegenprobe");
+      return " Die Berechtigung ist jetzt da – bitte noch einmal speichern.";
+    } catch (e) {
+      console.warn("[Übersicht] Anmeldung mit Custom Token:", e);
+      return /invalid-custom-token|custom-token-mismatch/.test(String(e && e.code))
+        ? " Ursache: Google lehnt die Berechtigung des Workers ab – Schlüssel im Worker-Secret FIREBASE_DIENSTKONTO prüfen."
+        : " Anmeldung scheitert (" + ((e && e.code) || (e && e.message) || e) + ").";
+    }
   } catch (e) {
-    return " [Worker nicht erreichbar: " + (e && e.message) + "]";
+    return " Worker nicht erreichbar (" + (e && e.message) + ").";
   }
 }
 
-// Warum lehnt Google das Custom Token ab? Inhalt lesen und die Unterschrift
-// gegen die AKTUELLEN öffentlichen Schlüssel des Dienstkontos prüfen. Passt sie
-// zu keinem, ist der Schlüssel im Worker-Secret gelöscht/ersetzt worden.
-async function ubTokenPruefen(token) {
+function ubTokenAbsender(token) {
   try {
-    const teile = String(token).split(".");
-    const dekod = (t) => JSON.parse(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4)));
-    const kopf = dekod(teile[0]);
-    const n = dekod(teile[1]);
-    const jetzt = Math.floor(Date.now() / 1000);
-    let text = " [Token: iss " + n.iss + ", aud " + (String(n.aud).indexOf("identitytoolkit") >= 0 ? "ok" : n.aud) +
-      ", iat " + (n.iat - jetzt) + " s, exp " + (n.exp - n.iat) + " s, alg " + kopf.alg;
-    const antwort = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/" + encodeURIComponent(n.iss));
-    if (!antwort.ok) return text + " – Google kennt dieses Dienstkonto nicht (HTTP " + antwort.status + ")]";
-    const schluessel = ((await antwort.json()) || {}).keys || [];
-    const daten = new TextEncoder().encode(teile[0] + "." + teile[1]);
-    const b64 = teile[2].replace(/-/g, "+").replace(/_/g, "/") + "===".slice((teile[2].length + 3) % 4);
-    const sig = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    for (const k of schluessel) {
-      const key = await crypto.subtle.importKey("jwk", { kty: "RSA", n: k.n, e: k.e, alg: "RS256", ext: true },
-        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-      if (await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, sig, daten)) {
-        return text + " – Unterschrift passt zu Schlüssel " + String(k.kid).slice(0, 8) + "…]";
-      }
-    }
-    return text + " – Unterschrift passt zu KEINEM der " + schluessel.length +
-      " aktuellen Schlüssel: der Schlüssel im Worker-Secret ist gelöscht oder ersetzt]";
+    const t = String(token).split(".")[1];
+    return JSON.parse(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4))).iss || "";
   } catch (e) {
-    return " [Token-Prüfung fehlgeschlagen: " + (e && e.message) + "]";
+    return "";
   }
 }
 

@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.35",
+    groups: [
+      { title: "Verwalten mit ⭐/🛠-Konto repariert", items: [
+          "Die Berechtigung, mit der ein ⭐/🛠-Konto ohne PIN verwaltet, kam bei der Datenbank nicht an: im Worker steckte der Schlüssel eines anderen Firebase-Projekts. Das ist behoben – Turnier, Frühstück, Essen und die Einstellungen der Übersicht lassen sich mit ⭐/🛠 wieder ohne PIN verwalten.",
+          "Übersicht-Einstellungen und Allgemeine Infos: Lehnt die Datenbank ab, holt das Gerät die Berechtigung einmal neu und speichert noch einmal. Klappt es trotzdem nicht, steht die Ursache in einem Satz da, statt dass nichts passiert."
+      ]},
+    ],
+  },
+  {
     version: "8.34",
     groups: [
       { title: "Allgemeine Infos auf der Übersicht", items: [
