@@ -1372,6 +1372,8 @@ main#app.ub-breit { max-width: 980px; }
   border: 1px solid var(--border); border-left: 4px solid var(--es-farbe, var(--muted));
   border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--card-bg);
 }
+.es-abhol-haken { width: 22px; height: 22px; margin: 0; flex: none; cursor: pointer; accent-color: #16a34a; }
+.es-abhol-platz { width: 22px; flex: none; }
 .es-admin-best > summary {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px; cursor: pointer; list-style: none;

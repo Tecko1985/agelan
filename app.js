@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.49",
+    groups: [
+      { title: "Essen: Abholen per Häkchen", items: [
+          "In jeder Lieferung hat jede bezahlte Bestellung vorn ein Häkchen: antippen = abgeholt, nochmal = doch nicht. Ohne Aufklappen. Unbezahlte Bestellungen haben kein Häkchen – dort zuerst „Hat bezahlt“."
+      ]},
+    ],
+  },
+  {
     version: "8.48",
     groups: [
       { title: "Essen: nach Nummer sortiert", items: [

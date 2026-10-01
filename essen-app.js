@@ -637,6 +637,20 @@ function esBestellungNachNummer(a, b) {
   return esNachNummer(kleinste(a), kleinste(b)) || ES_NR_SORT.compare(a.name, b.name);
 }
 
+// Häkchen „abgeholt“ direkt in der zugeklappten Zeile einer Lieferung
+// (Michel am 01.10.2026: „macht es einfacher und schneller“) – ohne Aufklappen.
+// ⚠️ Nur für bezahlte bzw. freigegebene Bestellungen („bestellt“/„abgeholt“):
+// wer noch nicht bezahlt hat, bekommt sein Essen nicht per Haken, dafür bleibt
+// der Knopf „Hat bezahlt“ in der aufgeklappten Bestellung.
+function esAbholHakenHtml(b) {
+  if (!b.inRunde || (b.status !== "bestellt" && b.status !== "abgeholt")) {
+    return b.inRunde ? `<span class="es-abhol-platz" aria-hidden="true"></span>` : "";
+  }
+  const an = b.status === "abgeholt";
+  return `<input type="checkbox" class="es-abhol-haken" data-es-abgeholt="${escapeHtml(b.id)}"${an ? " checked" : ""}
+    title="${an ? "Doch nicht abgeholt" : "Abgeholt"}" aria-label="${escapeHtml(b.name)} hat abgeholt">`;
+}
+
 // Die Kartennummern einer Bestellung für die zugeklappte Zeile: „Nr. 12 · 2× Nr. 7“.
 // So findet man an der Ausgabe die Tüte, ohne jede Bestellung aufzuklappen.
 function esNummernKurz(b) {
@@ -648,6 +662,7 @@ function esBestellungHtml(b) {
   return `
       <details class="es-admin-best status-${escapeHtml(b.status)}" data-es-offen="${escapeHtml(b.id)}"${esOffeneBestellungen.has(b.id) ? " open" : ""}>
         <summary>
+          ${esAbholHakenHtml(b)}
           <span class="es-status-punkt" aria-hidden="true"></span>
           <span class="es-admin-name">${escapeHtml(b.name)}</span>
           ${esNummernKurz(b)}
@@ -1159,6 +1174,20 @@ function esRenderAdminBestellungen(z) {
   // ⚠️ Ziel und Rückweg kommen aus dem Service (`naechsterStatus`,
   // `zurueckStatus`), nicht aus der Kette gerechnet: in einer Sammelbestellung
   // überspringt „Hat bezahlt" den Schritt „bestellt", der dort schon wahr ist.
+  // ⚠️ Der Haken sitzt im <summary>: ohne stopPropagation/preventDefault am
+  // Klick klappte jeder Haken die Bestellung zusätzlich auf oder zu.
+  box.querySelectorAll("[data-es-abgeholt]").forEach((haken) => {
+    haken.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      const b = esZustand.bestellungen.find((x) => x.id === haken.dataset.esAbgeholt);
+      if (!b) return;
+      haken.disabled = true;
+      const res = await essenService.setzeStatus(b.id, b.status === "abgeholt" ? "bestellt" : "abgeholt");
+      haken.disabled = false;
+      if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
+    });
+  });
   box.querySelectorAll("[data-es-weiter]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esWeiter);
