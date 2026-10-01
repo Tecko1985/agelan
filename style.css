@@ -1298,6 +1298,14 @@ main#app.ub-breit { max-width: 980px; }
 .es-gericht-name { font-weight: 600; }
 .es-gericht-beschreibung { font-size: 13px; color: var(--muted); }
 .es-pos-nr { font-weight: 700; }
+.es-pruefliste { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.es-pruefliste.komplett { border-color: #16a34a; }
+.es-pruef-kopf { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.es-pruef-stand { color: var(--muted); font-size: 14px; }
+.es-pruefliste.komplett .es-pruef-stand { color: #16a34a; font-weight: 600; }
+.es-pruef-zeile { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); cursor: pointer; font-size: 15px; }
+.es-pruef-zeile input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; }
+.es-pruef-zeile.ok span { color: var(--muted); text-decoration: line-through; }
 .es-gericht-salat { font-size: 13px; color: var(--muted); font-style: italic; }
 .es-gericht-preis { flex: 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; }
 /* 40 px, damit der Knopf am Handy sicher zu treffen ist. */

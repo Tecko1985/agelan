@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.45",
+    groups: [
+      { title: "Essen: Lieferung prüfen", items: [
+          "In jeder Lieferung steht über den Bestellungen „📋 Lieferung prüfen“: alle Positionen zusammengezählt, mit Nummer und Sonderwunsch, zum Abhaken, wenn das Essen kommt. Oben steht, wie viel schon abgehakt ist – bei allem „✅ alles da“. Die Haken merkt sich das Gerät, auf dem abgehakt wird."
+      ]},
+    ],
+  },
+  {
     version: "8.44",
     groups: [
       { title: "Essen: Nummern an den Bestellungen", items: [

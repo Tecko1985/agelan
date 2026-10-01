@@ -640,6 +640,67 @@ function esBestellungHtml(b) {
       </details>`;
 }
 
+// --- Lieferung prüfen (Abhakliste) ------------------------------------------
+// Michel am 01.10.2026: über den Bestellungen einer Lieferung alle Positionen
+// zusammengefasst zum Abhaken, wenn der Fahrer da ist – fehlt etwas?
+// ⚠️ Die Haken leben nur auf DIESEM Gerät (localStorage): abgehakt wird an
+// einem Gerät an der Tür, und so braucht es keine neue Datenbankregel. Die
+// Liste zeichnet sich bei jeder Änderung neu, darum stehen die Haken nicht im
+// DOM, sondern werden je Lieferung gemerkt.
+const ES_HAKEN_KEY = "agelan_es_haken";
+
+function esHakenLesen() {
+  try { return JSON.parse(localStorage.getItem(ES_HAKEN_KEY) || "{}") || {}; } catch (e) { return {}; }
+}
+
+function esHakenSetzen(rundeId, schluessel, an) {
+  const alle = esHakenLesen();
+  const liste = new Set(alle[rundeId] || []);
+  if (an) liste.add(schluessel); else liste.delete(schluessel);
+  alle[rundeId] = Array.from(liste);
+  try { localStorage.setItem(ES_HAKEN_KEY, JSON.stringify(alle)); } catch (e) { /* privater Modus */ }
+}
+
+function esHakenSchluessel(p) {
+  return JSON.stringify([p.nummer || "", p.name, (p.sonderwunsch || "").toLowerCase()]);
+}
+
+function esPruefListeHtml(r) {
+  const liste = essenService.sammelliste(r.bestellungen);
+  if (!liste.length) return "";
+  const haken = new Set(esHakenLesen()[r.id] || []);
+  const erledigt = liste.filter((p) => haken.has(esHakenSchluessel(p))).length;
+  const alles = erledigt === liste.length;
+  return `
+        <div class="es-pruefliste${alles ? " komplett" : ""}" data-es-pruef="${escapeHtml(r.id)}">
+          <div class="es-pruef-kopf">
+            <b>📋 Lieferung prüfen</b>
+            <span class="es-pruef-stand">${alles ? "✅ alles da" : erledigt + " / " + liste.length + " abgehakt"}</span>
+          </div>
+          ${liste.map((p) => {
+            const k = esHakenSchluessel(p);
+            return `<label class="es-pruef-zeile${haken.has(k) ? " ok" : ""}">
+              <input type="checkbox" data-es-haken="${escapeHtml(k)}"${haken.has(k) ? " checked" : ""}>
+              <span><b>${p.anzahl}×</b> ${esNrHtml(p)}${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}</span>
+            </label>`;
+          }).join("")}
+        </div>`;
+}
+
+// Ein Listener für alle Prüflisten – sie werden ständig neu gezeichnet.
+// ⚠️ Nur Anzeige nachziehen, nicht die ganze Seite neu zeichnen: beim Abhaken
+// an der Tür soll nichts springen.
+document.addEventListener("change", (ev) => {
+  const box = ev.target && ev.target.closest && ev.target.closest("[data-es-pruef]");
+  if (!box || !ev.target.matches("[data-es-haken]")) return;
+  esHakenSetzen(box.dataset.esPruef, ev.target.dataset.esHaken, ev.target.checked);
+  ev.target.closest(".es-pruef-zeile").classList.toggle("ok", ev.target.checked);
+  const alle = box.querySelectorAll("[data-es-haken]");
+  const an = box.querySelectorAll("[data-es-haken]:checked").length;
+  box.classList.toggle("komplett", an === alle.length);
+  box.querySelector(".es-pruef-stand").textContent = an === alle.length ? "✅ alles da" : an + " / " + alle.length + " abgehakt";
+});
+
 // Eine Sammelbestellung, die schon beim Lieferanten ist: „Donnerstag 1",
 // „Donnerstag 2" … Darin die Bestellungen, die in genau dieser Mail standen,
 // darüber die Rechnung für genau diese Lieferung.
@@ -690,6 +751,7 @@ function esRundeHtml(r) {
             : `<button type="button" class="mini-btn primary" data-es-runde-da="${escapeHtml(r.id)}"
                 title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
         </div>
+        ${esPruefListeHtml(r)}
         ${r.bestellungen.map(esBestellungHtml).join("")}
       </div>
     </details>`;
