@@ -1115,7 +1115,9 @@ function esMailBestellungen(z) {
   return z.ohneRunde.filter((b) => b.status === "bezahlt");
 }
 
-// Betreff der Mail an den Lieferanten: „Bestellung 1 am Donnerstag – Michel“.
+// Betreff der Mail an den Lieferanten: „Bestellung 1 am Donnerstag“ – ohne
+// Namen (Michel am 2026-10-01: „lass das Michel weg“; der steht ja als Absender
+// und unter dem Gruß).
 // Gezählt wird JE KALENDERTAG nach dem Zeitpunkt, an dem eine Sammelbestellung
 // festgehalten wurde (erstelltAm) – Michel am 2026-10-01: „nummeriere sie mit
 // Bestellung 1 am Donnerstag usw“. Eine schon verschickte Runde behält ihre
@@ -1124,7 +1126,7 @@ function esMailBestellungen(z) {
 // zählen über die ganze Veranstaltung und stehen so in der App.
 const ES_WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
-function esMailBetreff(z, runde, basisBetreff) {
+function esMailBetreff(z, runde) {
   const tagVon = (ms) => new Date(ms).toDateString();
   const zeitpunkt = runde && runde.erstelltAm ? runde.erstelltAm : Date.now();
   const tag = tagVon(zeitpunkt);
@@ -1132,9 +1134,7 @@ function esMailBetreff(z, runde, basisBetreff) {
   const nr = runde
     ? amTag.filter((r) => r.erstelltAm < runde.erstelltAm || (r.erstelltAm === runde.erstelltAm && r.nr <= runde.nr)).length
     : amTag.length + 1;
-  // „– Michel“ aus dem bisherigen Betreff übernehmen (kommt aus den Einstellungen).
-  const zusatz = String(basisBetreff || "").replace(/^Sammelbestellung/, "");
-  return "Bestellung " + Math.max(1, nr) + " am " + ES_WOCHENTAGE[new Date(zeitpunkt).getDay()] + zusatz;
+  return "Bestellung " + Math.max(1, nr) + " am " + ES_WOCHENTAGE[new Date(zeitpunkt).getDay()];
 }
 
 function esRenderSammelmail(z) {
@@ -1159,7 +1159,7 @@ function esRenderSammelmail(z) {
   const einzeln = esEinzelId() ? auswahl[0] : null;
   const runde = esRundeAuswahlId() ? z.runden.find((x) => x.id === esRundeAuswahlId()) : null;
   const brief = essenService.bestelltext(auswahl, z.meta);
-  brief.betreff = esMailBetreff(z, runde, brief.betreff);
+  brief.betreff = esMailBetreff(z, runde);
   // Für die Radioknöpfe zählt nur der Stapel – die Zahl in Klammern muss zu
   // dem passen, was der Knopf darunter dann wirklich verschickt.
   const stapelBezahlt = z.ohneRunde.filter((b) => b.status === "bezahlt").length;
