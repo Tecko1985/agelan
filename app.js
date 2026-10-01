@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.48",
+    groups: [
+      { title: "Essen: nach Nummer sortiert", items: [
+          "In jeder Lieferung stehen die Bestellungen, die Abhakliste und die Nummern in der Bestellzeile jetzt nach Kartennummer sortiert (3 vor 12 vor 43) – Bestellungen mit mehreren Gerichten nach ihrer kleinsten Nummer."
+      ]},
+    ],
+  },
+  {
     version: "8.47",
     groups: [
       { title: "Essen: welche Bestellung", items: [

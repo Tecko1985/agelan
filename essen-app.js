@@ -623,10 +623,24 @@ function esRenderAdmin(z) {
 // Eine einzelne Bestellung als aufklappbarer Kasten. Wird an zwei Stellen
 // gebraucht – im Stapel und innerhalb einer Runde – und steht deshalb einmal
 // hier statt zweimal im selben Aufbau.
+// Sortieren nach Kartennummer (Michel am 01.10.2026): an der Ausgabe sucht man
+// nach der Nummer. Natürlich sortiert – „3“ vor „12“, „12a“ nach „12“. Ohne
+// Nummer ans Ende, dort nach Name.
+const ES_NR_SORT = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+function esNachNummer(a, b) {
+  if (!a.nummer !== !b.nummer) return a.nummer ? -1 : 1;
+  return ES_NR_SORT.compare(a.nummer || "", b.nummer || "") || ES_NR_SORT.compare(a.name || "", b.name || "");
+}
+// Bestellungen einer Lieferung nach ihrer kleinsten Nummer, dann nach Besteller.
+function esBestellungNachNummer(a, b) {
+  const kleinste = (x) => x.positionen.slice().sort(esNachNummer)[0] || {};
+  return esNachNummer(kleinste(a), kleinste(b)) || ES_NR_SORT.compare(a.name, b.name);
+}
+
 // Die Kartennummern einer Bestellung für die zugeklappte Zeile: „Nr. 12 · 2× Nr. 7“.
 // So findet man an der Ausgabe die Tüte, ohne jede Bestellung aufzuklappen.
 function esNummernKurz(b) {
-  const teile = b.positionen.filter((p) => p.nummer).map((p) => (p.anzahl > 1 ? p.anzahl + "× " : "") + "Nr. " + p.nummer);
+  const teile = b.positionen.filter((p) => p.nummer).sort(esNachNummer).map((p) => (p.anzahl > 1 ? p.anzahl + "× " : "") + "Nr. " + p.nummer);
   return teile.length ? `<span class="es-admin-nrn" title="Nummern auf der Speisekarte">${escapeHtml(teile.join(" · "))}</span>` : "";
 }
 
@@ -705,7 +719,7 @@ function esHakenAufraeumen(runden) {
 }
 
 function esPruefListeHtml(r) {
-  const liste = essenService.sammelliste(r.bestellungen);
+  const liste = essenService.sammelliste(r.bestellungen).sort(esNachNummer);
   if (!liste.length) return "";
   const haken = new Set(esHakenLesen()[r.id] || []);
   const erledigt = liste.filter((p) => haken.has(esHakenSchluessel(p))).length;
@@ -791,7 +805,7 @@ function esRundeHtml(r) {
                 title="Das Essen ist da und alle haben es geholt">Alle abgeholt</button>`}
         </div>
         ${esPruefListeHtml(r)}
-        ${r.bestellungen.map(esBestellungHtml).join("")}
+        ${r.bestellungen.slice().sort(esBestellungNachNummer).map(esBestellungHtml).join("")}
       </div>
     </details>`;
 }
