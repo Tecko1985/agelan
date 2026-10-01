@@ -1378,6 +1378,7 @@ main#app.ub-breit { max-width: 980px; }
 }
 .es-admin-best > summary::-webkit-details-marker { display: none; }
 .es-admin-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-admin-nrn { flex: 0 1 auto; min-width: 0; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .es-admin-kurz { flex: 0 0 auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .es-admin-inhalt { padding: 0 12px 12px; border-top: 1px solid var(--border); }
 /* Datum und Uhrzeit sind beim Abrechnen das, wonach man sucht – 12 px waren

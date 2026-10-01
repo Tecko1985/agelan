@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.46",
+    groups: [
+      { title: "Essen: Nummern in der Bestellzeile", items: [
+          "Auch zugeklappt steht bei jeder Bestellung jetzt die Kartennummer neben dem Namen, z. B. „Breznsoiza  Nr. 12 · 2× Nr. 7“ – zum schnellen Finden bei der Ausgabe."
+      ]},
+    ],
+  },
+  {
     version: "8.45",
     groups: [
       { title: "Essen: Lieferung prüfen", items: [

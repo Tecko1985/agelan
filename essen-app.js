@@ -603,12 +603,20 @@ function esRenderAdmin(z) {
 // Eine einzelne Bestellung als aufklappbarer Kasten. Wird an zwei Stellen
 // gebraucht – im Stapel und innerhalb einer Runde – und steht deshalb einmal
 // hier statt zweimal im selben Aufbau.
+// Die Kartennummern einer Bestellung für die zugeklappte Zeile: „Nr. 12 · 2× Nr. 7“.
+// So findet man an der Ausgabe die Tüte, ohne jede Bestellung aufzuklappen.
+function esNummernKurz(b) {
+  const teile = b.positionen.filter((p) => p.nummer).map((p) => (p.anzahl > 1 ? p.anzahl + "× " : "") + "Nr. " + p.nummer);
+  return teile.length ? `<span class="es-admin-nrn" title="Nummern auf der Speisekarte">${escapeHtml(teile.join(" · "))}</span>` : "";
+}
+
 function esBestellungHtml(b) {
   return `
       <details class="es-admin-best status-${escapeHtml(b.status)}" data-es-offen="${escapeHtml(b.id)}"${esOffeneBestellungen.has(b.id) ? " open" : ""}>
         <summary>
           <span class="es-status-punkt" aria-hidden="true"></span>
           <span class="es-admin-name">${escapeHtml(b.name)}</span>
+          ${esNummernKurz(b)}
           <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)}${b.orga ? " 🛠" : ""} · ${escapeHtml(b.statusKurz)}</span>
         </summary>
         <div class="es-admin-inhalt">
