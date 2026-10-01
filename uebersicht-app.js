@@ -509,8 +509,22 @@ async function ubWorkerAntwort() {
     }), "vom Worker");
     const b = await antwort.json().catch(() => ({}));
     if (antwort.ok && b && b.ok) {
-      return " [Worker gibt die Rolle her (uid " + (b.uid === user.uid ? "passt" : "PASST NICHT: " + b.uid + " statt " + user.uid) +
-        ") – die Anmeldung damit scheitert im Browser.]";
+      if (b.uid !== user.uid) return " [Worker-uid " + b.uid + " passt nicht zu " + user.uid + "]";
+      // Denselben Schritt wie holeFirebaseRolle gehen, aber den FEHLER zeigen.
+      // ⚠️ Nur mit passender uid (oben geprüft) – sonst verlöre das Gerät seine Kennung.
+      let schritt = "Anmeldung mit dem Token";
+      try {
+        await ubMitGrenze(auth.signInWithCustomToken(b.customToken), "bei der Anmeldung");
+        schritt = "Claims lesen";
+        const r = await auth.currentUser.getIdTokenResult(true);
+        const c = (r && r.claims) || {};
+        if (c.agelanOrga !== true) return " [Angemeldet, aber ohne Claim agelanOrga – Claims: " + Object.keys(c).join(", ") + "]";
+        schritt = "Gegenprobe rolleProbe";
+        await ubMitGrenze(db.ref("rolleProbe").once("value"), "bei der Gegenprobe");
+        return " [Anmeldung und Gegenprobe klappen jetzt – bitte noch einmal speichern.]";
+      } catch (e) {
+        return " [" + schritt + " scheitert: " + ((e && e.code) || "") + " " + ((e && e.message) || e) + "]";
+      }
     }
     return " [Worker antwortet " + antwort.status + ": " + (b.fehler || b.error || (b.nichtKonfiguriert ? "Dienstkonto fehlt" : "ohne Text")) + "]";
   } catch (e) {
