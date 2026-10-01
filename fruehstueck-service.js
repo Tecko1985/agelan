@@ -69,6 +69,12 @@ let frRoh = null;             // roher { meta, pakete, bestellungen }-Snapshot
 // der Browser.
 let frPinOk = false;
 let frPinLaeuft = false;
+// ⚠️ Der gemerkte PIN, dessen Prüfung schon gescheitert ist. Ohne diesen Merker
+// lief bei JEDER Datenbankänderung erneut Hash + Beweis-Schreiben – bei einem
+// fremden PIN unter dem gemeinsamen Schlüssel agelan_admin_pin also dauernd
+// (Bugjagd 01.10.2026). Erst ein anderer gemerkter PIN (oder ein neuer Plan)
+// wird wieder geprüft. Neu laden setzt den Merker ebenfalls zurück.
+let frPinFehlgeschlagen = null;
 let frListener = null;
 
 const frAuthBereit = new Promise((resolve) => {
@@ -222,6 +228,10 @@ async function frPruefeGemerktenPin() {
   if (frPinOk || frPinLaeuft) return;
   const pin = frGespeicherterPin();
   if (!pin || !frRoh || !frRoh.meta) return;
+  // Schlüssel aus PIN UND Plan: ein neu angelegter Plan (anderes erstelltAm)
+  // darf den gemerkten PIN wieder prüfen.
+  const pruefSchluessel = pin + "|" + (frRoh.meta.erstelltAm || "");
+  if (pruefSchluessel === frPinFehlgeschlagen) return;   // siehe frPinFehlgeschlagen
   frPinLaeuft = true;
   try {
     if (await frBeweisePin(pin)) {
@@ -233,6 +243,7 @@ async function frPruefeGemerktenPin() {
     // der Klartext der einzige Weg.
     else if (frRoh.meta.adminPin && frRoh.meta.adminPin === pin) frPinOk = true;
     if (frPinOk) frMelde();
+    else frPinFehlgeschlagen = pruefSchluessel;
   } finally {
     frPinLaeuft = false;
   }
@@ -496,6 +507,24 @@ function frNeueId(praefix) {
   return praefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
 }
 
+// ⚠️ Jeder Schreibvorgang läuft hierüber. Bis zur Bugjagd 01.10.2026 standen
+// die await db.ref(…) ohne try/catch: lehnte Firebase ab (Regel, PIN-Beweis
+// abgelaufen, offline), flog die Ausnahme ins Leere und die Oberfläche blieb
+// stumm – der Klick sah aus, als hätte er geklappt. Jetzt kommt ein
+// { erfolg:false, fehler } zurück, das die Aufrufer anzeigen.
+const FR_ABGELEHNT_ADMIN = "Speichern abgelehnt – die Datenbank hat die Änderung nicht angenommen. Bitte Verbindung prüfen und noch einmal versuchen; hilft das nicht, Seite neu laden und den Veranstalter-PIN neu eingeben.";
+const FR_ABGELEHNT_BESTELLUNG = "Speichern abgelehnt – deine Bestellung ist nicht angekommen. Bitte Verbindung prüfen und noch einmal versuchen; hilft das nicht, Seite neu laden.";
+
+async function frSchreibe(vorgang, fehlertext) {
+  try {
+    await vorgang();
+    return null;
+  } catch (e) {
+    console.error("Frühstück: Schreiben abgelehnt:", e);
+    return { erfolg: false, fehler: fehlertext || FR_ABGELEHNT_ADMIN };
+  }
+}
+
 async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, adminPin }) {
   await frAuthBereit;
   if (frRoh && frRoh.meta) return { erfolg: false, fehler: "Es gibt schon eine Frühstücksbestellung." };
@@ -602,12 +631,13 @@ async function frLegePaketAn({ name, beschreibung, preis }) {
   if (!geprueft.erfolg) return geprueft;
 
   const id = frNeueId("pak");
-  await db.ref(FR_BASIS + "/pakete/" + id).update(
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/pakete/" + id).update(
     Object.assign({}, geprueft.werte, {
       sort: z.pakete.length,
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     })
-  );
+  ));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true, id };
 }
 
@@ -621,7 +651,8 @@ async function frAenderePaket(id, { name, beschreibung, preis }) {
   const geprueft = frPruefePaket({ name, beschreibung, preis });
   if (!geprueft.erfolg) return geprueft;
 
-  await db.ref(FR_BASIS + "/pakete/" + id).update(geprueft.werte);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/pakete/" + id).update(geprueft.werte));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -652,7 +683,8 @@ async function frLoeschePaket(id) {
       updates["bestellungen/" + tag.datum + "/" + b.uid + "/preise/" + id] = null;
     });
   });
-  await db.ref(FR_BASIS).update(updates);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS).update(updates));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -671,7 +703,8 @@ async function frVerschiebePaket(id, richtung) {
   // hinterlässt Lücken und Doppelungen, sobald zwischendurch etwas gelöscht wurde.
   const updates = {};
   neu.forEach((p, idx) => { updates["pakete/" + p.id + "/sort"] = idx; });
-  await db.ref(FR_BASIS).update(updates);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS).update(updates));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -736,7 +769,8 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   if (!stueck) {
     // Nichts ausgewählt heißt: abbestellen. Ein leerer Knoten wäre in der
     // Einkaufsliste ein Name ohne Ware.
-    await db.ref(pfad).remove();
+    const abgelehnt = await frSchreibe(() => db.ref(pfad).remove(), FR_ABGELEHNT_BESTELLUNG);
+    if (abgelehnt) return abgelehnt;
     return { erfolg: true, abbestellt: true };
   }
 
@@ -744,7 +778,7 @@ async function frBestelle(datum, { name, positionen, notiz }) {
   // – aber abgeholt/bezahlt sind Haken des VERANSTALTERS und dürfen nicht bei
   // jeder Änderung des Bestellers zurückfallen. Deshalb den bisherigen Stand
   // mitschreiben statt ihn auf false zu setzen.
-  await db.ref(pfad).set({
+  const abgelehnt = await frSchreibe(() => db.ref(pfad).set({
     name: n,
     positionen: sauber,
     preise: feste,
@@ -752,7 +786,8 @@ async function frBestelle(datum, { name, positionen, notiz }) {
     abgeholt: !!(bisher && bisher.abgeholt),
     bezahlt: !!(bisher && bisher.bezahlt),
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
-  });
+  }), FR_ABGELEHNT_BESTELLUNG);
+  if (abgelehnt) return abgelehnt;
   try {
     localStorage.setItem(FR_NAME_KEY, n);
   } catch (e) { /* privater Modus */ }
@@ -770,7 +805,8 @@ async function frStorniere(datum) {
   if (tag.meineBestellung && tag.meineBestellung.bezahlt) {
     return { erfolg: false, fehler: FR_SCHON_BEZAHLT };
   }
-  await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid).remove();
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid).remove(), FR_ABGELEHNT_BESTELLUNG);
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -778,7 +814,8 @@ async function frStorniere(datum) {
 async function frSetzeAbgeholt(datum, uid, wert) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/abgeholt").set(!!wert);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/abgeholt").set(!!wert));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -786,7 +823,8 @@ async function frSetzeAbgeholt(datum, uid, wert) {
 async function frSetzeBezahlt(datum, uid, wert) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/bezahlt").set(!!wert);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/bestellungen/" + datum + "/" + uid + "/bezahlt").set(!!wert));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -796,7 +834,8 @@ async function frSetzeBezahlt(datum, uid, wert) {
 async function frSetzeAnnahme(offen) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(FR_BASIS + "/meta/annahmeOffen").set(!!offen);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/meta/annahmeOffen").set(!!offen));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -834,14 +873,16 @@ async function frSetzeEinstellungen({ titel, anzahlTage, schlussUhr }) {
 
   const neu = { anzahlTage: tage, schlussUhr: uhr };
   if (t) neu.titel = t;
-  await db.ref(FR_BASIS + "/meta").update(neu);
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/meta").update(neu));
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
 async function frLeereBestellungen() {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(FR_BASIS + "/bestellungen").remove();
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/bestellungen").remove());
+  if (abgelehnt) return abgelehnt;
   return { erfolg: true };
 }
 
@@ -872,7 +913,10 @@ async function frEntferneHash() {
 async function frLoeschePlan() {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(FR_BASIS).remove();
+  // Scheitert schon das Löschen des Plans, bleibt alles stehen – dann auch den
+  // PIN-Hash NICHT austragen, sonst wäre der Plan ohne Veranstalter-Zugang.
+  const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS).remove());
+  if (abgelehnt) return abgelehnt;
   // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
   // die nächste Bestellung nur mit dem PIN der vorigen aufmachen – und der ist
   // unter Umständen längst weitergereicht. Geheimnis zuerst, Beweisablage

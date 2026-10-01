@@ -98,6 +98,16 @@ function bestimmeScreen(z) {
 // --- Haupt-Render ----------------------------------------------------------
 function render(z) {
   zustand = z;
+  // ⚠️ Turnierwechsel (Liste, Löschen, anderes Gerät): Format-Entwurf und
+  // Elo-Merker gehören zum ALTEN Turnier. Sonst schrieb „Format festlegen" den
+  // Entwurf von Turnier A still in Turnier B (Bugjagd 01.10.2026). Hier statt am
+  // Klick, weil das die eine Stelle ist, die jeden Wechsel sieht.
+  if (z.turnierId !== letzteRenderTurnierId) {
+    letzteRenderTurnierId = z.turnierId;
+    formatEntwurfZuruecksetzen();
+    ratingBeruehrt.lobby = false;
+    ratingBeruehrt.teams = false;
+  }
   const screen = bestimmeScreen(z);
   showScreen(screen);
   if (z.phase !== "teams") losFelderInit = false;
@@ -183,6 +193,8 @@ let formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
 // gespeicherten Wert zurück, und „Speichern" – das das Feld erst beim Klick
 // liest – schrieb genau den alten Wert wieder in die Datenbank.
 const ratingBeruehrt = { lobby: false, teams: false };
+// Für den Reset beider Merker bei Turnierwechsel (siehe render).
+let letzteRenderTurnierId;
 
 function formatEntwurfAus(z) {
   if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
@@ -538,6 +550,9 @@ function renderSpieltagDaten(z) {
   const nummern = [...new Set(z.spiele.filter((s) => s.phase === "gruppe").map((s) => Number(s.runde) || 0))]
     .sort((a, b) => a - b);
   const daten = z.spieltagDaten || {};
+  // ⚠️ Gleiche Sperre wie in renderZeitplanListe: jedes Live-Update baute die
+  // Datumsfelder neu und warf eine halbfertige Eingabe weg (Bugjagd 01.10.2026).
+  if (box.contains(document.activeElement)) return;
   box.innerHTML = nummern
     .map((n) => `<div class="spieltag-datum-zeile">
       <span class="sd-name">Spieltag ${n + 1}</span>
@@ -1628,6 +1643,27 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.52",
+    groups: [
+      { title: "Fehlersuche über das ganze Tool", items: [
+          "Essen: Ein Doppelklick auf „Bestellung abschicken“ legte bei langsamem WLAN zwei Bestellungen an. Der Knopf ist jetzt während des Sendens gesperrt.",
+          "Essen: Ein Doppelklick auf einen Status-Knopf (z. B. „Hat bezahlt“) sprang zwei Schritte weiter – etwa gleich auf „abgeholt“. Status-Knöpfe sind nach einem Klick kurz gesperrt.",
+          "Essen: Eine Orga-Bestellung, die auf „zahlt“ umgestellt wird, springt jetzt auf „offen“ zurück und taucht wieder unter „noch zu kassieren“ auf. Vorher blieb sie als bezahlt stehen und wurde nie kassiert.",
+          "Essen: In der Kassenliste steht bei Orga-Essen „kostenlos 🛠“ statt des vollen Preises.",
+          "Essen und Frühstück: Lehnt die Datenbank eine Änderung ab (z. B. abgelaufene Veranstalter-Rechte), kommt jetzt eine Meldung statt eines Knopfs, der still nichts tut.",
+          "Frühstück: Der Text-Export zählt nach Paket wie die Einkaufsliste – ein umbenanntes Paket stand vorher doppelt drin.",
+          "Frühstück: Ein leeres Bestellschluss-Feld wurde still zu 20:00 Uhr. Jetzt kommt eine Meldung.",
+          "Frühstück: Beim Öffnen wird der nächste noch bestellbare Morgen gezeigt, nicht ein schon vergangener.",
+          "Neue Version: Das automatische Neuladen wartet jetzt auch, solange eine Frühstücksauswahl nicht gespeichert ist oder ein Dialog offen ist.",
+          "Stream: Sicherheitslücke geschlossen – präparierte Einträge konnten Code auf fremden Geräten ausführen.",
+          "Stream: Ein Ziehen im Kalender, das von einem Live-Update unterbrochen wurde, konnte später den eigenen Eintrag auf eine falsche Zeit verschieben.",
+          "Turnier: Beim Wechsel zwischen Turnieren blieb der Format-Entwurf des vorigen stehen und konnte versehentlich gespeichert werden.",
+          "Turnier: Datumsfelder der Spieltage verlieren beim Tippen nicht mehr die Eingabe durch Live-Updates.",
+          "Weniger unnötige Datenbank-Last durch wiederholte PIN-Prüfungen bei Frühstück und Turnier."
+      ]},
+    ],
+  },
   {
     version: "8.51",
     groups: [

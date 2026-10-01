@@ -422,20 +422,36 @@ async function heileAltenPin(id, pins) {
 // Laeuft einmal je Turnier, sobald dessen Baum da ist: gemerkte PINs gegen den
 // Server halten. Erst danach zeigt die Oberflaeche die Veranstalter-Knoepfe –
 // deshalb am Ende benachrichtige().
+// ⚠️ Fehlschlag merken (Bugjagd 01.10.2026): pruefeGemerktePins laeuft bei JEDER
+// Aenderung jedes Turniers. Ein geteilter gemerkter PIN, der nur zu einem Turnier
+// passt, wurde sonst bei allen anderen immer wieder probiert – abgelehnte
+// Schreibvorgaenge plus 1,1-s-Wartezeiten am Stueck. Neu versucht wird erst,
+// wenn sich etwas am Ausgangszustand aendert (anderer PIN, uid, Alt-PIN in meta).
+let pinFehl = {};
+function pinVersuchsSchluessel(id, pins) {
+  const baum = uebersicht[id] || (id === turnierId ? letzterZustand : null);
+  const alt = (baum && baum.meta && baum.meta.adminPin) || "";
+  return [eigeneUid || "", alt].concat(pins).join("\u0000");
+}
+
 async function pruefeGemerktePins(id) {
   if (!id || pinOk[id] || pinLaeuft[id]) return;
   const pins = gespeichertePins(id);
   if (!pins.length) return;
+  const schluessel = pinVersuchsSchluessel(id, pins);
+  if (pinFehl[id] === schluessel) return;
   pinLaeuft[id] = true;
   try {
     for (let i = 0; i < pins.length; i++) {
       if (await beweisePin(id, pins[i])) {
         pinOk[id] = true;
+        delete pinFehl[id];
         benachrichtige();
         return;
       }
     }
-    await heileAltenPin(id, pins);
+    if (await heileAltenPin(id, pins)) delete pinFehl[id];
+    else pinFehl[id] = schluessel;
   } finally {
     pinLaeuft[id] = false;
   }
@@ -2930,6 +2946,7 @@ async function loescheTurnierMitId(id) {
   try { await db.ref(GEHEIM_PFAD + "/" + id + "/adminPinHash").remove(); } catch (e) {}
   try { await db.ref(PROBE_PFAD + "/" + id + "/" + eigeneUid).remove(); } catch (e) {}
   delete pinOk[id];
+  delete pinFehl[id];
   await db.ref(INDEX_PFAD + "/" + id).remove();
   try { localStorage.removeItem(adminPinKey(id)); } catch (e) {}
   if (turnierId === id) waehleTurnier(null);

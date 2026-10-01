@@ -1366,12 +1366,13 @@ async function esLegeGerichtAn(werte) {
   if (!geprueft.erfolg) return geprueft;
 
   const id = esNeueId("ger");
-  await db.ref(ES_BASIS + "/karte/" + id).update(
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/karte/" + id).update(
     Object.assign({}, geprueft.werte, {
       sort: z.karte.length,
       erstelltAm: firebase.database.ServerValue.TIMESTAMP,
     })
-  );
+  ));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true, id };
 }
 
@@ -1387,7 +1388,8 @@ async function esAendereGericht(id, werte) {
   // ⚠️ Bestehende Bestellungen bleiben unberührt: sie tragen Name und Preis
   // selbst. Wer für 8,50 € bestellt hat, schuldet 8,50 €, auch wenn die Karte
   // danach 9,50 € sagt.
-  await db.ref(ES_BASIS + "/karte/" + id).update(geprueft.werte);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/karte/" + id).update(geprueft.werte));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1399,7 +1401,8 @@ async function esLoescheGericht(id) {
   }
   // Anders als beim Frühstück werden hier KEINE Positionen mitgelöscht: eine
   // abgeschickte Bestellung ist ein Beleg und trägt Name und Preis selbst.
-  await db.ref(ES_BASIS + "/karte/" + id).remove();
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/karte/" + id).remove());
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1418,7 +1421,8 @@ async function esVerschiebeGericht(id, richtung) {
   // hinterlässt Lücken, sobald zwischendurch etwas gelöscht wurde.
   const updates = {};
   neu.forEach((g, idx) => { updates["karte/" + g.id + "/sort"] = idx; });
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1465,7 +1469,8 @@ async function esImportiereKarte(gerichte, ersetzen) {
     };
   });
 
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true, anzahl: gerichte.length };
 }
 
@@ -1660,6 +1665,21 @@ function esSchreibFehler(bestellung, z, fehler) {
   return "Das ließ sich gerade nicht speichern. Bitte versuch es noch einmal.";
 }
 
+// Schreibvorgang des Veranstalters: Ablehnung als Text zurück statt Wurf.
+// ⚠️ Bugjagd 01.10.2026: Status, Orga, Runde, Karte, Einstellungen usw. warfen
+// bei einer Ablehnung (PIN-Beweis weg, Rolle abgelaufen) – die Oberfläche zeigte
+// nichts, der Klick sah aus wie „hat nicht reagiert“. Liefert null bei Erfolg.
+// ⚠️ istAdmin fest true: der Aufrufer hat esIstAdmin() schon geprüft, sonst
+// käme die Besteller-Meldung („wohl gerade bezahlt …“) – hier falsch.
+async function esAdminSchreibe(schreiben) {
+  try {
+    await schreiben();
+    return null;
+  } catch (e) {
+    return esSchreibFehler(null, { istAdmin: true }, e);
+  }
+}
+
 // Verlässt eine Bestellung ihre Runde und war sie die letzte darin, muss die
 // Runde mit weg. ⚠️ Eine leere Runde stünde sonst für immer in der Liste und
 // behauptete eine Mail, in der nichts mehr steht. Ihre Nummer ist trotzdem
@@ -1679,10 +1699,11 @@ async function esSetzeStatus(bestellungId, status) {
   const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
   if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
 
-  await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
     status,
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
-  });
+  }));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1706,7 +1727,8 @@ async function esNimmAusRunde(bestellungId) {
   updates["bestellungen/" + bestellungId + "/status"] = b.status === "neu" ? "neu" : "bezahlt";
   updates["bestellungen/" + bestellungId + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
   esRundeAufraeumen(updates, b.rundeId, bestellungId);
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1721,10 +1743,25 @@ async function esSetzeOrga(bestellungId, wert) {
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const b = esGetZustand().bestellungen.find((x) => x.id === bestellungId);
   if (!b) return { erfolg: false, fehler: "Diese Bestellung gibt es nicht mehr." };
-  await db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update({
+  const neu = {
     orga: !!wert,
     aktualisiertAm: firebase.database.ServerValue.TIMESTAMP,
-  });
+  };
+  // ⚠️ Bugjagd 01.10.2026: Orga → „zahlt“ ließ den Status stehen. Ein Orga-Essen
+  // wird ohne Kassieren auf „bezahlt“/„bestellt“ freigegeben – danach stand es
+  // als bezahlt da und das Geld wurde nie eingesammelt. Darum zurück auf „neu“
+  // (= offen, noch zu kassieren); rundeId bleibt, „neu“ in einer Runde ist
+  // gültig („bestellt, aber noch nicht bezahlt“).
+  // ⚠️ Schon „abgeholt“: nicht still zurückdrehen – das Essen ist weg, „neu“
+  // würde die Ausgabe verschweigen. Erst bewusst „doch nicht abgeholt“.
+  if (!wert && b.orga && b.status !== "neu") {
+    if (b.status === "abgeholt") {
+      return { erfolg: false, fehler: "Schon abgeholt – erst „doch nicht abgeholt“, dann umstellen." };
+    }
+    neu.status = "neu";
+  }
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/bestellungen/" + bestellungId).update(neu));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1834,7 +1871,8 @@ async function esSetzeRundeStatus(rundeId, status) {
     updates["bestellungen/" + b.id + "/status"] = status;
     updates["bestellungen/" + b.id + "/aktualisiertAm"] = firebase.database.ServerValue.TIMESTAMP;
   });
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return {
     erfolg: true,
     anzahl: treffer.length,
@@ -1872,7 +1910,8 @@ async function esLoescheBestellung(bestellungId) {
   const updates = {};
   updates["bestellungen/" + bestellungId] = null;
   if (b) esRundeAufraeumen(updates, b.rundeId, bestellungId);
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1898,7 +1937,7 @@ async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, best
   if ((von === null) !== (bis === null)) {
     return { erfolg: false, fehler: "Beim Zeitfenster brauche ich Anfang UND Ende – oder beides leer." };
   }
-  await db.ref(ES_BASIS + "/meta").update({
+  const metaFehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/meta").update({
     // -1 statt null: Firebase loescht ein null-Feld, und dann liesse sich ein
     // gesetztes Fenster nie wieder wegnehmen, ohne den Knoten anzufassen.
     annahmeVon: von === null ? -1 : von,
@@ -1908,7 +1947,8 @@ async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, best
     bestellerName: esText(bestellerName, 60),
     hinweis: esText(hinweis, 400),
     annahmeOffen: !!annahmeOffen,
-  });
+  }));
+  if (metaFehler) return { erfolg: false, fehler: metaFehler };
   // E5: Telefon/Lieferanten-Mail in den Orga-Knoten (Rueckfall meta bei alten Regeln).
   // ⚠️ Bugjagd 28.09. F1: Ist essenOrga gerade NICHT gelesen (esOrga === null), zeigte das
   // Formular den Rueckfall aus meta - bei neuen Regeln also leere Felder. Dann erst frisch
@@ -1946,7 +1986,8 @@ async function esSetzeEinstellungen({ titel, lieferantName, lieferantEmail, best
 async function esSetzeAnnahme(offen) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
-  await db.ref(ES_BASIS + "/meta/annahmeOffen").set(!!offen);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/meta/annahmeOffen").set(!!offen));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1960,7 +2001,8 @@ async function esLeereBestellungen() {
   const updates = {};
   updates["bestellungen"] = null;
   updates["runden"] = null;
-  await db.ref(ES_BASIS).update(updates);
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).update(updates));
+  if (fehler) return { erfolg: false, fehler };
   return { erfolg: true };
 }
 
@@ -1997,7 +2039,8 @@ async function esLoeschePlan() {
   try { await db.ref(ES_ORGA_PFAD).remove(); } catch (e) { /* alte Regeln */ }
   esOrga = null;
   esOrgaVersuch = null;
-  await db.ref(ES_BASIS).remove();
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS).remove());
+  if (fehler) return { erfolg: false, fehler };
   // ⚠️ Die Nebenknoten MIT wegräumen. Bliebe der alte Hash stehen, ließe sich
   // die nächste Bestellung nur mit dem PIN der vorigen aufmachen – und der ist
   // unter Umständen längst weitergereicht. Geheimnis zuerst, Beweisablage

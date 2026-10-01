@@ -484,7 +484,13 @@ function esLeereKorb() {
   esRenderKorb();
 }
 
+// ⚠️ Bugjagd 01.10.2026: ein Doppelklick auf „Abschicken“ legte zwei
+// Bestellungen an – während das erste set() läuft, ist bestellungId noch null,
+// und der zweite Klick erzeugt eine neue id. Darum Sperre + Knopf aus.
+let esSendetGerade = false;
+
 async function esSendeBestellung() {
+  if (esSendetGerade) return;
   const z = esZustand;
   // Ein Gericht kann verschwunden sein, während der Korb offen stand. Das muss
   // dranstehen – sonst käme nur ein „wähle etwas aus" ohne erkennbaren Grund.
@@ -499,16 +505,29 @@ async function esSendeBestellung() {
   const name = (esEntwurf.bestellungId && esEntwurf.name) ||
     esFesterName() || (nameFeld ? nameFeld.value : "") || essenService.getGespeicherterName();
 
-  const res = await essenService.bestelle({
-    name,
-    notiz: esEntwurf.notiz,
-    bestellungId: esEntwurf.bestellungId,
-    positionen: esEntwurf.positionen.map((p) => ({
-      gerichtId: p.gerichtId,
-      anzahl: p.anzahl,
-      sonderwunsch: essenService.extrasText(p.extras, p.sonderwunsch),
-    })),
-  });
+  esSendetGerade = true;
+  const knopf = esEl("es-btn-abschicken");
+  if (knopf) knopf.disabled = true;
+  let res;
+  try {
+    res = await essenService.bestelle({
+      name,
+      notiz: esEntwurf.notiz,
+      bestellungId: esEntwurf.bestellungId,
+      positionen: esEntwurf.positionen.map((p) => ({
+        gerichtId: p.gerichtId,
+        anzahl: p.anzahl,
+        sonderwunsch: essenService.extrasText(p.extras, p.sonderwunsch),
+      })),
+    });
+  } catch (e) {
+    res = { erfolg: false, fehler: "Das ließ sich gerade nicht speichern. Bitte versuch es noch einmal." };
+  } finally {
+    esSendetGerade = false;
+    // ⚠️ Frisch holen: der Korb kann inzwischen neu gezeichnet worden sein.
+    const k = esEl("es-btn-abschicken");
+    if (k) k.disabled = false;
+  }
   if (!res.erfolg) { esZeigeFehler("es-korb-fehler", res.fehler); return; }
   esLeereKorb();
 }
@@ -637,6 +656,24 @@ function esBestellungNachNummer(a, b) {
   return esNachNummer(kleinste(a), kleinste(b)) || ES_NR_SORT.compare(a.name, b.name);
 }
 
+// Kurze Sperre für Status-Knöpfe. Liefert true, wenn der Klick verworfen wird.
+// ⚠️ Bugjagd 01.10.2026: die Liste zeichnet sich nach jedem Status-Schreiben live
+// neu, und unter dem Mauszeiger liegt dann der NÄCHSTE Knopf („Hat bezahlt“ →
+// „abgeholt“). Ein Doppelklick schaltete so zwei Schritte weiter. Global statt
+// je Knopf, weil der zweite Klick ein frisch gezeichnetes Element trifft.
+let esStatusSperreBis = 0;
+function esKlickSperre() {
+  const jetzt = Date.now();
+  if (jetzt < esStatusSperreBis) return true;
+  esStatusSperreBis = jetzt + 700;
+  return false;
+}
+// Nach dem Schreiben noch einmal 700 ms: bei langsamem Netz kommt das Neuzeichnen
+// erst mit der Antwort, und erst dann liegt der nächste Knopf unter der Maus.
+function esKlickSperreHalten() {
+  esStatusSperreBis = Math.max(esStatusSperreBis, Date.now() + 700);
+}
+
 // Häkchen „abgeholt“ direkt in der zugeklappten Zeile einer Lieferung
 // (Michel am 01.10.2026: „macht es einfacher und schneller“) – ohne Aufklappen.
 // ⚠️ Nur für bezahlte bzw. freigegebene Bestellungen („bestellt“/„abgeholt“):
@@ -666,7 +703,11 @@ function esBestellungHtml(b) {
           <span class="es-status-punkt" aria-hidden="true"></span>
           <span class="es-admin-name">${escapeHtml(b.name)}</span>
           ${esNummernKurz(b)}
-          <span class="es-admin-kurz">${b.stueck}× · ${essenService.centLabel(b.summeCent)}${b.orga ? " 🛠" : ""} · ${escapeHtml(b.statusKurz)}</span>
+          <span class="es-admin-kurz">${b.stueck}× · ${b.orga
+            // ⚠️ Bugjagd 01.10.2026: beim Orga-Essen stand der volle Preis da – an der
+            // Kasse las sich das wie „schuldet X €“. Der Warenwert bleibt im title.
+            ? `<span title="Warenwert ${escapeHtml(essenService.centLabel(b.summeCent))} – geht auf die Organisation">kostenlos 🛠</span>`
+            : essenService.centLabel(b.summeCent)} · ${escapeHtml(b.statusKurz)}</span>
         </summary>
         <div class="es-admin-inhalt">
           <div class="es-best-positionen">${b.positionen.map((p) =>
@@ -1138,19 +1179,23 @@ function esRenderAdminBestellungen(z) {
 
   box.querySelectorAll("[data-es-runde-zurueck]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (esKlickSperre()) return;
       const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeZurueck);
       if (!r) return;
       if (!confirm("Alle " + r.anzahl + " Bestellungen aus „" + r.titel + "“ wieder auf „beim Lieferanten bestellt“ setzen?")) return;
       const res = await essenService.setzeRundeStatus(r.id, "bestellt");
+      esKlickSperreHalten();
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
   box.querySelectorAll("[data-es-runde-da]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (esKlickSperre()) return;
       const r = esZustand.runden.find((x) => x.id === btn.dataset.esRundeDa);
       if (!r) return;
       if (!confirm("Alle " + r.anzahl + " Bestellungen aus „" + r.titel + "“ als abgeholt eintragen?")) return;
       const res = await essenService.setzeRundeStatus(r.id, "abgeholt");
+      esKlickSperreHalten();
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
       // ⚠️ Wer noch nicht bezahlt hat, wird nicht mit abgehakt. Das muss
       // dranstehen, sonst sieht es aus, als hätte der Knopf nur halb gewirkt.
@@ -1180,27 +1225,40 @@ function esRenderAdminBestellungen(z) {
     haken.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       ev.preventDefault();
+      if (esKlickSperre()) return;
       const b = esZustand.bestellungen.find((x) => x.id === haken.dataset.esAbgeholt);
       if (!b) return;
       haken.disabled = true;
-      const res = await essenService.setzeStatus(b.id, b.status === "abgeholt" ? "bestellt" : "abgeholt");
-      haken.disabled = false;
+      let res;
+      try {
+        res = await essenService.setzeStatus(b.id, b.status === "abgeholt" ? "bestellt" : "abgeholt");
+      } catch (e) {
+        res = { erfolg: false, fehler: "Speichern abgelehnt – Veranstalter-Rechte prüfen (neu anmelden oder PIN eingeben)." };
+      } finally {
+        // ⚠️ Immer wieder frei – sonst blieb der Haken nach einer Ablehnung tot.
+        haken.disabled = false;
+        esKlickSperreHalten();
+      }
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
   box.querySelectorAll("[data-es-weiter]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (esKlickSperre()) return;
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esWeiter);
       if (!b || !b.naechsterStatus) return;
       const res = await essenService.setzeStatus(b.id, b.naechsterStatus);
+      esKlickSperreHalten();
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
   box.querySelectorAll("[data-es-zurueck]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (esKlickSperre()) return;
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esZurueck);
       if (!b || !b.zurueckStatus) return;
       const res = await essenService.setzeStatus(b.id, b.zurueckStatus);
+      esKlickSperreHalten();
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
   });
@@ -1226,8 +1284,14 @@ function esRenderAdminBestellungen(z) {
     btn.addEventListener("click", async () => {
       const b = esZustand.bestellungen.find((x) => x.id === btn.dataset.esOrga);
       if (!b) return;
-      if (b.orga && !confirm(b.name + " wird dann wieder zahlungspflichtig: " +
-          essenService.centLabel(b.summeCent) + ". Weiter?")) return;
+      if (esKlickSperre()) return;
+      // ⚠️ Bugjagd 01.10.2026: der Service setzt die Bestellung dabei zurück auf
+      // „offen“ (noch zu kassieren) – das muss im Hinweis stehen. Bei „abgeholt“
+      // lehnt er ab; dort erst gar nicht fragen, die Meldung kommt aus dem Service.
+      if (b.orga && b.status !== "abgeholt" && !confirm(b.name + " wird dann wieder zahlungspflichtig: " +
+          essenService.centLabel(b.summeCent) +
+          (b.status !== "neu" ? ". Die Bestellung steht danach wieder auf „offen“ (noch zu kassieren)" : "") +
+          ". Weiter?")) return;
       const res = await essenService.setzeOrga(b.id, !b.orga);
       if (!res.erfolg) esZeigeFehler("es-admin-fehler", res.fehler);
     });
@@ -1660,8 +1724,13 @@ function esRenderKarteVerwalten(z) {
         </div>`).join("")
     : `<p class="fr-leer-hinweis">Noch keine Gerichte.</p>`;
 
-  box.querySelectorAll("[data-es-hoch]").forEach((b) => b.addEventListener("click", () => essenService.verschiebeGericht(b.dataset.esHoch, -1)));
-  box.querySelectorAll("[data-es-runter]").forEach((b) => b.addEventListener("click", () => essenService.verschiebeGericht(b.dataset.esRunter, 1)));
+  // ⚠️ Bugjagd 01.10.2026: Ergebnis auswerten – eine Ablehnung verpuffte hier still.
+  const esVerschiebe = async (id, richtung) => {
+    const res = await essenService.verschiebeGericht(id, richtung);
+    if (!res.erfolg) esZeigeFehler("es-gericht-fehler", res.fehler);
+  };
+  box.querySelectorAll("[data-es-hoch]").forEach((b) => b.addEventListener("click", () => esVerschiebe(b.dataset.esHoch, -1)));
+  box.querySelectorAll("[data-es-runter]").forEach((b) => b.addEventListener("click", () => esVerschiebe(b.dataset.esRunter, 1)));
   box.querySelectorAll("[data-es-loeschen]").forEach((b) => b.addEventListener("click", async () => {
     if (!confirm("Dieses Gericht von der Karte nehmen? Schon abgeschickte Bestellungen bleiben, wie sie sind.")) return;
     const res = await essenService.loescheGericht(b.dataset.esLoeschen);

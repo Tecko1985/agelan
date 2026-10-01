@@ -183,7 +183,7 @@ function skRenderChips(z) {
   skEl("sk-tagchips").innerHTML = z.tage
     .map((t) => {
       const anzahl = z.slots.filter((s) => s.datum === t.datum).length;
-      return '<button class="sk-chip' + (t.datum === skAktiverTag ? " aktiv" : "") + '" data-tag="' + t.datum + '">' +
+      return '<button class="sk-chip' + (t.datum === skAktiverTag ? " aktiv" : "") + '" data-tag="' + escapeHtml(t.datum) + '">' +
         escapeHtml(t.label) + (anzahl ? ' <span class="sk-chip-zahl">' + anzahl + "</span>" : "") +
         "</button>";
     })
@@ -196,6 +196,10 @@ function skRenderChips(z) {
 // liegt, wird grau hinterlegt statt weggelassen – sonst stünden die Spalten
 // gegeneinander versetzt und man könnte die Zeiten nicht mehr vergleichen.
 function skRenderKalender(z) {
+  // ⚠️ Neuzeichnen ersetzt alle Bloecke: ein laufender Zug haengt dann an einem
+  // Element, das es nicht mehr gibt, und sein Zustand (eintrag, startOben) ist
+  // veraltet. Deshalb abbrechen statt weiterzuziehen (Bugjagd 01.10.2026).
+  skZiehen = null;
   const achseVon = Math.floor(z.achseVon / 60) * 60;
   const achseBis = Math.ceil(z.achseBis / 60) * 60;
   const hoehe = ((achseBis - achseVon) / 60) * SK_STUNDE_PX;
@@ -224,11 +228,11 @@ function skRenderKalender(z) {
     skVerteileSpuren(slots);
 
     const flaeche = (klasse, spur, inhalt) =>
-      '<div class="sk-tagflaeche ' + klasse + '" data-tag="' + tag.datum + '" data-spur="' + spur + '"' +
+      '<div class="sk-tagflaeche ' + klasse + '" data-tag="' + escapeHtml(tag.datum) + '" data-spur="' + spur + '"' +
       ' style="height:' + hoehe + "px;background-size:100% " + SK_STUNDE_PX + 'px">' +
       gesperrt.join("") + inhalt + "</div>";
 
-    return '<div class="sk-tag' + (tag.datum === skAktiverTag ? " aktiv" : "") + '" data-tag="' + tag.datum + '">' +
+    return '<div class="sk-tag' + (tag.datum === skAktiverTag ? " aktiv" : "") + '" data-tag="' + escapeHtml(tag.datum) + '">' +
       '<div class="sk-tagkopf">' + escapeHtml(tag.label) +
       '<span class="sk-tagzeit">' + streamService.zeitLabel(tag.von) + "–" + streamService.zeitLabel(tag.bis) + "</span></div>" +
       '<div class="sk-spurkopf"><span class="sk-spurname programm">Programm</span><span class="sk-spurname streams">Streams</span></div>' +
@@ -287,7 +291,10 @@ function skStreamBlock(s, achseVon) {
   if (s.istEigener) klassen.push("eigen");
   if (s.kettenZweiter) klassen.push("kette");
   const titel = s.titel ? '<span class="sk-slot-titel">' + escapeHtml(s.titel) + "</span>" : "";
-  return '<button type="button" class="' + klassen.join(" ") + '" data-slot="' + s.id + '" style="' + skBlockStil(s, achseVon) + '">' +
+  // ⚠️ Auch Firebase-Schluessel (id, datum) laufen durch escapeHtml: ein Key darf
+  // Anfuehrungszeichen und <> enthalten und braeche sonst aus dem Attribut aus
+  // (Bugjagd 01.10.2026). dataset liefert den Wert wieder unescaped zurueck.
+  return '<button type="button" class="' + klassen.join(" ") + '" data-slot="' + escapeHtml(s.id) + '" style="' + skBlockStil(s, achseVon) + '">' +
     '<span class="sk-slot-zeit">' + streamService.zeitLabel(s.von) + "–" + streamService.zeitLabel(s.bis) + "</span>" +
     '<span class="sk-slot-name">' + escapeHtml(s.streamer) + "</span>" +
     titel +
@@ -314,7 +321,7 @@ function skProgrammBlock(p, achseVon) {
     ? ' <span class="sk-zeit-warnung" title="Hier fehlt noch ein Streamer">⚠</span>'
     : "";
   return '<button type="button" class="sk-slot programm' + (p.kettenZweiter ? " kette" : "") +
-    (p.streamerFehlt ? " streamer-fehlt" : "") + '" data-programm="' + p.id + '" style="' + skBlockStil(p, achseVon) + '">' +
+    (p.streamerFehlt ? " streamer-fehlt" : "") + '" data-programm="' + escapeHtml(p.id) + '" style="' + skBlockStil(p, achseVon) + '">' +
     '<span class="sk-slot-zeit">' + streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) + zeichen + "</span>" +
     '<span class="sk-slot-name">' + escapeHtml(p.titel) + "</span>" +
     marke +
@@ -413,7 +420,7 @@ function skRenderListe(z) {
         : escapeHtml(e.streamer) + (e.istEigener ? ' <span class="spieler-badge">(du)</span>' : "") +
           (e.titel ? ' <span class="sk-zeile-titel">' + escapeHtml(e.titel) + "</span>" : "");
       const knopf = e.darfBearbeiten
-        ? '<button type="button" class="mini-btn" data-' + (istProgramm ? "programm" : "slot") + '="' + e.id + '">Ändern</button>'
+        ? '<button type="button" class="mini-btn" data-' + (istProgramm ? "programm" : "slot") + '="' + escapeHtml(e.id) + '">Ändern</button>'
         : "";
       return '<div class="sk-zeile">' +
         marke +
@@ -436,7 +443,7 @@ function skRenderAdmin(z) {
 
   skEl("sk-fenster-liste").innerHTML = z.tage
     .map((t) =>
-      '<div class="sk-fenster-zeile" data-tag="' + t.datum + '">' +
+      '<div class="sk-fenster-zeile" data-tag="' + escapeHtml(t.datum) + '">' +
       '<span class="sk-fenster-tag">' + escapeHtml(t.label) + "</span>" +
       '<select class="eingabe sk-fenster-von" aria-label="Beginn ' + escapeHtml(t.label) + '"></select>' +
       '<span class="sk-fenster-bis">bis</span>' +
@@ -448,7 +455,7 @@ function skRenderAdmin(z) {
   // Optionen erst nach dem Einhängen füllen – die Listen sind lang und sollen
   // den geltenden Wert vorausgewählt zeigen.
   z.tage.forEach((t) => {
-    const zeile = skEl("sk-fenster-liste").querySelector('[data-tag="' + t.datum + '"]');
+    const zeile = skEl("sk-fenster-liste").querySelector('[data-tag="' + CSS.escape(t.datum) + '"]');
     if (!zeile) return;
     const entwurf = skFensterEntwurf[t.datum];
     skFuelleZeiten(zeile.querySelector(".sk-fenster-von"), 0, 1440 - SK_SCHRITT_UI, entwurf ? entwurf.von : t.von);
@@ -489,7 +496,7 @@ function skOeffneDialog(slotId, vorbelegung) {
 
   // Tagesauswahl
   skEl("sk-dlg-tag").innerHTML = z.tage
-    .map((t) => '<option value="' + t.datum + '">' + escapeHtml(t.label) + "</option>")
+    .map((t) => '<option value="' + escapeHtml(t.datum) + '">' + escapeHtml(t.label) + "</option>")
     .join("");
   skEl("sk-dlg-tag").value = tag.datum;
 
@@ -601,7 +608,7 @@ function skOeffneProgrammDialog(programmId, vorbelegung) {
     : "Programmpunkt anlegen";
 
   skEl("sk-prg-tag").innerHTML = z.tage
-    .map((t) => '<option value="' + t.datum + '">' + escapeHtml(t.label) + "</option>")
+    .map((t) => '<option value="' + escapeHtml(t.datum) + '">' + escapeHtml(t.label) + "</option>")
     .join("");
   skEl("sk-prg-tag").value = tag.datum;
 
@@ -688,6 +695,10 @@ function skZiehErlaubt(eintrag, istProgramm, z) {
 }
 
 function skZiehStart(e, knopf, istProgramm) {
+  // ⚠️ Erst einen alten Zug verwerfen, auch wenn dieser gar nicht startet: sonst
+  // verschiebt das naechste pointerup auf irgendeinem Block den ALTEN Eintrag
+  // (Bugjagd 01.10.2026).
+  skZiehen = null;
   if (e.pointerType !== "mouse" || e.button !== 0) return;
   const z = streamService.getZustand();
   if (!z.vorhanden) return;
@@ -744,6 +755,9 @@ async function skZiehEnde(e) {
   const zieh = skZiehen;
   skZiehen = null;
   if (!zieh) return;
+  // ⚠️ Nur der gezogene Block darf den Zug beenden – ein pointerup auf einem
+  // fremden Block speichert nichts (Bugjagd 01.10.2026).
+  if (e.currentTarget && e.currentTarget !== zieh.knopf) return;
   try { zieh.knopf.releasePointerCapture(e.pointerId); } catch (err) { /* schon weg */ }
   zieh.knopf.classList.remove("zieht");
   // Merker fuer den gleich folgenden click: ein Verschieben ist kein Klick.

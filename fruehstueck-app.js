@@ -27,12 +27,29 @@ function frZeigeFehler(id, text) {
   if (el) el.textContent = text || "";
 }
 
+// ⚠️ Dienstaufruf, der nie still scheitert: der Dienst liefert bei abgelehntem
+// Schreiben { erfolg:false, fehler }, und falls doch etwas wirft (Netz, Bug),
+// wird auch das zur Meldung statt zu einer verschluckten Ausnahme
+// (Bugjagd 01.10.2026).
+async function frRufe(aufruf) {
+  try {
+    const res = await aufruf();
+    return res || { erfolg: false, fehler: "Speichern abgelehnt – keine Antwort erhalten. Bitte noch einmal versuchen." };
+  } catch (e) {
+    console.error("[Frühstück] Aufruf fehlgeschlagen:", e);
+    return { erfolg: false, fehler: "Speichern abgelehnt – " + ((e && e.message) || "unbekannter Fehler") + ". Bitte Verbindung prüfen und noch einmal versuchen." };
+  }
+}
+
 function frZeigeView(id) {
   document.querySelectorAll("#tab-fruehstueck .sk-view").forEach((v) => v.classList.toggle("aktiv", v.id === id));
 }
 
 // Zeit "HH:MM" <-> Minuten seit 0:00. <input type="time"> liefert/braucht die
 // Textform; das Datenmodell rechnet in Minuten wie beim Streamkalender.
+// ⚠️ Leeres/halbes Zeitfeld liefert "" – die Aufrufer übergeben deshalb -1 als
+// Ersatz, damit der Dienst „Bitte wähle einen Bestellschluss." meldet. Mit
+// STANDARD_SCHLUSS als Ersatz wurde daraus still 20:00 (Bugjagd 01.10.2026).
 function frZeitInputWert(minuten) {
   return fruehstueckService.zeitLabel(minuten);
 }
@@ -59,7 +76,10 @@ function frRender(z) {
   // Aktiven Tag festlegen: der zuletzt gewählte, sonst der erste noch offene,
   // sonst einfach der erste Morgen des Plans.
   if (!frAktiverTag || !z.tage.some((t) => t.datum === frAktiverTag)) {
-    const offener = z.tage.find((t) => t.offen);
+    // ⚠️ Bei zugedrehtem Schalter ist kein Tag `offen` – dann nicht auf tage[0]
+    // (oft ein schon vergangener Morgen) springen, sondern auf den ersten, dessen
+    // Bestellschluss noch kommt (Bugjagd 01.10.2026).
+    const offener = z.tage.find((t) => t.offen) || z.tage.find((t) => t.zeitOffen);
     // ⚠️ Fällt der gewählte Morgen weg (Veranstalter kürzt), gehört der Entwurf
     // nicht auf den nächsten Morgen – sonst wurde er dort still bestellt. Wie
     // beim Tag-Chip: neuer Morgen, neuer Entwurf (Bugjagd 25.09.d T5b).
@@ -311,11 +331,11 @@ async function frSpeichereBestellung(tag) {
   // Angemeldet: der Konto-Name gilt, egal was in einem Feld stehen könnte.
   const name = frFesterName()
     || (frEntwurf.name != null ? frEntwurf.name : (tag.meineBestellung ? tag.meineBestellung.name : fruehstueckService.getGespeicherterName()));
-  const res = await fruehstueckService.bestelle(tag.datum, {
+  const res = await frRufe(() => fruehstueckService.bestelle(tag.datum, {
     name,
     positionen: frEntwurf.positionen,
     notiz: frEntwurf.notiz || "",
-  });
+  }));
   if (!res.erfolg) {
     // Abgelehnt, weil inzwischen bezahlt: den Entwurf verwerfen, sonst steht
     // nach dem nächsten Takt die abgelehnte Menge neben „gespeichert“.
@@ -344,7 +364,7 @@ function frNachSchreibenZeichnen() {
 
 async function frStorniereBestellung(tag) {
   if (!confirm("Deine Bestellung für " + tag.tagLang + " wirklich entfernen?")) return;
-  const res = await fruehstueckService.storniere(tag.datum);
+  const res = await frRufe(() => fruehstueckService.storniere(tag.datum));
   if (!res.erfolg) { frZeigeFehler("fr-best-fehler", res.fehler); return; }
   frEntwurf = null;
   frNachSchreibenZeichnen();
@@ -394,15 +414,23 @@ function frBestellerlisteHtml(tag) {
 
 // Export als reiner Text (Michel am 2026-10-01: „Export als Text, rein mit den
 // Bestellmengen“): nur die Mengen je Paket und die Summe – ohne Namen und Preise.
-function frExportText(tag) {
-  const summe = new Map();
-  tag.bestellungen.forEach((b) => b.positionen.forEach((p) => {
-    summe.set(p.name, (summe.get(p.name) || 0) + p.anzahl);
-  }));
+// ⚠️ Gezählt wird nach PAKET-ID mit dem heutigen Paketnamen – genau wie die
+// Einkaufsliste (tag.gesamt). Bis zur Bugjagd 01.10.2026 wurde nach dem Namen
+// aus dem Beleg gruppiert: nach einer Umbenennung zerfiel ein Paket in zwei
+// Zeilen und der Text passte nicht mehr zur Einkaufsliste. Positionen eines
+// gelöschten Pakets fallen weg, wie dort auch; die Gesamtzahl kommt deshalb
+// aus denselben Zeilen.
+function frExportText(tag, pakete) {
   const zeilen = ["Frühstück " + tag.tagLang + ", " + tag.label, ""];
-  summe.forEach((n, name) => zeilen.push(n + "× " + name));
+  let gesamt = 0;
+  (pakete || []).forEach((p) => {
+    const n = tag.gesamt[p.id] || 0;
+    if (n <= 0) return;
+    zeilen.push(n + "× " + p.name);
+    gesamt += n;
+  });
   // ⚠️ Nur die Mengen, keine Namen (Michel: „keine User, nur die Bestellmenge“).
-  zeilen.push("Gesamt: " + tag.stueckGesamt + " Stück");
+  zeilen.push("Gesamt: " + gesamt + " Stück");
   return zeilen.join("\n");
 }
 
@@ -447,7 +475,7 @@ function frWireAbholButtons() {
       const tag = z && z.tage ? z.tage.find((t) => t.datum === btn.dataset.frExport) : null;
       const meldung = document.querySelector('[data-fr-export-meldung="' + btn.dataset.frExport + '"]');
       if (!tag) return;
-      const text = frExportText(tag);
+      const text = frExportText(tag, z.pakete);
       try {
         await navigator.clipboard.writeText(text);
         if (meldung) meldung.textContent = "Kopiert – zum Beispiel in WhatsApp oder eine Mail einfügen.";
@@ -465,16 +493,19 @@ function frWireAbholButtons() {
       }
     });
   });
+  // Abgelehnt: Haken auf den alten Stand zurück und melden (Bugjagd 01.10.2026).
   document.querySelectorAll("[data-fr-abgeholt]").forEach((cb) => {
-    cb.addEventListener("change", () => {
+    cb.addEventListener("change", async () => {
       const [datum, uid] = cb.dataset.frAbgeholt.split("|");
-      fruehstueckService.setzeAbgeholt(datum, uid, cb.checked);
+      const res = await frRufe(() => fruehstueckService.setzeAbgeholt(datum, uid, cb.checked));
+      if (!res.erfolg) { cb.checked = !cb.checked; frZeigeFehler("fr-admin-panel-fehler", res.fehler); }
     });
   });
   document.querySelectorAll("[data-fr-bezahlt]").forEach((cb) => {
-    cb.addEventListener("change", () => {
+    cb.addEventListener("change", async () => {
       const [datum, uid] = cb.dataset.frBezahlt.split("|");
-      fruehstueckService.setzeBezahlt(datum, uid, cb.checked);
+      const res = await frRufe(() => fruehstueckService.setzeBezahlt(datum, uid, cb.checked));
+      if (!res.erfolg) { cb.checked = !cb.checked; frZeigeFehler("fr-admin-panel-fehler", res.fehler); }
     });
   });
   document.querySelectorAll("[data-fr-person]").forEach((d) => {
@@ -512,7 +543,7 @@ async function frErstellePlan() {
   const titel = frEl("fr-neu-titel").value;
   const startDatum = frEl("fr-neu-start").value;
   const anzahlTage = frEl("fr-neu-tage").value;
-  const schlussUhr = frMinutenAusZeitInput(frEl("fr-neu-schluss").value, fruehstueckService.STANDARD_SCHLUSS);
+  const schlussUhr = frMinutenAusZeitInput(frEl("fr-neu-schluss").value, -1);
   const adminPin = frEl("fr-neu-pin").value;
 
   const res = await fruehstueckService.erstellePlan({ titel, startDatum, anzahlTage, schlussUhr, adminPin });
@@ -578,8 +609,13 @@ function frRenderPaketeVerwalten(z) {
         </div>`).join("")
     : `<p class="fr-leer-hinweis">Noch keine Pakete.</p>`;
 
-  box.querySelectorAll("[data-fr-hoch]").forEach((b) => b.addEventListener("click", () => fruehstueckService.verschiebePaket(b.dataset.frHoch, -1)));
-  box.querySelectorAll("[data-fr-runter]").forEach((b) => b.addEventListener("click", () => fruehstueckService.verschiebePaket(b.dataset.frRunter, 1)));
+  // ⚠️ Ergebnis auswerten – vorher verpuffte eine Ablehnung still (Bugjagd 01.10.2026).
+  const verschiebe = async (id, richtung) => {
+    const res = await frRufe(() => fruehstueckService.verschiebePaket(id, richtung));
+    frZeigeFehler("fr-pak-fehler", res.erfolg ? "" : res.fehler);
+  };
+  box.querySelectorAll("[data-fr-hoch]").forEach((b) => b.addEventListener("click", () => verschiebe(b.dataset.frHoch, -1)));
+  box.querySelectorAll("[data-fr-runter]").forEach((b) => b.addEventListener("click", () => verschiebe(b.dataset.frRunter, 1)));
   box.querySelectorAll("[data-fr-loeschen]").forEach((b) => b.addEventListener("click", async () => {
     if (!confirm("Dieses Paket wirklich löschen? Bestehende Bestellungen dieses Pakets fallen dabei weg.")) return;
     let res;
@@ -611,6 +647,10 @@ async function frSpeicherePaket() {
   frEl("fr-btn-pak-anlegen").disabled = true;
   try {
     await frSpeicherePaketJetzt();
+  } catch (e) {
+    // ⚠️ Vorher nur finally: eine Ausnahme verschwand ohne Meldung (Bugjagd 01.10.2026).
+    console.error("[Frühstück] Paket speichern:", e);
+    frZeigeFehler("fr-pak-fehler", "Speichern abgelehnt – " + ((e && e.message) || "unbekannter Fehler") + ". Bitte noch einmal versuchen.");
   } finally {
     frPaketLaeuft = false;
     frEl("fr-btn-pak-anlegen").disabled = false;
@@ -666,16 +706,25 @@ function frWireEvents() {
   frEl("fr-ein-schluss").addEventListener("input", () => { frEinstellungenBeruehrt.add("fr-ein-schluss"); });
 
   frEl("fr-ein-annahme").addEventListener("change", async () => {
-    const res = await fruehstueckService.setzeAnnahme(frEl("fr-ein-annahme").checked);
+    const schalter = frEl("fr-ein-annahme");
+    const res = await frRufe(() => fruehstueckService.setzeAnnahme(schalter.checked));
     frZeigeFehler("fr-einstellungen-fehler", res.erfolg ? "" : res.fehler);
+    // ⚠️ Abgelehnt: der Schalter zeigt sonst einen Stand, den es nicht gibt –
+    // und frRenderAdmin fasst ihn nicht an, solange er den Fokus hat. Deshalb
+    // hier auf den echten Stand zurück (Bugjagd 01.10.2026).
+    if (!res.erfolg) {
+      const z = fruehstueckService.getZustand();
+      schalter.checked = z.vorhanden ? !!z.schalterAn : false;
+    }
   });
 
   frEl("fr-btn-einstellungen-speichern").addEventListener("click", async () => {
-    const res = await fruehstueckService.setzeEinstellungen({
+    const res = await frRufe(() => fruehstueckService.setzeEinstellungen({
       titel: frEl("fr-ein-titel").value,
       anzahlTage: frEl("fr-ein-tage").value,
-      schlussUhr: frMinutenAusZeitInput(frEl("fr-ein-schluss").value, fruehstueckService.STANDARD_SCHLUSS),
-    });
+      // -1 statt Standard: leeres Feld soll gemeldet werden, nicht 20:00 werden.
+      schlussUhr: frMinutenAusZeitInput(frEl("fr-ein-schluss").value, -1),
+    }));
     // Erst wenn es wirklich drin steht, darf das nächste Update die Felder
     // wieder befüllen. Bei einem Fehler bleibt der Entwurf stehen.
     if (res.erfolg) frEinstellungenBeruehrt.clear();
@@ -684,13 +733,13 @@ function frWireEvents() {
 
   frEl("fr-btn-leeren").addEventListener("click", async () => {
     if (!confirm("Alle Frühstücksbestellungen entfernen? Pakete und Einstellungen bleiben stehen.")) return;
-    const res = await fruehstueckService.leereBestellungen();
+    const res = await frRufe(() => fruehstueckService.leereBestellungen());
     frZeigeFehler("fr-admin-panel-fehler", res.erfolg ? "" : res.fehler);
   });
 
   frEl("fr-btn-plan-loeschen").addEventListener("click", async () => {
     if (!confirm("Die komplette Frühstücksbestellung löschen? Pakete, Einstellungen und alle Bestellungen sind dann weg. Das lässt sich nicht rückgängig machen.")) return;
-    const res = await fruehstueckService.loeschePlan();
+    const res = await frRufe(() => fruehstueckService.loeschePlan());
     frZeigeFehler("fr-admin-panel-fehler", res.erfolg ? "" : res.fehler);
     // ⚠️ Die Warnung auf den Anlege-Schirm, nicht in den Admin-Kasten: der
     // verschwindet mit dem Plan, und die Meldung gleich mit.

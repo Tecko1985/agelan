@@ -46,6 +46,16 @@
     try {
       if (typeof esMailBearbeitet !== "undefined" && esMailBearbeitet) return false;
     } catch (e) { /* Essen nicht geladen */ }
+    // ⚠️ Frühstücks-Entwurf (fruehstueck-app.js): mit +/− gebaut, ohne dass der
+    // Fokus in einem Feld steht – das Neuladen warf ihn weg (Bugjagd 01.10.2026).
+    try {
+      if (typeof frEntwurf !== "undefined" && frEntwurf && frEntwurf.beruehrt) return false;
+    } catch (e) { /* Frühstück nicht geladen */ }
+    // ⚠️ Offener Dialog (.modal-overlay.aktiv bzw. <dialog open>): darin wird
+    // gerade gemeldet, eingetragen oder geplant – nicht unter den Händen neu laden.
+    try {
+      if (document.querySelector(".modal-overlay.aktiv, dialog[open]")) return false;
+    } catch (e) { /* kein DOM */ }
     return true;
   }
 
