@@ -850,7 +850,10 @@
     </div>
 
     <div class="karte-block" id="fr-admin-panel" style="display:none">
-      <p class="feld-label">Pakete</p>
+      <!-- Pakete zugeklappt (2026-10-01): im Betrieb stehen sie fest, aufgeklappt
+           schoben sie Einstellungen und Bestellungen weit nach unten. -->
+      <details class="es-klapp fr-pakete-klapp">
+      <summary><span class="es-klapp-titel">Pakete</span><span class="es-klapp-kurz" id="fr-pakete-kurz"></span></summary>
       <div id="fr-pakete-verwalten"></div>
 
       <label class="feld-label" for="fr-pak-name">Neues Paket</label>
@@ -859,6 +862,7 @@
       <input type="text" aria-label="Preis des Pakets in Euro" id="fr-pak-preis" class="eingabe" placeholder="Preis in €, z. B. 2,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
       <button class="btn btn-secondary btn-grow" id="fr-btn-pak-anlegen">Paket hinzufügen</button>
       <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
+      </details>
 
       <p class="feld-label">Einstellungen</p>
 
@@ -1390,7 +1394,7 @@
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.15',
     'fruehstueck-service.js?v=1.16',
-    'fruehstueck-app.js?v=1.20',
+    'fruehstueck-app.js?v=1.21',
     'essen-service.js?v=2.22',
     'essen-app.js?v=2.24',
     'uebersicht-app.js?v=1.17'

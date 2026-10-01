@@ -489,6 +489,8 @@ function frRenderAdmin(z) {
 
 function frRenderPaketeVerwalten(z) {
   const box = frEl("fr-pakete-verwalten");
+  const kurz = frEl("fr-pakete-kurz");
+  if (kurz) kurz.textContent = z.pakete.length === 1 ? "1 Paket" : z.pakete.length + " Pakete";
   box.innerHTML = z.pakete.length
     ? z.pakete.map((p, i) => `
         <div class="fr-paket-verwalten">
