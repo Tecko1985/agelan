@@ -449,16 +449,35 @@ function ubEinstellungenZeichnen() {
 // geholt und dann noch einmal geschrieben – wie in den anderen Bereichen
 // (rolleNachAblehnung). Ohne das kam „PERMISSION_DENIED“, obwohl das Konto ⭐
 // ist (Michel am 2026-10-01 bei den Infos).
-async function ubMitRolleSchreiben(pfad, wert) {
+// ⚠️ Jeder Schritt mit Zeitgrenze: Ohne Verbindung wartet Firebase mit set()
+// still, bis sie wieder da ist – am Bildschirm passierte dann gar nichts
+// (Michel am 2026-10-01: „es kommt kein Satz“).
+const UB_SCHREIB_GRENZE_MS = 15000;
+
+function ubMitGrenze(versprechen, wobei) {
+  let zeit;
+  return Promise.race([
+    versprechen,
+    new Promise((_, nein) => {
+      zeit = setTimeout(() => nein(new Error("Keine Antwort " + wobei + " nach " +
+        (UB_SCHREIB_GRENZE_MS / 1000) + " Sekunden – Internetverbindung prüfen, Seite neu laden.")), UB_SCHREIB_GRENZE_MS);
+    }),
+  ]).finally(() => clearTimeout(zeit));
+}
+
+async function ubMitRolleSchreiben(pfad, wert, melden) {
+  const schritt = typeof melden === "function" ? melden : () => {};
   try {
-    await db.ref(pfad).set(wert);
+    await ubMitGrenze(db.ref(pfad).set(wert), "von der Datenbank");
     return;
   } catch (err) {
     const abgelehnt = /permission/i.test(String(err && (err.code || err.message) || ""));
     if (!abgelehnt || typeof holeFirebaseRolle !== "function") throw err;
-    const ok = await holeFirebaseRolle("abgelehnt");
+    schritt("Datenbank sagt nein – hole die ⭐/🛠-Berechtigung neu …");
+    const ok = await ubMitGrenze(holeFirebaseRolle("abgelehnt"), "beim Holen der ⭐/🛠-Berechtigung");
     if (!ok) throw new Error(ubRolleGrund());
-    await db.ref(pfad).set(wert);
+    schritt("Berechtigung da – speichere noch einmal …");
+    await ubMitGrenze(db.ref(pfad).set(wert), "von der Datenbank (zweiter Versuch)");
   }
 }
 
@@ -510,9 +529,10 @@ function ubAuswahlBinden() {
       const meldung = ubEl("ub-infos-meldung");
       const text = String(feld ? feld.value : "").slice(0, UB_INFOS_MAX);
       knopfInfos.disabled = true;
-      if (meldung) meldung.textContent = "";
+      const melde = (t) => { if (meldung) meldung.textContent = t; };
+      melde("Speichere …");
       try {
-        await ubMitRolleSchreiben("uebersicht/infos", text);
+        await ubMitRolleSchreiben("uebersicht/infos", text, melde);
         if (meldung) meldung.textContent = text.trim() ? "Gespeichert – steht jetzt auf der Übersicht." : "Geleert – die Kachel Infos ist ausgeblendet.";
       } catch (err) {
         if (meldung) {
@@ -530,9 +550,11 @@ function ubAuswahlBinden() {
       const cb = e.target.closest("[data-ub-kachel]");
       if (!cb) return;
       const fehler = ubEl("ub-einstellungen-fehler");
-      if (fehler) fehler.textContent = "";
+      const melde = (t) => { if (fehler) fehler.textContent = t; };
+      melde("Speichere …");
       try {
-        await ubMitRolleSchreiben("uebersicht/kacheln/" + cb.dataset.ubKachel, cb.checked);
+        await ubMitRolleSchreiben("uebersicht/kacheln/" + cb.dataset.ubKachel, cb.checked, melde);
+        melde("");
       } catch (err) {
         cb.checked = !cb.checked;   // zurückdrehen, sonst behauptet der Haken etwas Falsches
         if (fehler) {
