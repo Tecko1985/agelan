@@ -1,9 +1,13 @@
 // ===========================================================================
 // uebersicht-app.js – das Dashboard der AgeLan.
 //
-// Fasst zusammen, was gerade läuft: wer sendet, was als Nächstes ansteht, wo
-// ein Streamer fehlt, welche Essenslieferung wann bestellt wurde und ob sie da
-// ist, wie viel Frühstück bestellt ist und wer sein Essen noch nicht geholt hat.
+// Fasst zusammen, was gerade läuft: ob es gerade Essen gibt, welche Lieferung
+// wann bestellt wurde und ob sie da ist, wie viel Frühstück bestellt ist, wer
+// sein Essen noch nicht geholt hat und bei welchem Turnier man sich anmelden kann.
+//
+// ⚠️ Seit 2026-10-01 OHNE Stream-Kachel (Michel: „komplett raus“). Welche
+// Kacheln es gibt, stellen Veranstalter/Orga unter Einstellungen ein – für ALLE,
+// gespeichert unter `uebersicht/kacheln` (siehe UB_KACHELN).
 //
 // ⚠️ GESAMMELTE Stände, nicht die eigenen: „Du hast bestellt" steht in den
 // Bereichen selbst. Seit 2026-10-01 gibt es hier keine „Mein Essen"-Kachel mehr.
@@ -57,32 +61,13 @@ function ubIstVeranstalter() {
 
 // --- Zeit -------------------------------------------------------------------
 
-// „in 25 Min", „in 2:15 h", „seit 40 Min". ⚠️ Bewusst relativ: am zweiten
-// LAN-Tag um drei Uhr nachts sagt „um 15:30" weniger als „in 12 Stunden".
-function ubRelativ(minuten) {
-  const m = Math.round(minuten);
-  const abs = Math.abs(m);
-  if (abs < 1) return "gerade eben";
-  const text = abs < 60
-    ? abs + " Min"
-    : Math.floor(abs / 60) + ":" + String(abs % 60).padStart(2, "0") + " h";
-  return m >= 0 ? "in " + text : "seit " + text;
-}
-
 function ubDauer(minuten) {
   const m = Math.max(0, Math.round(minuten));
   if (m < 60) return m + " Min";
   return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0") + " h";
 }
 
-// Absolute Minute seit Plan-Start – dieselbe Rechnung wie im Streamkalender,
-// damit „Do 25:00" und „Fr 1:00" derselbe Zeitpunkt bleiben.
-function ubJetztAbsolut(z) {
-  const stand = ubJetztStand(z);
-  return stand ? stand.abs : null;
-}
-
-// Wie ubJetztAbsolut, liefert aber auch den VERANSTALTUNGSTAG dazu. ⚠️ Um 1 Uhr
+// Aktuelle Minute seit Plan-Start und der VERANSTALTUNGSTAG dazu (für die Kopfzeile). ⚠️ Um 1 Uhr
 // nachts ist das noch der Vortag (sein Fenster reicht über Mitternacht); aus
 // Math.floor(abs / 1440) wurde dort der NÄCHSTE Tag – und am letzten Tag gar
 // keiner, die Kopfzeile blieb leer (Bugjagd 25.09.d T5b).
@@ -115,22 +100,6 @@ function ubJetztStand(z) {
 
 // --- Bausteine --------------------------------------------------------------
 
-// Liegt heute nach dem letzten Veranstaltungstag? (Die Nacht nach dem letzten
-// Tag zählt ubJetztStand noch dazu, dort ist jetzt !== null.)
-function ubNachDerVeranstaltung(z) {
-  if (!z || !z.tage || !z.tage.length) return false;
-  const d = new Date();
-  const heute = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  return heute > z.tage[z.tage.length - 1].datum;
-}
-
-// Alle Einträge mit dem frühesten Beginn (nach Beginn sortiert, gleiche zuerst).
-function ubAlleErsten(liste) {
-  if (!liste.length) return [];
-  const erster = Math.min.apply(null, liste.map((x) => x.absVon));
-  return liste.filter((x) => x.absVon === erster);
-}
-
 function ubKachel(klasse, titel, inhalt, knopf) {
   return '<section class="ub-kachel ' + klasse + '">' +
     '<h2 class="ub-kachel-titel">' + titel + "</h2>" +
@@ -156,90 +125,6 @@ function ubZeile(marke, kopf, dazu, klasse) {
     "</div>";
 }
 
-// --- Kachel: Stream ---------------------------------------------------------
-
-function ubKachelStream() {
-  const z = ubZustand("stream");
-  if (!z || !z.vorhanden) {
-    return ubKachel("ub-stream", "📺 Stream",
-      ubLeer("Es gibt noch keinen Streamplan."), ubKnopf("stream", "Zum Streamplan"));
-  }
-
-  const jetzt = ubJetztAbsolut(z);
-  let inhalt = "";
-
-  if (jetzt === null) {
-    inhalt = ubLeer("Heute ist kein Veranstaltungstag.");
-  } else {
-    // ⚠️ ALLE laufenden, nicht nur der erste: zwei gleichzeitige Einträge kann
-    // die Prüfung beim Speichern nicht verhindern (zwei Geräte im selben
-    // Moment), und der Kalender zeigt sie nebeneinander. Hier fiel einer weg.
-    const laufende = z.slots.filter((s) => s.absVon <= jetzt && s.absBis > jetzt).sort((a, b) => a.absVon - b.absVon);
-    const laeuft = laufende[0] || null;
-    // ⚠️ Auch beim NÄCHSTEN alle, die zur selben Zeit anfangen – 487e3ad hatte
-    // nur die laufenden auf alle umgestellt (Bugjagd 25.09.d T5b).
-    const naechste = ubAlleErsten(z.slots.filter((s) => s.absVon > jetzt));
-    const naechster = naechste[0] || null;
-
-    if (laeuft) {
-      laufende.forEach((l) => {
-        inhalt += ubZeile("live", l.streamer + (l.titel ? " – " + l.titel : ""),
-          "noch " + ubDauer(l.absBis - jetzt), "ub-live");
-      });
-    } else {
-      inhalt += ubZeile("", "Gerade sendet niemand", "", "ub-still");
-    }
-
-    if (naechster) {
-      naechste.forEach((n) => {
-        inhalt += ubZeile("danach", n.streamer + (n.titel ? " – " + n.titel : ""),
-          ubRelativ(n.absVon - jetzt) + " · " +
-          streamService.zeitLabel(n.von) + "–" + streamService.zeitLabel(n.bis));
-      });
-    } else if (!laeuft) {
-      inhalt += ubLeer("Für den Rest der Veranstaltung ist kein Stream eingetragen.");
-    }
-
-    // Der laufende und der nächste Programmpunkt – das Programm sagt, WORUM es
-    // gerade geht, der Slot nur, WER sendet.
-    // Programmpunkte dürfen parallel liegen – also auch hier alle.
-    z.programm.filter((p) => p.absVon <= jetzt && p.absBis > jetzt).sort((a, b) => a.absVon - b.absVon).forEach((p) => {
-      inhalt += ubZeile("Programm", p.titel, "noch " + ubDauer(p.absBis - jetzt));
-    });
-    ubAlleErsten(z.programm.filter((p) => p.absVon > jetzt)).forEach((p) => {
-      inhalt += ubZeile("dann", p.titel, ubRelativ(p.absVon - jetzt));
-    });
-  }
-
-  // ⚠️ Die offenen Programmpunkte sind der Grund, warum es das Häkchen gibt:
-  // hier ist die Nachfassliste. Vergangene bleiben draußen – daran ist nichts
-  // mehr zu retten, und eine Liste voller Vorwürfe liest niemand mehr.
-  // ⚠️ Außerhalb der Veranstaltungstage ist jetzt === null – VOR der
-  // Veranstaltung ist alles noch zu retten, DANACH nichts mehr. Bis 25.09.2026
-  // stand nach dem letzten Tag wieder die ganze Liste da (Bugjagd 25.09.d T5b).
-  const vorbei = jetzt === null && ubNachDerVeranstaltung(z);
-  const offen = z.programm
-    .filter((p) => p.streamerFehlt && !vorbei && (jetzt === null || p.absBis > jetzt))
-    .sort((a, b) => a.absVon - b.absVon);
-  if (offen.length) {
-    inhalt += '<div class="ub-block ub-block-warn">' +
-      '<p class="ub-block-titel">' +
-      (offen.length === 1 ? "1 Programmpunkt ohne Streamer" : offen.length + " Programmpunkte ohne Streamer") +
-      "</p>" +
-      offen.slice(0, 4).map((p) => ubZeile(
-        streamService.datumLabel(p.datum, false),
-        p.titel,
-        streamService.zeitLabel(p.von) + "–" + streamService.zeitLabel(p.bis) +
-          " · " + ubDauer(p.offeneMinuten) + " offen"
-      )).join("") +
-      (offen.length > 4 ? ubLeer("… und " + (offen.length - 4) + " weitere") : "") +
-      "</div>";
-  }
-
-  return ubKachel("ub-stream", "📺 Stream", inhalt,
-    ubKnopf("stream", z.darfEintragen ? "Zeit belegen" : "Zum Streamplan"));
-}
-
 // --- Kachel: Essen (für alle) ----------------------------------------------
 
 // Uhrzeit eines Zeitstempels: „18:40", an einem anderen Tag „Fr 18:40".
@@ -257,24 +142,35 @@ function ubUhr(ms) {
 // (Michel am 2026-10-01: „nicht meine Infos, sondern wirklich gesammelte").
 // Die eigene steht im Reiter Essen. Namen und Beträge bleiben in der
 // Orga-Kachel – hier nur Zahlen und Uhrzeiten, die jede:r sehen darf.
+// Großer Status oben in einer Kachel: „kann ich jetzt?“ auf einen Blick.
+function ubStatus(an, titel, dazu) {
+  return '<div class="ub-status ' + (an ? "ub-status-an" : "ub-status-aus") + '">' +
+    '<span class="ub-status-titel">' + escapeHtml(titel) + "</span>" +
+    (dazu ? '<span class="ub-status-dazu">' + escapeHtml(dazu) + "</span>" : "") +
+    "</div>";
+}
+
 function ubKachelLieferungen() {
   const z = ubZustand("essen");
   if (!z || !z.vorhanden) {
-    return ubKachel("ub-lieferung", "🍕 Essen", ubLeer("Es gibt noch keine Essensbestellung."),
+    return ubKachel("ub-lieferung ub-breit", "🍕 Essen",
+      ubStatus(false, "🚫 Gerade gibt es kein Essen", "Es ist noch keine Essensbestellung angelegt."),
       ubKnopf("essen", "Zur Essensbestellung"));
   }
 
   const jetzt = Date.now();
   let inhalt = "";
 
-  // Annahme-Zustand: die Frage „kann ich jetzt bestellen?" ist die häufigste.
+  // ⚠️ Die wichtigste Frage zuerst und GROSS: gibt es gerade Essen? (Michel am
+  // 2026-10-01: „wichtig ist Essen – dass man sieht, wenn es im Moment keins gibt“.)
   if (z.annahmeOffen) {
-    inhalt += ubZeile("offen", "Bestellen geht gerade",
-      z.fensterLabel || "kein Zeitfenster gesetzt", "ub-live");
+    inhalt += ubStatus(true, "✅ Jetzt Essen bestellen",
+      z.fensterLabel ? "Bestellzeit " + z.fensterLabel : "Die Bestellung ist offen.");
   } else if (!z.schalterAn) {
-    inhalt += ubZeile("zu", "Der Veranstalter hat zugemacht", "", "ub-still");
+    inhalt += ubStatus(false, "🚫 Gerade gibt es kein Essen", "Die Orga hat die Bestellung geschlossen.");
   } else {
-    inhalt += ubZeile("zu", "Außerhalb der Bestellzeit", z.fensterLabel, "ub-still");
+    inhalt += ubStatus(false, "🚫 Gerade gibt es kein Essen",
+      z.fensterLabel ? "Bestellen geht " + z.fensterLabel : "Außerhalb der Bestellzeit.");
   }
 
   // Gesammelt, aber noch nicht beim Lieferanten – die nächste Sammelbestellung.
@@ -309,7 +205,7 @@ function ubKachelLieferungen() {
         );
       }).join("") +
       "</div>";
-  } else if (!z.runden.length) {
+  } else if (!z.runden.length && !z.stapel.length) {
     inhalt += ubLeer("Es ist noch nichts beim Lieferanten bestellt.");
   }
 
@@ -332,7 +228,7 @@ function ubKachelLieferungen() {
       "</div>";
   }
 
-  return ubKachel("ub-lieferung", "🍕 Essen", inhalt, ubKnopf("essen", "Zur Essensbestellung"));
+  return ubKachel("ub-lieferung ub-breit", "🍕 Essen", inhalt, ubKnopf("essen", "Zur Essensbestellung"));
 }
 
 // --- Kachel: offene Punkte (nur Veranstalter/Orga) --------------------------
@@ -396,33 +292,57 @@ function ubKachelOrga() {
 
 // --- Kachel: Frühstück ------------------------------------------------------
 
-// Die Frühstücks-Morgen, die noch kommen: wie viele bestellt haben, wie viele
-// Pakete es sind und ob noch bestellt werden kann.
+// Die Frühstücks-Morgen, die noch kommen: oben groß, ob und bis wann bestellt
+// werden kann; darunter je Morgen Besteller, Pakete und welche Pakete.
 function ubKachelFruehstueck() {
   const z = ubZustand("fruehstueck");
-  if (!z || !z.vorhanden) return "";
+  if (!z || !z.vorhanden) {
+    return ubKachel("ub-fruehstueck ub-breit", "🥐 Frühstück",
+      ubStatus(false, "🚫 Gerade kein Frühstück bestellbar", "Es ist noch keine Frühstücksbestellung angelegt."),
+      ubKnopf("fruehstueck", "Zum Frühstück"));
+  }
 
   const d = new Date();
   const heute = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   // ⚠️ Nach dem FRÜHSTÜCKSTAG gefiltert, nicht nach dem Bestellschluss: heute
   // Morgen ist der Schluss längst vorbei, die Pakete werden aber gerade verteilt.
   const kommende = z.tage.filter((t) => t.datum >= heute).slice(0, 3);
+  const naechster = z.tage.find((t) => t.offen) || null;
   let inhalt = "";
 
-  if (!kommende.length) {
-    inhalt = ubLeer("Alle Frühstücks-Morgen sind vorbei.");
+  if (naechster) {
+    inhalt += ubStatus(true, "✅ Frühstück für " + naechster.label + " bestellen",
+      "Bestellschluss " + naechster.schlussLabel);
   } else {
-    inhalt = kommende.map((t) => {
-      const stand = t.anzahlBesteller + " " + (t.anzahlBesteller === 1 ? "Besteller" : "Besteller") +
-        " · " + t.stueckGesamt + " " + (t.stueckGesamt === 1 ? "Paket" : "Pakete");
+    // ⚠️ Zwei Gründe, zwei Sätze – wie frWarumZu im Frühstück selbst: ist nur
+    // der Schalter zu, kommt der Bestellschluss erst noch.
+    const nochZeit = z.tage.some((t) => t.zeitOffen);
+    inhalt += ubStatus(false, "🚫 Gerade kein Frühstück bestellbar",
+      !z.schalterAn && nochZeit ? "Die Orga hat die Bestellung geschlossen." : "Für alle Tage ist der Bestellschluss vorbei.");
+  }
+
+  const paketName = {};
+  (z.pakete || []).forEach((p) => { paketName[p.id] = p.name; });
+
+  if (!kommende.length) {
+    inhalt += ubLeer("Alle Frühstücks-Morgen sind vorbei.");
+  } else {
+    inhalt += kommende.map((t) => {
+      const stand = t.anzahlBesteller + " Besteller · " + t.stueckGesamt + " " +
+        (t.stueckGesamt === 1 ? "Paket" : "Pakete");
+      // Welche Pakete – das ist die Einkaufsliste für diesen Morgen.
+      const welche = Object.keys(t.gesamt || {})
+        .filter((id) => t.gesamt[id] > 0)
+        .map((id) => t.gesamt[id] + "× " + (paketName[id] || "Paket"))
+        .join(", ");
       const schluss = t.offen
         ? "bestellbar bis " + t.schlussLabel
         : (t.vorbei ? "Bestellschluss vorbei" : "Annahme gerade geschlossen");
-      return ubZeile(t.label, stand, schluss, t.offen ? "ub-live" : "");
+      return ubZeile(t.label, stand, (welche ? welche + " · " : "") + schluss, t.offen ? "ub-live" : "");
     }).join("");
   }
 
-  return ubKachel("ub-fruehstueck", "🥐 Frühstück", inhalt, ubKnopf("fruehstueck", "Zum Frühstück"));
+  return ubKachel("ub-fruehstueck ub-breit", "🥐 Frühstück", inhalt, ubKnopf("fruehstueck", "Zum Frühstück"));
 }
 
 // --- Kachel: Turnier --------------------------------------------------------
@@ -433,21 +353,99 @@ function ubKachelTurnier() {
   if (!z) return "";
 
   const liste = (z.liste || []).filter((t) => t.phase !== "beendet");
+  const offen = liste.filter((t) => t.istOffen);
   let inhalt = "";
 
+  // Die Turnieranmeldung steht unten noch einmal ausdrücklich da (Michel am
+  // 2026-10-01): offene Anmeldungen zuerst und als großer Hinweis.
+  if (offen.length) {
+    inhalt += ubStatus(true, "✅ Turnieranmeldung offen",
+      offen.length === 1 ? offen[0].name : offen.length + " Turniere – jetzt eintragen");
+  }
   if (!liste.length) {
-    inhalt = ubLeer("Gerade läuft kein Turnier.");
+    inhalt += ubLeer("Gerade läuft kein Turnier.");
   } else {
-    inhalt = liste.slice(0, 4).map((t) => ubZeile(
+    inhalt += offen.concat(liste.filter((t) => !t.istOffen)).slice(0, 6).map((t) => ubZeile(
       t.istOffen ? "Anmeldung" : (t.phase || "läuft"),
       t.name,
       t.spielerAnzahl + " Teilnehmer",
       t.istOffen ? "ub-live" : ""
     )).join("");
-    if (liste.length > 4) inhalt += ubLeer("… und " + (liste.length - 4) + " weitere");
+    if (liste.length > 6) inhalt += ubLeer("… und " + (liste.length - 6) + " weitere");
   }
 
-  return ubKachel("ub-turnier", "🏆 Turnier", inhalt, ubKnopf("turnier", "Zu den Turnieren"));
+  return ubKachel("ub-turnier ub-breit", "🏆 Turnier", inhalt,
+    ubKnopf("turnier", offen.length ? "Zur Turnieranmeldung" : "Zu den Turnieren"));
+}
+
+// --- Auswahl der Kacheln ----------------------------------------------------
+//
+// ⚠️ Gilt für ALLE, nicht je Gerät: Veranstalter/Orga stellen unter Einstellungen
+// ein, was auf der Übersicht steht. Gespeichert unter `uebersicht/kacheln/<id>`
+// (true/false); fehlt ein Wert, gilt `an`. Schreiben dürfen laut Regeln nur
+// Konten mit ⭐/🛠 (Claim agelanOrga).
+const UB_KACHELN = [
+  { id: "essen", label: "🍕 Essen", an: true, bau: () => ubKachelLieferungen() },
+  { id: "fruehstueck", label: "🥐 Frühstück", an: true, bau: () => ubKachelFruehstueck() },
+  { id: "orga", label: "🛠 Für die Orga (sehen nur ⭐/🛠)", an: true, bau: () => ubKachelOrga() },
+  { id: "turnier", label: "🏆 Turnier und Anmeldung", an: true, bau: () => ubKachelTurnier() },
+];
+let ubAuswahl = {};          // aus Firebase; leer = alles nach Standard
+let ubAuswahlGebunden = false;
+
+function ubKachelAn(id) {
+  const k = UB_KACHELN.find((x) => x.id === id);
+  return typeof ubAuswahl[id] === "boolean" ? ubAuswahl[id] : !!(k && k.an);
+}
+
+function ubEinstellungenZeichnen() {
+  const box = ubEl("ub-einstellungen");
+  if (!box) return;
+  box.innerHTML = UB_KACHELN.map((k) =>
+    '<label class="ub-wahl"><input type="checkbox" data-ub-kachel="' + k.id + '"' +
+    (ubKachelAn(k.id) ? " checked" : "") + "> " + escapeHtml(k.label) + "</label>"
+  ).join("");
+}
+
+function ubAuswahlBinden() {
+  if (ubAuswahlGebunden || typeof db === "undefined" || typeof auth === "undefined") return;
+  ubAuswahlGebunden = true;
+  // ⚠️ Erst nach der (anonymen) Anmeldung lesen – vorher lehnen die Regeln ab
+  // und der Listener wäre für immer tot.
+  auth.onAuthStateChanged((user) => {
+    if (!user || ubAuswahl.__gebunden) return;
+    ubAuswahl.__gebunden = true;
+    db.ref("uebersicht/kacheln").on("value", (snap) => {
+      const v = snap.val() || {};
+      ubAuswahl = { __gebunden: true };
+      UB_KACHELN.forEach((k) => { if (typeof v[k.id] === "boolean") ubAuswahl[k.id] = v[k.id]; });
+      ubEinstellungenZeichnen();
+      ubVielleichtRendern();
+    }, (e) => {
+      // Regeln noch nicht veröffentlicht o. ä.: Standard zeigen, nicht leer.
+      console.warn("[Übersicht] Auswahl nicht lesbar – Standard gilt:", e && e.message);
+    });
+  });
+
+  const box = ubEl("ub-einstellungen");
+  if (box) {
+    box.addEventListener("change", async (e) => {
+      const cb = e.target.closest("[data-ub-kachel]");
+      if (!cb) return;
+      const fehler = ubEl("ub-einstellungen-fehler");
+      if (fehler) fehler.textContent = "";
+      try {
+        await db.ref("uebersicht/kacheln/" + cb.dataset.ubKachel).set(cb.checked);
+      } catch (err) {
+        cb.checked = !cb.checked;   // zurückdrehen, sonst behauptet der Haken etwas Falsches
+        if (fehler) {
+          fehler.textContent = "Nicht gespeichert: " + (err && err.message || err) +
+            " – geht nur mit ⭐/🛠-Konto (und erst, wenn die Datenbank-Regeln veröffentlicht sind).";
+        }
+      }
+    });
+  }
+  ubEinstellungenZeichnen();
 }
 
 // --- Aufbau -----------------------------------------------------------------
@@ -473,15 +471,19 @@ function ubRender() {
     }
   }
 
-  // ⚠️ Reihenfolge nach Dringlichkeit, nicht nach Bereich: was gerade läuft
-  // (Stream, offene Punkte der Orga), steht vor dem Überblick.
-  ziel.innerHTML = [
-    ubKachelStream(),
-    ubKachelOrga(),
-    ubKachelLieferungen(),
-    ubKachelFruehstueck(),
-    ubKachelTurnier(),
-  ].filter(Boolean).join("");
+  // Reihenfolge fest: Essen, Frühstück, Orga, ganz unten das Turnier mit der
+  // Anmeldung. Welche davon erscheinen, entscheidet die Auswahl (UB_KACHELN).
+  const kacheln = UB_KACHELN.filter((k) => ubKachelAn(k.id)).map((k) => {
+    try {
+      return k.bau();
+    } catch (e) {
+      console.error("[Übersicht] Kachel " + k.id + " fehlgeschlagen:", e);
+      return "";
+    }
+  }).filter(Boolean);
+  ziel.innerHTML = kacheln.length
+    ? kacheln.join("")
+    : ubLeer("Die Orga hat alle Kacheln ausgeblendet.");
 }
 
 // Nur zeichnen, wenn der Reiter auch offen ist – sonst rechnet das Dashboard
@@ -532,5 +534,6 @@ function ubVielleichtRendern() {
     if (typeof activateTab === "function") activateTab(knopf.getAttribute("data-ziel"));
   });
 
+  ubAuswahlBinden();
   ubVielleichtRendern();
 })();

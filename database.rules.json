@@ -416,6 +416,18 @@
         "bestellerTelefon": { ".validate": "newData.isString() && newData.val().length <= 40" },
         "$sonst": { ".validate": false }
       }
+    },
+    "uebersicht": {
+      ".read": "auth != null",
+      "kacheln": {
+        ".write": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now",
+        "$kachel": {
+          ".validate": "newData.isBoolean() && ($kachel === 'essen' || $kachel === 'fruehstueck' || $kachel === 'orga' || $kachel === 'turnier')"
+        }
+      },
+      "$sonst": {
+        ".validate": false
+      }
     }
   }
 }

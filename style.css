@@ -1685,3 +1685,26 @@ main#app.ub-breit { max-width: 980px; }
      #fff) – nur die Textfassung muss aufgehellt werden. */
   .ub-block-warn .ub-block-titel { color: #fca5a5; }
 }
+
+/* Übersicht seit 2026-10-01: Essen, Frühstück und Turnier über die volle Breite,
+   oben in der Kachel ein großer Status („gibt es gerade Essen?“). */
+.ub-kachel.ub-breit { grid-column: 1 / -1; }
+.ub-status {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  margin: 0 0 12px; padding: 14px 16px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.ub-status-titel { font-size: 20px; font-weight: 800; line-height: 1.25; }
+.ub-status-dazu { font-size: 14px; color: var(--muted); }
+.ub-status-an { background: rgba(5, 122, 85, 0.10); border-color: rgba(5, 122, 85, 0.45); }
+.ub-status-an .ub-status-titel { color: var(--success); }
+.ub-status-aus { background: rgba(180, 35, 24, 0.07); border-color: rgba(180, 35, 24, 0.35); }
+.ub-status-aus .ub-status-titel { color: #b42318; }
+.ub-breit .ub-zeile-kopf { font-size: 15px; }
+.ub-einstellungen { display: grid; gap: 8px; margin: 8px 0 4px; }
+.ub-wahl { display: flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; }
+.ub-wahl input { width: 18px; height: 18px; }
+@media (prefers-color-scheme: dark) {
+  .ub-status-an .ub-status-titel { color: #6ee7b7; }
+  .ub-status-aus .ub-status-titel { color: #fca5a5; }
+}

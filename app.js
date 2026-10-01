@@ -1629,6 +1629,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.31",
+    groups: [
+      { title: "Übersicht neu sortiert und einstellbar", items: [
+          "Die Stream-Kachel ist aus der Übersicht raus.",
+          "Essen und Frühstück stehen groß über die ganze Breite und sagen oben auf einen Blick, ob gerade bestellt werden kann – oder ob es im Moment kein Essen gibt. Beim Frühstück steht je Morgen dabei, welche Pakete wie oft bestellt sind.",
+          "Ganz unten steht das Turnier, offene Anmeldungen zuerst und mit eigenem Hinweis.",
+          "Unter Einstellungen wählen Veranstalter und Orga, welche Kacheln auf der Übersicht erscheinen. Das gilt für alle, nicht nur für das eigene Gerät."
+      ]},
+    ],
+  },
+  {
     version: "8.30",
     groups: [
       { title: "Kontoliste lädt von selbst", items: [

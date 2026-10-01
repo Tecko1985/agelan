@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.1">
+<link rel="stylesheet" href="style.css?v=6.2">
 </head>
 <body>
 
@@ -1154,6 +1154,13 @@
    </div>
 
    <div class="karte-block">
+     <h2>Übersicht</h2>
+     <p class="hinweis-text">Welche Kacheln auf der Übersicht stehen – das gilt für <b>alle</b>, nicht nur für dieses Gerät. Die Reihenfolge ist fest: Essen, Frühstück, Orga, unten das Turnier.</p>
+     <div id="ub-einstellungen" class="ub-einstellungen"></div>
+     <p class="hinweis-text fehler" id="ub-einstellungen-fehler"></p>
+   </div>
+
+   <div class="karte-block">
      <h2>Nach der Veranstaltung</h2>
      <p class="hinweis-text">Löscht ALLE Konten – auch dein eigenes. Danach legt jede:r für die nächste AgeLan ein neues an. Nicht umkehrbar.</p>
      <button class="btn btn-danger btn-grow" id="btn-konten-leeren">Alle Konten löschen</button>
@@ -1368,7 +1375,7 @@
     'fruehstueck-app.js?v=1.19',
     'essen-service.js?v=2.22',
     'essen-app.js?v=2.22',
-    'uebersicht-app.js?v=1.7'
+    'uebersicht-app.js?v=1.8'
   ];
 
   var input = document.getElementById('pw-gate-input');
