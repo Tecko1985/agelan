@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.37",
+    groups: [
+      { title: "Frühstück auf Vertrauensbasis", items: [
+          "In der Frühstücksverwaltung gibt es keine Haken „abgeholt“ und „bezahlt“ und keine Abrechnung mehr – das Frühstück läuft auf Vertrauensbasis. Es bleiben die Einkaufsliste und je Morgen, wer wie viel von welchem Paket bestellt hat."
+      ]},
+    ],
+  },
+  {
     version: "8.36",
     groups: [
       { title: "Mail an den Lieferanten nummeriert", items: [

@@ -248,7 +248,7 @@ function frRenderTagInhalt(z) {
       <p class="hinweis-text">${tag.anzahlBesteller ? tag.anzahlBesteller + " Person" + (tag.anzahlBesteller === 1 ? " hat" : "en haben") + " bestellt, " + tag.stueckGesamt + " Stück insgesamt." : "Noch niemand hat für diesen Morgen bestellt."}</p>
     </div>
 
-    ${z.istAdmin ? frEinkaufslisteHtml(tag, z.pakete) + frBestellerlisteHtml(tag) + frAbrechnungHtml(z) : ""}
+    ${z.istAdmin ? frEinkaufslisteHtml(tag, z.pakete) + frBestellerlisteHtml(tag) : ""}
   `;
 
   box.querySelectorAll("[data-fr-mehr]").forEach((b) => b.addEventListener("click", () => frAendereEntwurf(b.dataset.frMehr, 1)));
@@ -341,34 +341,27 @@ function frEinkaufslisteHtml(tag, pakete) {
     </div>`;
 }
 
+// ⚠️ Seit 2026-10-01 OHNE „abgeholt“/„bezahlt“ und ohne Abrechnung: das
+// Frühstück läuft auf Vertrauensbasis, gebraucht wird nur die Menge (Michel).
+// frAbrechnungHtml und die Dienstfunktionen setzeAbgeholt/setzeBezahlt bleiben
+// stehen, werden aber nicht mehr aufgerufen. Die Sperre „bezahlt = nicht mehr
+// änderbar“ in Dienst und Regeln greift damit nie – niemand setzt den Haken.
 function frBestellerlisteHtml(tag) {
   if (!tag.bestellungen.length) return "";
   return `
     <div class="karte-block">
       <p class="feld-label">Bestellungen – ${escapeHtml(tag.tagLang)}</p>
       ${tag.bestellungen.map((b) => `
-        <div class="fr-liste-eintrag${b.abgeholt ? " abgeholt" : ""}">
+        <div class="fr-liste-eintrag">
           <div style="flex:1 1 auto; min-width:0">
-            <div class="fr-liste-name">${escapeHtml(b.name)}<span class="fr-liste-summe">${fruehstueckService.centLabel(b.summeCent)}</span></div>
-            <div class="fr-liste-positionen">${b.positionen.map((p) =>
-              p.anzahl + "× " + escapeHtml(p.name) + (p.preisCent ? " (" + fruehstueckService.centLabel(p.summeCent) + ")" : "")
-            ).join(", ")}</div>
+            <div class="fr-liste-name">${escapeHtml(b.name)}<span class="fr-liste-summe">${b.stueck}×</span></div>
+            <div class="fr-liste-positionen">${b.positionen.map((p) => p.anzahl + "× " + escapeHtml(p.name)).join(", ")}</div>
             ${b.notiz ? `<div class="fr-liste-notiz">${escapeHtml(b.notiz)}</div>` : ""}
-          </div>
-          <div class="fr-liste-haken">
-            <label class="fr-liste-abholen">
-              <input type="checkbox" data-fr-abgeholt="${tag.datum}|${b.uid}" ${b.abgeholt ? "checked" : ""}>
-              abgeholt
-            </label>
-            <label class="fr-liste-abholen">
-              <input type="checkbox" data-fr-bezahlt="${tag.datum}|${b.uid}" ${b.bezahlt ? "checked" : ""}>
-              bezahlt
-            </label>
           </div>
         </div>`).join("")}
       <div class="fr-summe-zeile">
+        <span>${tag.anzahlBesteller} ${tag.anzahlBesteller === 1 ? "Besteller" : "Besteller"}</span>
         <span>${tag.stueckGesamt} Stück</span>
-        <span>${fruehstueckService.centLabel(tag.summeCentGesamt)}</span>
       </div>
     </div>`;
 }
