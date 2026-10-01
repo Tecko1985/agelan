@@ -89,16 +89,16 @@ const ES_MAX_STUECK = 9;          // je Position – schützt vor Vertippern
 const ES_MAX_PREIS_CENT = 10000;  // 100 € für ein Gericht ist die Obergrenze der Vernunft
 const ES_MAX_BESTELLUNGEN = 300;
 const ES_MAX_SONDERWUNSCH = 120;
-// Extras zum Auswählen im Sonderwunsch (Vorschlag Michel, 2026-10-01): Käse und
-// Thunfisch 0,50 €, alles andere 1 €. Gewählte Extras stehen VORN im
+// Extras zum Auswählen im Sonderwunsch (Vorschlag Michel, 2026-10-01): Käse, Thunfisch
+// und Hähnchen 1,50 €, alles andere 1 €. Gewählte Extras stehen VORN im
 // Sonderwunsch-Text („+ Käse, + Salami · ohne Zwiebeln“) – so braucht es kein
 // neues Datenbankfeld, die Küche liest sie in der Mail mit, und der Preis wird
 // hier im Service aus dem Text berechnet, nicht vom Gerät mitgeschickt.
 // ⚠️ Namen nie umbenennen, solange Bestellungen laufen: ein alter Text mit dem
 // alten Namen kostet sonst beim Ändern plötzlich nichts mehr extra.
 const ES_EXTRAS = [
-  { name: "Käse", cent: 50 },
-  { name: "Thunfisch", cent: 50 },
+  { name: "Käse", cent: 150 },
+  { name: "Thunfisch", cent: 150 },
   { name: "Salami", cent: 100 },
   { name: "Schinken", cent: 100 },
   { name: "Champignons", cent: 100 },
@@ -110,7 +110,7 @@ const ES_EXTRAS = [
   { name: "Ananas", cent: 100 },
   { name: "Spinat", cent: 100 },
   { name: "Knoblauch", cent: 100 },
-  { name: "Hähnchen", cent: 100 },
+  { name: "Hähnchen", cent: 150 },
 ];
 const ES_MAX_EXTRAS = 4;          // je Position – sonst passt der Text nicht in 120 Zeichen
 const ES_MAX_WUNSCH_FREI = 50;    // freier Text neben den Extras
