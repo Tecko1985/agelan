@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.28",
+    groups: [
+      { title: "Übersicht zeigt den Gesamtstand", items: [
+          "Essen: Die Übersicht zeigt jetzt für alle, wann jede Lieferung beim Lieferanten bestellt wurde, ob sie schon da ist und seit wann, wie viel davon abgeholt ist und wie viele Bestellungen für die nächste Sammelbestellung gesammelt sind. Die letzten Lieferungen stehen mit ihrer Lieferzeit darunter. Die Kachel „Mein Essen“ ist weg – die eigene Bestellung steht im Reiter Essen.",
+          "Frühstück: Statt „Du hast bestellt“ zeigt die Übersicht für jeden kommenden Morgen, wie viele bestellt haben, wie viele Pakete es sind und ob noch bestellt werden kann."
+      ]},
+    ],
+  },
+  {
     version: "8.27",
     groups: [
       { title: "Fehlerbehebungen bei Essen und Verwaltung", items: [
