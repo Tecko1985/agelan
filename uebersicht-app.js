@@ -475,7 +475,7 @@ async function ubMitRolleSchreiben(pfad, wert, melden) {
     if (!abgelehnt || typeof holeFirebaseRolle !== "function") throw err;
     schritt("Datenbank sagt nein – hole die ⭐/🛠-Berechtigung neu …");
     const ok = await ubMitGrenze(holeFirebaseRolle("abgelehnt"), "beim Holen der ⭐/🛠-Berechtigung");
-    if (!ok) throw new Error(ubRolleGrund());
+    if (!ok) throw new Error(ubRolleGrund() + await ubWorkerAntwort());
     schritt("Berechtigung da – speichere noch einmal …");
     await ubMitGrenze(db.ref(pfad).set(wert), "von der Datenbank (zweiter Versuch)");
   }
@@ -489,6 +489,33 @@ function ubRolleGrund() {
   if (stand === "aus") return "Die Datenbank nimmt die ⭐/🛠-Rolle nicht an – sind die Regeln veröffentlicht?";
   if (stand === "holt") return "Die ⭐/🛠-Rolle wird gerade noch geholt – in ein paar Sekunden noch einmal speichern.";
   return "Die ⭐/🛠-Rolle ließ sich nicht holen (" + (stand || "unbekannt") + ") – Seite neu laden und noch einmal versuchen.";
+}
+
+// Wenn die Rolle nicht kommt: den Worker noch einmal direkt fragen und SEINE
+// Antwort zeigen (Status + Fehlertext). holeFirebaseRolle() verschluckt sie –
+// ohne das war nicht zu sehen, ob das Konto, das Geräte-Token oder der Worker
+// selbst das Problem ist. Meldet nichts an, liest nur die Antwort.
+async function ubWorkerAntwort() {
+  try {
+    const k = window.__AGELAN_KONTO__;
+    const user = typeof auth !== "undefined" ? auth.currentUser : null;
+    if (!k || !k.token) return " [Kein Konto-Token im Browser.]";
+    if (!user) return " [Keine Firebase-Anmeldung im Browser.]";
+    const idToken = await user.getIdToken();
+    const antwort = await ubMitGrenze(fetch(ROLLE_GATEWAY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "firebase-rolle", token: k.token, idToken: idToken }),
+    }), "vom Worker");
+    const b = await antwort.json().catch(() => ({}));
+    if (antwort.ok && b && b.ok) {
+      return " [Worker gibt die Rolle her (uid " + (b.uid === user.uid ? "passt" : "PASST NICHT: " + b.uid + " statt " + user.uid) +
+        ") – die Anmeldung damit scheitert im Browser.]";
+    }
+    return " [Worker antwortet " + antwort.status + ": " + (b.fehler || b.error || (b.nichtKonfiguriert ? "Dienstkonto fehlt" : "ohne Text")) + "]";
+  } catch (e) {
+    return " [Worker nicht erreichbar: " + (e && e.message) + "]";
+  }
 }
 
 function ubAuswahlBinden() {
