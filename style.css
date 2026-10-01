@@ -1739,3 +1739,10 @@ main#app.ub-breit { max-width: 980px; }
 .ub-info-kopf { margin: 14px 0 2px; }
 .ub-info-kopf:first-child { margin-top: 0; }
 .ub-infos-eingabe { min-height: 160px; resize: vertical; font-family: inherit; line-height: 1.45; }
+
+/* Zähler der Essensverwaltung als Filter (2026-10-01) */
+button.es-zaehler-teil { background: var(--card-bg); font: inherit; font-size: 12px; cursor: pointer; }
+button.es-zaehler-teil:hover { border-width: 2px; padding: 3px 8px; }
+button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); border-color: var(--es-farbe, var(--primary)); color: #fff; }
+.es-filter-alle { --es-farbe: var(--primary-akzent); }
+:root[data-theme="dark"] button.es-zaehler-teil.aktiv { color: #0f172a; }

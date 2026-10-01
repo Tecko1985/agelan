@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.38",
+    groups: [
+      { title: "Essen: Bestellungen filtern", items: [
+          "In der Essensverwaltung sind die Zähler „alle / offen / bezahlt / bestellt / abgeholt“ jetzt Filter: ein Tipp zeigt nur die Bestellungen mit diesem Stand, egal ob im Stapel oder schon beim Lieferanten. Noch einmal tippen oder „alle“ zeigt wieder alles.",
+          "Frühstück: Die Pakete in der Verwaltung sind zugeklappt, in der Kopfzeile steht die Anzahl."
+      ]},
+    ],
+  },
+  {
     version: "8.37",
     groups: [
       { title: "Frühstück auf Vertrauensbasis", items: [

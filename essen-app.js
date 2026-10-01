@@ -643,6 +643,12 @@ function esRundeHtml(r) {
 // wieder weg - genau die Liste, wegen der man den Knopf gedr\u00fcckt hat.
 let esBescheidStand = {};
 
+// Filter über den Zählern „offen / bezahlt / bestellt / abgeholt“ (2026-10-01).
+// null = alles in den gewohnten Gruppen (Stapel, Ohne Sammelbestellung, Beim
+// Lieferanten); sonst EINE Liste mit allen Bestellungen dieses Stands, egal in
+// welcher Gruppe sie stecken. Nicht gespeichert – gilt bis zum Neuladen.
+let esStatusFilter = null;
+
 function esBescheidHtml(r) {
   // \u26a0\ufe0f Die Uhrzeit kommt aus Firebase und steht deshalb auch nach einem
   // Neuladen noch da. Michel am 04.09.2026: \u201ebei bescheid geben auch den
@@ -850,10 +856,16 @@ function esRenderAdminBestellungen(z) {
     return;
   }
 
+  if (esStatusFilter && !essenService.STATUS_KETTE.includes(esStatusFilter)) esStatusFilter = null;
+  const gefiltert = esStatusFilter ? z.bestellungen.filter((b) => b.status === esStatusFilter) : null;
+
   box.innerHTML = `
-    <div class="es-zaehler">
+    <div class="es-zaehler" role="group" aria-label="Bestellungen filtern">
+      <button type="button" class="es-zaehler-teil es-filter-alle${esStatusFilter ? "" : " aktiv"}" data-es-filter=""
+        aria-pressed="${!esStatusFilter}"><b>${z.bestellungen.length}</b> alle</button>
       ${essenService.STATUS_KETTE.map((s) =>
-        `<span class="es-zaehler-teil status-${s}"><b>${z.zaehler[s]}</b> ${escapeHtml(essenService.STATUS_TEXT[s].kurz)}</span>`
+        `<button type="button" class="es-zaehler-teil status-${s}${esStatusFilter === s ? " aktiv" : ""}" data-es-filter="${s}"
+          aria-pressed="${esStatusFilter === s}"><b>${z.zaehler[s]}</b> ${escapeHtml(essenService.STATUS_TEXT[s].kurz)}</button>`
       ).join("")}
     </div>
     <div class="fr-summe-zeile es-geldzeile">
@@ -865,6 +877,12 @@ function esRenderAdminBestellungen(z) {
         ? " und " + essenService.centLabel(z.orgaGesamtCent) + " auf die Organisation (" + z.anzahlOrga + " Bestellung" + (z.anzahlOrga === 1 ? "" : "en") + ")"
         : ""}.</p>
 
+    ${gefiltert ? `
+    <p class="feld-label es-gruppe-titel">Nur „${escapeHtml(essenService.STATUS_TEXT[esStatusFilter].kurz)}“ (${gefiltert.length})</p>
+    ${gefiltert.length
+      ? gefiltert.map(esBestellungHtml).join("")
+      : `<p class="fr-leer-hinweis">Keine Bestellung mit diesem Stand.</p>`}
+    ` : `
     <p class="feld-label es-gruppe-titel">Stapel – noch nicht rausgeschickt (${z.stapel.length})</p>
     ${z.stapel.length
       ? z.stapel.map(esBestellungHtml).join("")
@@ -882,7 +900,16 @@ function esRenderAdminBestellungen(z) {
       ${z.altbestand.map(esBestellungHtml).join("")}`}
 
     ${z.runden.length ? `<p class="feld-label es-gruppe-titel">Beim Lieferanten (${z.runden.length})</p>` : ""}
-    ${z.runden.map(esRundeHtml).join("")}`;
+    ${z.runden.map(esRundeHtml).join("")}`}`;
+
+  // Klick auf einen Zähler filtert; derselbe noch einmal (oder „alle“) hebt auf.
+  box.querySelectorAll("[data-es-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const s = btn.dataset.esFilter || null;
+      esStatusFilter = esStatusFilter === s ? null : s;
+      esRenderAdminBestellungen(esZustand);
+    });
+  });
 
   // Altbestand nachtragen: eine Sammelbestellung aus dem, was schon raus ist.
   // ⚠️ Der Stand bleibt dabei stehen – ein „abgeholt" darf nicht wieder auf
