@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.36",
+    groups: [
+      { title: "Mail an den Lieferanten nummeriert", items: [
+          "Der Betreff der Sammelbestellung heißt jetzt „Bestellung 1 am Donnerstag – Name“. Die Nummer zählt je Tag hoch, am nächsten Tag geht es wieder bei 1 los. Eine schon verschickte Sammelbestellung behält ihre Nummer."
+      ]},
+    ],
+  },
+  {
     version: "8.35",
     groups: [
       { title: "Verwalten mit ⭐/🛠-Konto repariert", items: [

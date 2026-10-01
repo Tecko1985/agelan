@@ -1115,6 +1115,28 @@ function esMailBestellungen(z) {
   return z.ohneRunde.filter((b) => b.status === "bezahlt");
 }
 
+// Betreff der Mail an den Lieferanten: „Bestellung 1 am Donnerstag – Michel“.
+// Gezählt wird JE KALENDERTAG nach dem Zeitpunkt, an dem eine Sammelbestellung
+// festgehalten wurde (erstelltAm) – Michel am 2026-10-01: „nummeriere sie mit
+// Bestellung 1 am Donnerstag usw“. Eine schon verschickte Runde behält ihre
+// Nummer; eine neue bekommt die nächste des heutigen Tages.
+// ⚠️ Unabhängig von runde.nr/runde.titel („AgeLan #3 Foodservice 1“) – die
+// zählen über die ganze Veranstaltung und stehen so in der App.
+const ES_WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+
+function esMailBetreff(z, runde, basisBetreff) {
+  const tagVon = (ms) => new Date(ms).toDateString();
+  const zeitpunkt = runde && runde.erstelltAm ? runde.erstelltAm : Date.now();
+  const tag = tagVon(zeitpunkt);
+  const amTag = z.runden.filter((r) => r.erstelltAm && tagVon(r.erstelltAm) === tag);
+  const nr = runde
+    ? amTag.filter((r) => r.erstelltAm < runde.erstelltAm || (r.erstelltAm === runde.erstelltAm && r.nr <= runde.nr)).length
+    : amTag.length + 1;
+  // „– Michel“ aus dem bisherigen Betreff übernehmen (kommt aus den Einstellungen).
+  const zusatz = String(basisBetreff || "").replace(/^Sammelbestellung/, "");
+  return "Bestellung " + Math.max(1, nr) + " am " + ES_WOCHENTAGE[new Date(zeitpunkt).getDay()] + zusatz;
+}
+
 function esRenderSammelmail(z) {
   const box = esEl("es-sammelmail");
   // Geänderter oder schon geöffneter Mailtext: nicht neu zeichnen (siehe
@@ -1137,6 +1159,7 @@ function esRenderSammelmail(z) {
   const einzeln = esEinzelId() ? auswahl[0] : null;
   const runde = esRundeAuswahlId() ? z.runden.find((x) => x.id === esRundeAuswahlId()) : null;
   const brief = essenService.bestelltext(auswahl, z.meta);
+  brief.betreff = esMailBetreff(z, runde, brief.betreff);
   // Für die Radioknöpfe zählt nur der Stapel – die Zahl in Klammern muss zu
   // dem passen, was der Knopf darunter dann wirklich verschickt.
   const stapelBezahlt = z.ohneRunde.filter((b) => b.status === "bezahlt").length;
