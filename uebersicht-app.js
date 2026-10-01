@@ -5,6 +5,10 @@
 // wann bestellt wurde und ob sie da ist, wie viel Frühstück bestellt ist, wer
 // sein Essen noch nicht geholt hat und bei welchem Turnier man sich anmelden kann.
 //
+// ⚠️ Die Übersicht ist ein ANZEIGEBILDSCHIRM (Beamer/Fernseher, „das sehen
+// hundert Leute“): immer nur EINE Kachel, groß, alle UB_WECHSEL_MS die nächste.
+// Nichts Gerätebezogenes (Hell/Dunkel-Schalter steht unter Einstellungen).
+//
 // ⚠️ Seit 2026-10-01 OHNE Stream-Kachel (Michel: „komplett raus“). Welche
 // Kacheln es gibt, stellen Veranstalter/Orga unter Einstellungen ein – für ALLE,
 // gespeichert unter `uebersicht/kacheln` (siehe UB_KACHELN).
@@ -25,6 +29,13 @@
 // ===========================================================================
 
 const UB_TAKT_MS = 30000;   // dieselbe Taktung wie das Essens-Zeitfenster
+const UB_WECHSEL_MS = 15000; // so lange steht eine Kachel, dann kommt die nächste
+
+// Welche Kachel gerade gezeigt wird – nach ID, nicht nach Position: fällt eine
+// Kachel weg (Orga schaltet ab), springt die Anzeige nicht auf eine falsche.
+let ubAktivId = null;
+let ubWechselSeit = Date.now();
+let ubSichtbareIds = [];
 
 let ubTakt = null;
 let ubGebunden = false;
@@ -385,10 +396,10 @@ function ubKachelTurnier() {
 // (true/false); fehlt ein Wert, gilt `an`. Schreiben dürfen laut Regeln nur
 // Konten mit ⭐/🛠 (Claim agelanOrga).
 const UB_KACHELN = [
-  { id: "essen", label: "🍕 Essen", an: true, bau: () => ubKachelLieferungen() },
-  { id: "fruehstueck", label: "🥐 Frühstück", an: true, bau: () => ubKachelFruehstueck() },
-  { id: "orga", label: "🛠 Für die Orga (sehen nur ⭐/🛠)", an: true, bau: () => ubKachelOrga() },
-  { id: "turnier", label: "🏆 Turnier und Anmeldung", an: true, bau: () => ubKachelTurnier() },
+  { id: "essen", kurz: "🍕 Essen", label: "🍕 Essen", an: true, bau: () => ubKachelLieferungen() },
+  { id: "fruehstueck", kurz: "🥐 Frühstück", label: "🥐 Frühstück", an: true, bau: () => ubKachelFruehstueck() },
+  { id: "orga", kurz: "🛠 Orga", label: "🛠 Für die Orga (nur auf Geräten mit ⭐/🛠-Konto – nicht für den Beamer)", an: true, bau: () => ubKachelOrga() },
+  { id: "turnier", kurz: "🏆 Turnier", label: "🏆 Turnier und Anmeldung", an: true, bau: () => ubKachelTurnier() },
 ];
 let ubAuswahl = {};          // aus Firebase; leer = alles nach Standard
 let ubAuswahlGebunden = false;
@@ -458,7 +469,11 @@ function ubRender() {
   const sz = ubZustand("stream");
   const titel = ubEl("ub-titel");
   const unter = ubEl("ub-untertitel");
-  if (titel) titel.textContent = (sz && sz.vorhanden && sz.meta.titel) ? sz.meta.titel : "Übersicht";
+  // Der Name kommt aus dem Streamplan („AgeLan #3 Streamplan“) – das Wort
+  // „Streamplan“ gehört auf den Anzeigebildschirm aber nicht mehr dazu.
+  const name = (sz && sz.vorhanden && sz.meta.titel)
+    ? String(sz.meta.titel).replace(/\s*[-–·]?\s*streamplan\s*$/i, "").trim() : "";
+  if (titel) titel.textContent = name || "AgeLan";
   if (unter) {
     const stand = ubJetztStand(sz);
     if (sz && sz.vorhanden && stand) {
@@ -475,15 +490,52 @@ function ubRender() {
   // Anmeldung. Welche davon erscheinen, entscheidet die Auswahl (UB_KACHELN).
   const kacheln = UB_KACHELN.filter((k) => ubKachelAn(k.id)).map((k) => {
     try {
-      return k.bau();
+      return { id: k.id, kurz: k.kurz, html: k.bau() };
     } catch (e) {
       console.error("[Übersicht] Kachel " + k.id + " fehlgeschlagen:", e);
-      return "";
+      return null;
     }
-  }).filter(Boolean);
-  ziel.innerHTML = kacheln.length
-    ? kacheln.join("")
-    : ubLeer("Die Orga hat alle Kacheln ausgeblendet.");
+  }).filter((k) => k && k.html);
+  ubSichtbareIds = kacheln.map((k) => k.id);
+
+  if (!kacheln.length) {
+    ziel.innerHTML = ubLeer("Die Orga hat alle Kacheln ausgeblendet.");
+    return;
+  }
+  if (ubSichtbareIds.indexOf(ubAktivId) < 0) {
+    ubAktivId = kacheln[0].id;
+    ubWechselSeit = Date.now();
+  }
+  const aktiv = kacheln.find((k) => k.id === ubAktivId);
+
+  // Unten die Leiste: welche Kachel gerade dran ist und ein Balken bis zur
+  // nächsten. ⚠️ Der Balken läuft per negativer animation-delay WEITER, wenn
+  // zwischendurch neu gezeichnet wird (neue Bestellung) – sonst finge er bei
+  // jeder Änderung von vorn an und stimmte nicht mehr mit dem Wechsel überein.
+  let leiste = "";
+  if (kacheln.length > 1) {
+    const vergangen = Math.min(UB_WECHSEL_MS, Date.now() - ubWechselSeit);
+    leiste = '<div class="ub-leiste" role="tablist">' +
+      kacheln.map((k) => '<button type="button" role="tab" class="ub-punkt' +
+        (k.id === ubAktivId ? " aktiv" : "") + '" data-ub-zeige="' + k.id + '" aria-selected="' +
+        (k.id === ubAktivId) + '">' + escapeHtml(k.kurz) + "</button>").join("") +
+      "</div>" +
+      '<div class="ub-fortschritt"><i style="animation-duration:' + UB_WECHSEL_MS +
+      "ms;animation-delay:-" + vergangen + 'ms"></i></div>';
+  }
+  ziel.innerHTML = '<div class="ub-buehne">' + aktiv.html + "</div>" + leiste;
+}
+
+// Nächste Kachel. Läuft im Sekundentakt mit, gewechselt wird erst nach
+// UB_WECHSEL_MS – so bleibt der Wechsel auch nach einem Klick auf die Leiste
+// (der die Uhr neu startet) im richtigen Abstand.
+function ubWechselPruefen() {
+  if (!ubSichtbar() || ubSichtbareIds.length < 2) return;
+  if (Date.now() - ubWechselSeit < UB_WECHSEL_MS) return;
+  const i = ubSichtbareIds.indexOf(ubAktivId);
+  ubAktivId = ubSichtbareIds[(i + 1) % ubSichtbareIds.length];
+  ubWechselSeit = Date.now();
+  ubRender();
 }
 
 // Nur zeichnen, wenn der Reiter auch offen ist – sonst rechnet das Dashboard
@@ -525,10 +577,19 @@ function ubVielleichtRendern() {
   // setInterval, NICHT requestAnimationFrame – das steht im versteckten Tab.
   if (ubTakt) clearInterval(ubTakt);
   ubTakt = setInterval(ubVielleichtRendern, UB_TAKT_MS);
+  setInterval(ubWechselPruefen, 1000);
 
   // Die Knöpfe der Kacheln führen in den jeweiligen Bereich. Delegiert, weil
   // die Kacheln bei jedem Neuzeichnen neue Elemente sind.
   ziel.addEventListener("click", (e) => {
+    // Klick auf die Leiste: diese Kachel zeigen, die 15 Sekunden laufen neu.
+    const punkt = e.target.closest("[data-ub-zeige]");
+    if (punkt) {
+      ubAktivId = punkt.getAttribute("data-ub-zeige");
+      ubWechselSeit = Date.now();
+      ubRender();
+      return;
+    }
     const knopf = e.target.closest("[data-ziel]");
     if (!knopf) return;
     if (typeof activateTab === "function") activateTab(knopf.getAttribute("data-ziel"));

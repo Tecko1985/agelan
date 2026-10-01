@@ -1620,9 +1620,6 @@ main#app.ub-breit { max-width: 980px; }
   display: grid; gap: 12px;
   grid-template-columns: minmax(0, 1fr);
 }
-@media (min-width: 700px) {
-  #ub-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 
 .ub-kachel {
   background: var(--card-bg); border: 1px solid var(--border);
@@ -1707,3 +1704,32 @@ main#app.ub-breit { max-width: 980px; }
   padding: 8px 12px; border-radius: 999px; background: var(--bg); color: var(--primary-akzent);
   white-space: nowrap;
 }
+
+/* Übersicht als Anzeigebildschirm (2026-10-01): eine Kachel, groß, rotierend. */
+.ub-buehne .ub-kachel { padding: clamp(18px, 3vw, 32px); min-height: 55vh; }
+.ub-buehne .ub-kachel-titel { font-size: clamp(22px, 3.2vw, 34px); margin-bottom: 18px; }
+.ub-buehne .ub-status { padding: clamp(16px, 2.4vw, 26px) clamp(18px, 2.8vw, 30px); margin-bottom: 20px; }
+.ub-buehne .ub-status-titel { font-size: clamp(26px, 4.4vw, 48px); }
+.ub-buehne .ub-status-dazu { font-size: clamp(16px, 2vw, 22px); }
+.ub-buehne .ub-zeile { padding: 12px 0; gap: 6px 14px; }
+.ub-buehne .ub-zeile-kopf { font-size: clamp(17px, 2.3vw, 26px); }
+.ub-buehne .ub-zeile-dazu { font-size: clamp(14px, 1.7vw, 19px); }
+.ub-buehne .ub-marke { font-size: clamp(11px, 1.3vw, 14px); padding: 4px 10px; }
+.ub-buehne .ub-block-titel { font-size: clamp(15px, 1.9vw, 21px); }
+.ub-buehne .ub-leer { font-size: clamp(15px, 1.8vw, 20px); }
+.ub-buehne .ub-weiter { font-size: clamp(15px, 1.7vw, 19px); }
+
+.ub-leiste { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 14px 0 8px; }
+.ub-punkt {
+  border: 1px solid var(--border); background: var(--card-bg); color: var(--muted);
+  border-radius: 999px; padding: 8px 16px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.ub-punkt.aktiv { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ub-fortschritt { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.ub-fortschritt > i {
+  display: block; height: 100%; width: 100%; background: var(--primary-akzent);
+  transform-origin: left; animation-name: ub-lauf; animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes ub-lauf { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .ub-fortschritt { display: none; } }

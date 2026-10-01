@@ -1629,6 +1629,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.33",
+    groups: [
+      { title: "Übersicht als Anzeigebildschirm", items: [
+          "Die Übersicht zeigt immer nur eine Kachel, groß, und wechselt alle 15 Sekunden zur nächsten: Essen, Frühstück, Orga, Turnier. Unten steht, welche gerade dran ist, mit einem Balken bis zum nächsten Wechsel; ein Tipp auf einen Namen springt direkt dorthin.",
+          "Das Feld für Hell/Dunkel steht jetzt unter Einstellungen statt auf der Übersicht. Automatisch nach der Sonne bleibt der Standard.",
+          "Über der Übersicht steht nur noch der Name der Veranstaltung, ohne „Streamplan“."
+      ]},
+    ],
+  },
+  {
     version: "8.32",
     groups: [
       { title: "Hell und Dunkel nach der Sonne", items: [

@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.3">
+<link rel="stylesheet" href="style.css?v=6.4">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <script src="thema.js?v=1.0"></script>
 </head>
@@ -313,8 +313,6 @@
   </div>
   <!-- Die Kacheln entstehen in uebersicht-app.js. Ein leeres Ziel hier, damit
        ein Renderfehler nicht die ganze Seite zerlegt. -->
-  <!-- Großes Umschaltfeld Hell/Dunkel; Inhalt und Klick kommen aus thema.js. -->
-  <button type="button" class="thema-feld" data-thema-feld></button>
   <div id="ub-kacheln"></div>
  </div>
 
@@ -1134,6 +1132,13 @@
  </div>
 
  <div class="tab-section" id="tab-einstellungen">
+   <!-- Hell/Dunkel gehört NICHT auf die Übersicht – die ist ein Anzeigebildschirm
+        für alle. Gilt nur für dieses Gerät; Inhalt und Klick kommen aus thema.js. -->
+   <div class="karte-block">
+     <h2>Darstellung (dieses Gerät)</h2>
+     <button type="button" class="thema-feld" data-thema-feld></button>
+   </div>
+
    <div class="karte-block">
      <h2>Angemeldete Nutzer</h2>
      <p class="hinweis-text">Alle, die sich ein Konto angelegt haben. ⭐ ist Veranstalter, 🛠 gehört zur Organisation.</p>
@@ -1379,7 +1384,7 @@
     'fruehstueck-app.js?v=1.19',
     'essen-service.js?v=2.22',
     'essen-app.js?v=2.22',
-    'uebersicht-app.js?v=1.8'
+    'uebersicht-app.js?v=1.9'
   ];
 
   var input = document.getElementById('pw-gate-input');
