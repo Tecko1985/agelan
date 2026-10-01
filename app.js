@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.40",
+    groups: [
+      { title: "Live-Verbindung und Frühstücks-Export", items: [
+          "Kommt das Gerät zurück – Tab wieder vorn, Fenster wieder im Fokus, WLAN wieder da –, baut die Seite die Verbindung zur Datenbank sofort neu auf. Neue Bestellungen stehen an der Kasse dann gleich da, ohne Neuladen. Fehlt die Verbindung, steht oben „🔴 Keine Verbindung“.",
+          "Frühstück: Unter den Bestellungen eines Morgens kopiert „📋 Als Text kopieren“ die Mengen je Paket und wer was bestellt hat – ohne Preise, zum Einfügen in WhatsApp oder eine Mail."
+      ]},
+    ],
+  },
+  {
     version: "8.39",
     groups: [
       { title: "Schneller laden, von selbst aktuell", items: [

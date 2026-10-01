@@ -363,7 +363,26 @@ function frBestellerlisteHtml(tag) {
         <span>${tag.anzahlBesteller} ${tag.anzahlBesteller === 1 ? "Besteller" : "Besteller"}</span>
         <span>${tag.stueckGesamt} Stück</span>
       </div>
+      <button type="button" class="btn btn-secondary btn-grow" data-fr-export="${escapeHtml(tag.datum)}">📋 Als Text kopieren</button>
+      <p class="hinweis-text" data-fr-export-meldung="${escapeHtml(tag.datum)}"></p>
     </div>`;
+}
+
+// Export als reiner Text (Michel am 2026-10-01: „Export als Text, rein mit den
+// Bestellmengen“): oben die Mengen je Paket, darunter wer was – ohne Preise.
+function frExportText(tag) {
+  const summe = new Map();
+  tag.bestellungen.forEach((b) => b.positionen.forEach((p) => {
+    summe.set(p.name, (summe.get(p.name) || 0) + p.anzahl);
+  }));
+  const zeilen = ["Frühstück " + tag.tagLang + ", " + tag.label, ""];
+  summe.forEach((n, name) => zeilen.push(n + "× " + name));
+  zeilen.push("Gesamt: " + tag.stueckGesamt + " Stück, " + tag.anzahlBesteller + " Besteller", "");
+  tag.bestellungen.forEach((b) => {
+    zeilen.push(b.name + ": " + b.positionen.map((p) => p.anzahl + "× " + p.name).join(", ") +
+      (b.notiz ? "  (" + b.notiz + ")" : ""));
+  });
+  return zeilen.join("\n");
 }
 
 // Abrechnung über alle Morgen: die Liste, mit der kassiert wird.
@@ -401,6 +420,30 @@ function frAbrechnungHtml(z) {
 }
 
 function frWireAbholButtons() {
+  document.querySelectorAll("[data-fr-export]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const z = fruehstueckService.getZustand();
+      const tag = z && z.tage ? z.tage.find((t) => t.datum === btn.dataset.frExport) : null;
+      const meldung = document.querySelector('[data-fr-export-meldung="' + btn.dataset.frExport + '"]');
+      if (!tag) return;
+      const text = frExportText(tag);
+      try {
+        await navigator.clipboard.writeText(text);
+        if (meldung) meldung.textContent = "Kopiert – zum Beispiel in WhatsApp oder eine Mail einfügen.";
+      } catch (e) {
+        // Ohne Zwischenablage (altes iOS, kein https): Text zum Markieren zeigen.
+        if (meldung) {
+          meldung.innerHTML = "";
+          const feld = document.createElement("textarea");
+          feld.className = "eingabe";
+          feld.rows = Math.min(14, text.split("\n").length + 1);
+          feld.value = text;
+          meldung.appendChild(feld);
+          feld.select();
+        }
+      }
+    });
+  });
   document.querySelectorAll("[data-fr-abgeholt]").forEach((cb) => {
     cb.addEventListener("change", () => {
       const [datum, uid] = cb.dataset.frAbgeholt.split("|");
