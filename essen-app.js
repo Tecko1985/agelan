@@ -168,7 +168,21 @@ function esRenderKopf(z) {
 // Salate kommen mit Essig und Öl oder Dressing nach Art des Hauses (Michel,
 // 2026-10-01). Die Karte liegt in Firebase – darum hier für jedes Gericht,
 // das „Salat“ im Namen oder in der Kategorie trägt, statt in jeder Beschreibung.
-const ES_SALAT_HINWEIS = "Wird mit Essig und Öl oder Dressing nach Art des Hauses geliefert.";
+// Dressing-Auswahl bei Salaten (Michel am 01.10.2026), Standard Essig und Öl.
+// ⚠️ Steht im Sonderwunsch VOR dem freien Text („Essig und Öl, ohne Zwiebeln“),
+// so liest die Küche es in der Mail mit und es braucht kein neues
+// Datenbankfeld. Beim Ändern einer Bestellung wird es von dort zurückgelesen –
+// die Texte deshalb nie umformulieren, solange Bestellungen laufen.
+const ES_DRESSINGS = ["Essig und Öl", "Dressing nach Art des Hauses"];
+
+// Sonderwunsch-Rest → { dressing, rest }. Nur bei Salaten aufgerufen.
+function esDressingZerlegen(text) {
+  const t = String(text || "").trim();
+  const d = ES_DRESSINGS.find((x) => t === x || t.startsWith(x + ", "));
+  return d ? { dressing: d, rest: t.slice(d.length).replace(/^,\s*/, "") } : { dressing: ES_DRESSINGS[0], rest: t };
+}
+
+const ES_SALAT_HINWEIS = "Wahlweise mit Essig und Öl oder Dressing nach Art des Hauses – auswählen im Warenkorb.";
 function esIstSalat(g) {
   return /salat/i.test((g.name || "") + " " + (g.kategorie || ""));
 }
@@ -297,7 +311,8 @@ function esRenderKarte(z) {
 // der Zeile aber schon ein Sonderwunsch, ist sie etwas Eigenes und bekommt eine
 // neue Zeile daneben.
 function esLegeInKorb(gerichtId) {
-  const vorhanden = esEntwurf.positionen.find((p) => p.gerichtId === gerichtId && !p.sonderwunsch && !p.extras.length);
+  const vorhanden = esEntwurf.positionen.find((p) => p.gerichtId === gerichtId && !p.sonderwunsch && !p.extras.length &&
+    (!p.dressing || p.dressing === ES_DRESSINGS[0]));
   if (vorhanden) {
     if (vorhanden.anzahl < essenService.MAX_STUECK) vorhanden.anzahl += 1;
     esRenderKorb();
@@ -309,7 +324,9 @@ function esLegeInKorb(gerichtId) {
   }
   esLfdNr += 1;
   const lid = "l" + esLfdNr;
-  esEntwurf.positionen.push({ lid, gerichtId, anzahl: 1, sonderwunsch: "", extras: [] });
+  const gericht = esZustand && esZustand.karte.find((x) => x.id === gerichtId);
+  esEntwurf.positionen.push({ lid, gerichtId, anzahl: 1, sonderwunsch: "", extras: [],
+    dressing: gericht && esIstSalat(gericht) ? ES_DRESSINGS[0] : "" });
   esRenderKorb();
   // Direkt in das Sonderwunsch-Feld der neuen Zeile: wer gerade „Pommes"
   // angeklickt hat, will als Nächstes die Spezialsoße dazuschreiben.
@@ -397,6 +414,10 @@ function esRenderKorb() {
               <span class="fr-stepper-zahl">${pos.anzahl}</span>
               <button type="button" data-es-mehr="${escapeHtml(pos.lid)}" ${pos.anzahl >= essenService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(g ? g.name : "diesem Gericht")}">+</button>
             </div>
+            ${g && esIstSalat(g) ? `<select class="eingabe es-extra-wahl es-dressing-wahl" data-es-dressing="${escapeHtml(pos.lid)}"
+              aria-label="Dressing zu ${escapeHtml(g.name)}">
+              ${ES_DRESSINGS.map((d) => `<option value="${escapeHtml(d)}"${(pos.dressing || ES_DRESSINGS[0]) === d ? " selected" : ""}>🥗 ${escapeHtml(d)}</option>`).join("")}
+            </select>` : ""}
             ${esExtrasMoeglich(g) ? `<select class="eingabe es-extra-wahl" data-es-extra="${escapeHtml(pos.lid)}"
               aria-label="Extra zu ${escapeHtml(g.name)} dazunehmen" ${pos.extras.length >= essenService.MAX_EXTRAS ? "disabled" : ""}>
               <option value="">➕ Extra dazu …</option>
@@ -443,6 +464,13 @@ function esRenderKorb() {
   box.querySelectorAll("[data-es-raus]").forEach((b) => b.addEventListener("click", () => esEntferneAusKorb(b.dataset.esRaus)));
   // ⚠️ Extras zeichnen den Korb neu (Auswahlliste und Preis ändern sich). Ein
   // gerade getippter Sonstiges-Text steht da schon in esEntwurf – geht nichts verloren.
+  // Dressing ändert keinen Preis – kein Neuzeichnen nötig.
+  box.querySelectorAll("[data-es-dressing]").forEach((wahl) => {
+    wahl.addEventListener("change", () => {
+      const pos = esEntwurf.positionen.find((p) => p.lid === wahl.dataset.esDressing);
+      if (pos) pos.dressing = wahl.value;
+    });
+  });
   box.querySelectorAll("[data-es-extra]").forEach((wahl) => {
     wahl.addEventListener("change", () => {
       const pos = esEntwurf.positionen.find((p) => p.lid === wahl.dataset.esExtra);
@@ -517,7 +545,8 @@ async function esSendeBestellung() {
       positionen: esEntwurf.positionen.map((p) => ({
         gerichtId: p.gerichtId,
         anzahl: p.anzahl,
-        sonderwunsch: essenService.extrasText(p.extras, p.sonderwunsch),
+        sonderwunsch: essenService.extrasText(p.extras,
+          [p.dressing, String(p.sonderwunsch || "").trim()].filter(Boolean).join(", ")),
       })),
     });
   } catch (e) {
@@ -607,7 +636,9 @@ function esLadeInKorb(bestellungId) {
     positionen: b.positionen.map((p) => {
       esLfdNr += 1;
       const w = essenService.extrasZerlegen(p.sonderwunsch);
-      return { lid: "l" + esLfdNr, gerichtId: p.gerichtId, anzahl: p.anzahl, sonderwunsch: w.rest, extras: w.extras };
+      const g = esZustand.karte.find((x) => x.id === p.gerichtId);
+      const d = g && esIstSalat(g) ? esDressingZerlegen(w.rest) : { dressing: "", rest: w.rest };
+      return { lid: "l" + esLfdNr, gerichtId: p.gerichtId, anzahl: p.anzahl, sonderwunsch: d.rest, extras: w.extras, dressing: d.dressing };
     }),
   };
   esRenderKorb();

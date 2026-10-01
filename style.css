@@ -1814,3 +1814,6 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
   background: transparent; color: inherit; font-size: 28px; line-height: 1; cursor: pointer; padding: 0 0 4px; }
 .fr-tag-pfeil:hover:not(:disabled) { border-color: currentColor; }
 .fr-tag-pfeil:disabled { opacity: 0.25; cursor: default; }
+
+/* Dressing-Auswahl beim Salat: der lange Text muss ganz lesbar sein. */
+.es-dressing-wahl { flex: 1 1 260px; }

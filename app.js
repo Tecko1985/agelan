@@ -1644,6 +1644,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.54",
+    groups: [
+      { title: "Essen: Dressing beim Salat", items: [
+          "Bei Salaten gibt es im Warenkorb eine Auswahl „🥗 Essig und Öl“ (Standard) oder „Dressing nach Art des Hauses“. Die Wahl steht in der Bestellung und in der Mail an den Lieferanten."
+      ]},
+    ],
+  },
+  {
     version: "8.53",
     groups: [
       { title: "Schutz gegen Manipulation", items: [
