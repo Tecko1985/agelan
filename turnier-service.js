@@ -1204,20 +1204,26 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
   // Modus (Best-of), Gruppen-Anzahl und Weiterkommende werden erst beim Auslosen
   // festgelegt – dann steht die Teilnehmerzahl fest. Hier nur Platzhalter-Defaults.
   // Turnierform und Ablauf dagegen jetzt: sie sagen, worauf man sich einschreibt.
-  await db.ref("turniere/" + id + "/meta").set({
-    name: name.trim(),
-    erstelltAm: firebase.database.ServerValue.TIMESTAMP,
-    hostId: eigeneUid,
-    phase: "anmeldung",
-    teamGroesse: metaTeamGroesse({ teamGroesse }),
-    ablauf: metaAblauf({ ablauf }),
-    formatOffen: formatOffen,
-    bestOf: 3,
-    anzahlGruppen: 2,
-    weiterProGruppe: 2,
-    punkteSieg: 3,
-    siegerTeamId: null,
-  });
+  // ⚠️ Seit der Bugjagd 01.10.2026 legt die Datenbank Turniere nur noch mit
+  // gültiger ⭐/🛠-Rolle an – vorher ging das per Konsole von jedem Gerät aus.
+  try {
+    await db.ref("turniere/" + id + "/meta").set({
+      name: name.trim(),
+      erstelltAm: firebase.database.ServerValue.TIMESTAMP,
+      hostId: eigeneUid,
+      phase: "anmeldung",
+      teamGroesse: metaTeamGroesse({ teamGroesse }),
+      ablauf: metaAblauf({ ablauf }),
+      formatOffen: formatOffen,
+      bestOf: 3,
+      anzahlGruppen: 2,
+      weiterProGruppe: 2,
+      punkteSieg: 3,
+      siegerTeamId: null,
+    });
+  } catch (e) {
+    return { erfolg: false, fehler: "Turnier anlegen geht nur mit einem Veranstalter- oder Orga-Konto (⭐/🛠). Bitte damit anmelden und die Seite neu laden." };
+  }
   // Der PIN selbst kommt nirgends in die Datenbank – nur sein Hash, und zwar
   // in den Knoten ohne Leserecht. Die Beweisablage gleich mit: die Regel
   // verlangt sie spaeter beim PIN-Wechsel und beim Loeschen.

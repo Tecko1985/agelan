@@ -1580,9 +1580,16 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
   // nur weil der Besteller einen Sonderwunsch ergänzt (Bugjagd 25.09.d T5a-1b).
   // Bearbeitet der Veranstalter eine fremde Bestellung, überträgt sich so auch
   // nie sein eigenes Merkmal darauf.
+  // ⚠️ Seit der Bugjagd 01.10.2026 nimmt die Datenbank orga:true von Teilnehmern
+  // nur noch mit gültiger ⭐/🛠-Rolle (Claim) an – vorher ließ sich per Konsole
+  // kostenlos bestellen. Ohne gültige Rolle (z. B. Rolle abgelaufen) geht die
+  // Bestellung deshalb als normale raus statt abgelehnt zu werden; umstellen
+  // kann der Veranstalter sie mit „→ 🛠 Orga“. Im Testmodus gibt es keine Rolle.
+  const rolleDa = esIstAdmin() || (typeof rolleGueltig === "function" && rolleGueltig()) ||
+    (typeof rolleMoeglich === "function" && !rolleMoeglich());
   const orgaJetzt = bisher
     ? bisher.orga
-    : (typeof kontoIstOrga === "function" && kontoIstOrga());
+    : (typeof kontoIstOrga === "function" && kontoIstOrga() && rolleDa);
 
   const id = bestellungId || esNeueId("best");
   // ⚠️ set() statt update(): weggenommene Positionen müssen wirklich

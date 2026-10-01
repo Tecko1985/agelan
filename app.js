@@ -1644,6 +1644,16 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.53",
+    groups: [
+      { title: "Schutz gegen Manipulation", items: [
+          "Essen: Kostenlose Orga-Bestellungen nimmt die Datenbank nur noch von Konten mit gültiger ⭐/🛠-Rolle an, und kein Gericht kann billiger als auf der Karte bestellt werden. Vorher ließ sich beides über die Browser-Konsole fälschen.",
+          "Frühstück: Der Bestellschluss und der Annahme-Schalter gelten jetzt auch in der Datenbank. Ein Gerät mit falscher Uhr kann nicht mehr nachbestellen.",
+          "Turnier: Neue Turniere lassen sich nur noch mit ⭐/🛠-Konto anlegen. Spieler können keine gefälschten Ergebnisse oder Sieger mehr in die K.-o.-Runde schreiben – den Turniersieg trägt immer ein Gerät ein, das nicht zum Siegerteam gehört."
+      ]},
+    ],
+  },
+  {
     version: "8.52",
     groups: [
       { title: "Fehlersuche über das ganze Tool", items: [

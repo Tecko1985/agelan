@@ -486,17 +486,49 @@ frAuthBereit.then(() => {
   frListener = db.ref(FR_BASIS).on("value", (snap) => {
     frRoh = snap.val() || {};
     frMelde();
+    frSchlussAbgleichen();
     // ⚠️ Ohne await: der Beweis läuft über das Netz und darf das Rendern
     // nicht aufhalten. Ist er durch, meldet er selbst.
     frPruefeGemerktenPin();
   });
 });
 
+// Bestellschluss auch in der Datenbank (Bugjagd 01.10.2026): Die Regel lässt
+// Teilnehmer nur bis meta/schlussMs/<datum> bestellen – sonst konnte ein Gerät
+// mit falscher Uhr oder Zeitzone nach dem Einkauf noch nachbestellen.
+// ⚠️ Nur Veranstalter-Geräte schreiben die Zeitpunkte, gerechnet in ihrer
+// Ortszeit (deutsche Zeit). Fehlt ein Eintrag, lässt die Regel bestellen wie
+// bisher – ein Plan ohne Veranstalter online sperrt also niemanden aus.
+let frSchlussSchreibtGerade = false;
+function frSchlussAbgleichen() {
+  try {
+    if (frSchlussSchreibtGerade || !frRoh || !frRoh.meta || !frIstAdmin()) return;
+    const meta = frRoh.meta;
+    const anzahl = Math.min(FR_MAX_TAGE, Math.max(1, Math.round(frZahl(meta.anzahlTage, 1))));
+    const uhr = Math.max(0, Math.min(1439, Math.round(frZahl(meta.schlussUhr, FR_STANDARD_SCHLUSS))));
+    const soll = {};
+    for (let i = 0; i < anzahl; i++) {
+      const datum = frDatumPlus(meta.startDatum, i);
+      soll[datum] = frSchlussZeitpunkt(datum, uhr);
+    }
+    const ist = meta.schlussMs || {};
+    const gleich = Object.keys(soll).length === Object.keys(ist).length &&
+      Object.keys(soll).every((d) => ist[d] === soll[d]);
+    if (gleich) return;
+    frSchlussSchreibtGerade = true;
+    db.ref(FR_BASIS + "/meta/schlussMs").set(soll)
+      .catch((e) => console.warn("[Frühstück] Bestellschluss nicht hinterlegt:", e && e.message))
+      .then(() => { frSchlussSchreibtGerade = false; });
+  } catch (e) {
+    frSchlussSchreibtGerade = false;
+  }
+}
+
 // Der Bestellschluss verschiebt sich mit der Uhr, ohne dass sich in Firebase
 // etwas ändert. Ohne diesen Takt bliebe ein Tag optisch offen, bis irgendjemand
 // anders etwas schreibt.
 setInterval(() => {
-  if (frRoh !== null) frMelde();
+  if (frRoh !== null) { frMelde(); frSchlussAbgleichen(); }
 }, 30000);
 
 // ===========================================================================
