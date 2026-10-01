@@ -1140,7 +1140,9 @@
           wissen, wer noch keine hinterlegt hat - die ID braucht er dafuer
           nicht, und sie steht auch niemandem sonst zu. -->
      <p class="hinweis-text">Steht <b>💬❌</b> hinter einem Namen, hat die Person keine Discord-ID hinterlegt und bekommt <b>keine Nachricht</b>, wenn ihr Essen bereitliegt. Eintragen kann sie nur sie selbst – oben auf den eigenen Namen tippen, dann „Mein Konto“. Die ID selbst siehst du hier nicht.</p>
-     <button class="btn btn-secondary btn-grow" id="btn-konten-laden">Liste laden</button>
+     <!-- Kein Lade-Knopf mehr (seit 2026-10-01): die Liste lädt beim Öffnen des
+          Reiters selbst und hält sich danach im Hintergrund aktuell. -->
+     <p class="hinweis-text konten-stand" id="konten-stand"></p>
      <!-- Suche und Filter. Stehen AUSSERHALB von #konten-liste, damit sie das
           Neuladen nach jedem Haken überleben – sonst wäre die Suche nach jedem
           Klick weg. Erst sichtbar, wenn die Liste geladen ist. -->
@@ -1360,7 +1362,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.18',
-    'app.js?v=3.93',
+    'app.js?v=3.94',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.15',
     'fruehstueck-service.js?v=1.16',

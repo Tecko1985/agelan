@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.30",
+    groups: [
+      { title: "Kontoliste lädt von selbst", items: [
+          "Einstellungen: Die Liste der angemeldeten Nutzer lädt beim Öffnen des Reiters von selbst und hält sich danach alle 30 Sekunden im Hintergrund aktuell. Der Knopf „Liste laden“ ist weg; darüber steht, wann zuletzt aktualisiert wurde. Neu gezeichnet wird nur, wenn sich wirklich etwas geändert hat – Suche und Filter bleiben stehen."
+      ]},
+    ],
+  },
+  {
     version: "8.29",
     groups: [
       { title: "Kontoliste durchsuchen und filtern", items: [
@@ -2870,6 +2878,10 @@ function activateTab(name) {
   // Hereinwechseln muss es deshalb HIER angestossen werden. Aus demselben
   // Grund wie die sk-breit-Zeile darueber steht das in activateTab und nicht
   // am Klickhorcher: es gibt drei Wege in einen Reiter.
+  // Kontoliste: lädt beim Öffnen selbst und hält sich dann im Hintergrund aktuell.
+  if (typeof kontenReiterGewechselt === "function") {
+    kontenReiterGewechselt(name === "einstellungen");
+  }
   if (name === "uebersicht" && typeof ubRender === "function") {
     try {
       ubRender();
@@ -2979,15 +2991,44 @@ function kontenDatum(ms) {
   return d.getDate() + "." + (d.getMonth() + 1) + "." + d.getFullYear();
 }
 
-async function ladeKonten() {
+// Hintergrund-Aktualisierung der Kontoliste. ⚠️ Nur solange der Reiter offen
+// und die Seite sichtbar ist – jede Runde ist ein Aufruf beim Worker.
+const KONTEN_TAKT_MS = 30000;
+let kontenTakt = null;
+let kontenLaeuft = false;
+let kontenLetzterStand = "";
+
+function kontenUhr() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function kontenReiterOffen() {
+  const tab = document.getElementById("tab-einstellungen");
+  return !!tab && tab.classList.contains("active") && document.visibilityState !== "hidden";
+}
+
+// still = Hintergrundrunde: kein „Lade …“, kein Fehlerkasten, und neu
+// gezeichnet wird nur, wenn sich an den Konten wirklich etwas geändert hat –
+// sonst sprängen Liste und Fokus alle 30 Sekunden.
+async function ladeKonten(optionen) {
+  const still = !!(optionen && optionen.still);
+  if (kontenLaeuft) return;
+  kontenLaeuft = true;
   const box = document.getElementById("konten-liste");
-  const knopf = document.getElementById("btn-konten-laden");
-  zeigeFehler("konten-fehler", "");
-  knopf.disabled = true;
-  knopf.textContent = "Lade …";
+  const stand = document.getElementById("konten-stand");
+  if (!still) {
+    zeigeFehler("konten-fehler", "");
+    if (stand && !kontenLetzterStand) stand.textContent = "Lade …";
+  }
   try {
     const daten = await kontenRufe("konto-liste");
     const eigener = (window.__AGELAN_KONTO__ || {}).nickname;
+    const neuerStand = JSON.stringify(daten.konten);
+    if (stand) stand.textContent = "Aktualisiert sich von selbst · Stand " + kontenUhr();
+    if (still && neuerStand === kontenLetzterStand) return;
+    kontenLetzterStand = neuerStand;
+    zeigeFehler("konten-fehler", "");
 
     // ⚠️ Die Nachfassliste. Wer keine Discord-ID hinterlegt hat, bekommt
     // KEINE Nachricht, wenn sein Essen bereitliegt - und merkt das von selbst
@@ -3043,6 +3084,7 @@ async function ladeKonten() {
       cb.addEventListener("change", async () => {
         try {
           await kontenRufe("konto-orga", { nickname: cb.dataset.kontoOrga, orga: cb.checked });
+          kontenLetzterStand = "";
           await ladeKonten();
         } catch (e) {
           cb.checked = !cb.checked;   // zurueckdrehen, sonst behauptet der Haken etwas Falsches
@@ -3060,6 +3102,7 @@ async function ladeKonten() {
           // trotzdem nachziehen, sonst steht jemand unter „ohne 🎥“, der es hat.
           cb.closest(".konto-zeile").dataset.streamer = cb.checked ? "1" : "0";
           kontenFiltern();
+          kontenLetzterStand = "";   // nächste Runde zeichnet mit dem neuen Stand
         } catch (e) {
           cb.checked = !cb.checked;   // zurueckdrehen, sonst behauptet der Haken etwas Falsches
           zeigeFehler("konten-fehler", e.message);
@@ -3073,6 +3116,7 @@ async function ladeKonten() {
         if (!confirm(`Konto „${name}" wirklich löschen? Die Person muss sich danach ein neues anlegen. Bereits abgegebene Bestellungen bleiben stehen.`)) return;
         try {
           await kontenRufe("konto-loeschen", { nickname: name });
+          kontenLetzterStand = "";
           await ladeKonten();
         } catch (e) {
           zeigeFehler("konten-fehler", e.message);
@@ -3080,18 +3124,40 @@ async function ladeKonten() {
       });
     });
   } catch (e) {
-    box.innerHTML = "";
-    zeigeFehler("konten-fehler", e.message);
+    // ⚠️ Eine fehlgeschlagene Hintergrundrunde (Funkloch) lässt die zuletzt
+    // geladene Liste stehen – nur ein Laden ohne Liste meldet den Fehler.
+    if (stand) stand.textContent = kontenLetzterStand
+      ? "Aktualisieren fehlgeschlagen · Stand von vorhin" : "";
+    if (!still || !kontenLetzterStand) {
+      if (!kontenLetzterStand) box.innerHTML = "";
+      zeigeFehler("konten-fehler", e.message);
+    }
   } finally {
-    knopf.disabled = false;
-    knopf.textContent = "Liste neu laden";
+    kontenLaeuft = false;
   }
 }
 
+// Beim Hereinwechseln in den Reiter sofort laden und den Takt starten; beim
+// Verlassen stoppen. Aufgerufen aus activateTab (drei Wege in einen Reiter).
+function kontenReiterGewechselt(offen) {
+  if (kontenTakt) {
+    clearInterval(kontenTakt);
+    kontenTakt = null;
+  }
+  if (!offen) return;
+  ladeKonten({ still: !!kontenLetzterStand });
+  kontenTakt = setInterval(() => {
+    if (kontenReiterOffen()) ladeKonten({ still: true });
+  }, KONTEN_TAKT_MS);
+}
+
 function setupEinstellungenTab() {
-  const knopf = document.getElementById("btn-konten-laden");
-  if (!knopf) return;
-  knopf.addEventListener("click", ladeKonten);
+  if (!document.getElementById("konten-liste")) return;
+  // Seite war im Hintergrund und kommt zurück: gleich nachsehen statt bis zur
+  // nächsten Runde zu warten.
+  document.addEventListener("visibilitychange", () => {
+    if (kontenReiterOffen()) ladeKonten({ still: true });
+  });
 
   document.getElementById("konten-suche").addEventListener("input", kontenFiltern);
   document.getElementById("konten-chips").addEventListener("click", (e) => {
