@@ -422,8 +422,12 @@
       "kacheln": {
         ".write": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now",
         "$kachel": {
-          ".validate": "newData.isBoolean() && ($kachel === 'essen' || $kachel === 'fruehstueck' || $kachel === 'orga' || $kachel === 'turnier')"
+          ".validate": "newData.isBoolean() && ($kachel === 'essen' || $kachel === 'fruehstueck' || $kachel === 'orga' || $kachel === 'turnier' || $kachel === 'infos')"
         }
+      },
+      "infos": {
+        ".write": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now",
+        ".validate": "newData.isString() && newData.val().length <= 2000"
       },
       "$sonst": {
         ".validate": false

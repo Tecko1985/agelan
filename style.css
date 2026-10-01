@@ -1733,3 +1733,9 @@ main#app.ub-breit { max-width: 980px; }
 }
 @keyframes ub-lauf { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) { .ub-fortschritt { display: none; } }
+
+/* Kachel Infos (Freitext der Orga) */
+.ub-info .ub-zeile-kopf { font-weight: 600; }
+.ub-info-kopf { margin: 14px 0 2px; }
+.ub-info-kopf:first-child { margin-top: 0; }
+.ub-infos-eingabe { min-height: 160px; resize: vertical; font-family: inherit; line-height: 1.45; }

@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.34",
+    groups: [
+      { title: "Allgemeine Infos auf der Übersicht", items: [
+          "Unter Einstellungen gibt es ein Feld „Allgemeine Infos“. Was dort steht, läuft auf der Übersicht als eigene Kachel „ℹ️ Infos“ mit durch. Jede Zeile wird ein Punkt, eine Zeile mit # am Anfang eine Zwischenüberschrift. Leer gelassen erscheint die Kachel nicht."
+      ]},
+    ],
+  },
+  {
     version: "8.33",
     groups: [
       { title: "Übersicht als Anzeigebildschirm", items: [

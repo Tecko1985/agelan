@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.4">
+<link rel="stylesheet" href="style.css?v=6.5">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <script src="thema.js?v=1.0"></script>
 </head>
@@ -1164,9 +1164,18 @@
 
    <div class="karte-block">
      <h2>Übersicht</h2>
-     <p class="hinweis-text">Welche Kacheln auf der Übersicht stehen – das gilt für <b>alle</b>, nicht nur für dieses Gerät. Die Reihenfolge ist fest: Essen, Frühstück, Orga, unten das Turnier.</p>
+     <p class="hinweis-text">Welche Kacheln auf der Übersicht stehen – das gilt für <b>alle</b>, nicht nur für dieses Gerät. Die Reihenfolge ist fest: Essen, Frühstück, Orga, Turnier, Infos.</p>
      <div id="ub-einstellungen" class="ub-einstellungen"></div>
      <p class="hinweis-text fehler" id="ub-einstellungen-fehler"></p>
+   </div>
+
+   <div class="karte-block">
+     <h2>Allgemeine Infos</h2>
+     <p class="hinweis-text">Erscheinen auf der Übersicht als eigene Kachel „ℹ️ Infos“ – für <b>alle</b> sichtbar. Jede Zeile wird ein Punkt. Eine Zeile mit <b>#</b> am Anfang wird eine Zwischenüberschrift. Leer lassen blendet die Kachel aus.</p>
+     <textarea id="ub-infos-text" class="eingabe ub-infos-eingabe" rows="8" maxlength="2000"
+               placeholder="# WLAN&#10;Netz: AgeLan · Passwort hängt am Eingang&#10;# Ruhezeit&#10;Ab 2:00 Uhr bitte Kopfhörer"></textarea>
+     <button type="button" class="btn btn-primary btn-grow" id="ub-infos-speichern">Infos speichern</button>
+     <p class="hinweis-text" id="ub-infos-meldung"></p>
    </div>
 
    <div class="karte-block">
@@ -1384,7 +1393,7 @@
     'fruehstueck-app.js?v=1.19',
     'essen-service.js?v=2.22',
     'essen-app.js?v=2.22',
-    'uebersicht-app.js?v=1.9'
+    'uebersicht-app.js?v=1.10'
   ];
 
   var input = document.getElementById('pw-gate-input');

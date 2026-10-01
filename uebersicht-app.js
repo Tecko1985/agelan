@@ -389,6 +389,25 @@ function ubKachelTurnier() {
     ubKnopf("turnier", offen.length ? "Zur Turnieranmeldung" : "Zu den Turnieren"));
 }
 
+// --- Kachel: allgemeine Infos ----------------------------------------------
+//
+// Freitext der Orga, gepflegt unter Einstellungen, gespeichert unter
+// `uebersicht/infos` (ein String). Jede Zeile wird ein eigener Punkt; eine
+// Zeile, die mit „#“ beginnt, wird eine Zwischenüberschrift. Ohne Text
+// erscheint die Kachel gar nicht erst (kein leerer Punkt in der Leiste).
+const UB_INFOS_MAX = 2000;
+let ubInfosText = "";
+
+function ubKachelInfos() {
+  const zeilen = String(ubInfosText || "").split(/\r?\n/).map((z) => z.trim()).filter(Boolean);
+  if (!zeilen.length) return "";
+  const inhalt = zeilen.map((z) => z.charAt(0) === "#"
+    ? '<p class="ub-block-titel ub-info-kopf">' + escapeHtml(z.replace(/^#+\s*/, "")) + "</p>"
+    : '<div class="ub-zeile ub-info"><span class="ub-zeile-kopf">' + escapeHtml(z) + "</span></div>"
+  ).join("");
+  return ubKachel("ub-infos ub-breit", "ℹ️ Infos", inhalt);
+}
+
 // --- Auswahl der Kacheln ----------------------------------------------------
 //
 // ⚠️ Gilt für ALLE, nicht je Gerät: Veranstalter/Orga stellen unter Einstellungen
@@ -400,6 +419,7 @@ const UB_KACHELN = [
   { id: "fruehstueck", kurz: "🥐 Frühstück", label: "🥐 Frühstück", an: true, bau: () => ubKachelFruehstueck() },
   { id: "orga", kurz: "🛠 Orga", label: "🛠 Für die Orga (nur auf Geräten mit ⭐/🛠-Konto – nicht für den Beamer)", an: true, bau: () => ubKachelOrga() },
   { id: "turnier", kurz: "🏆 Turnier", label: "🏆 Turnier und Anmeldung", an: true, bau: () => ubKachelTurnier() },
+  { id: "infos", kurz: "ℹ️ Infos", label: "ℹ️ Allgemeine Infos (Text unten)", an: true, bau: () => ubKachelInfos() },
 ];
 let ubAuswahl = {};          // aus Firebase; leer = alles nach Standard
 let ubAuswahlGebunden = false;
@@ -436,7 +456,40 @@ function ubAuswahlBinden() {
       // Regeln noch nicht veröffentlicht o. ä.: Standard zeigen, nicht leer.
       console.warn("[Übersicht] Auswahl nicht lesbar – Standard gilt:", e && e.message);
     });
+    db.ref("uebersicht/infos").on("value", (snap) => {
+      const v = snap.val();
+      ubInfosText = typeof v === "string" ? v : "";
+      const feld = ubEl("ub-infos-text");
+      // ⚠️ Nicht überschreiben, während jemand gerade darin tippt – sonst
+      // springt der Text unter den Fingern zurück, wenn ein anderes Gerät speichert.
+      if (feld && document.activeElement !== feld) feld.value = ubInfosText;
+      ubVielleichtRendern();
+    }, (e) => {
+      console.warn("[Übersicht] Infos nicht lesbar:", e && e.message);
+    });
   });
+
+  const knopfInfos = ubEl("ub-infos-speichern");
+  if (knopfInfos) {
+    knopfInfos.addEventListener("click", async () => {
+      const feld = ubEl("ub-infos-text");
+      const meldung = ubEl("ub-infos-meldung");
+      const text = String(feld ? feld.value : "").slice(0, UB_INFOS_MAX);
+      knopfInfos.disabled = true;
+      if (meldung) meldung.textContent = "";
+      try {
+        await db.ref("uebersicht/infos").set(text);
+        if (meldung) meldung.textContent = text.trim() ? "Gespeichert – steht jetzt auf der Übersicht." : "Geleert – die Kachel Infos ist ausgeblendet.";
+      } catch (err) {
+        if (meldung) {
+          meldung.textContent = "Nicht gespeichert: " + (err && err.message || err) +
+            " – geht nur mit ⭐/🛠-Konto (und erst, wenn die Datenbank-Regeln veröffentlicht sind).";
+        }
+      } finally {
+        knopfInfos.disabled = false;
+      }
+    });
+  }
 
   const box = ubEl("ub-einstellungen");
   if (box) {
