@@ -523,12 +523,45 @@ async function ubWorkerAntwort() {
         await ubMitGrenze(db.ref("rolleProbe").once("value"), "bei der Gegenprobe");
         return " [Anmeldung und Gegenprobe klappen jetzt – bitte noch einmal speichern.]";
       } catch (e) {
-        return " [" + schritt + " scheitert: " + ((e && e.code) || "") + " " + ((e && e.message) || e) + "]";
+        return " [" + schritt + " scheitert: " + ((e && e.code) || "") + " " + ((e && e.message) || e) + "]" +
+          (/invalid-custom-token/.test(String(e && e.code)) ? await ubTokenPruefen(b.customToken) : "");
       }
     }
     return " [Worker antwortet " + antwort.status + ": " + (b.fehler || b.error || (b.nichtKonfiguriert ? "Dienstkonto fehlt" : "ohne Text")) + "]";
   } catch (e) {
     return " [Worker nicht erreichbar: " + (e && e.message) + "]";
+  }
+}
+
+// Warum lehnt Google das Custom Token ab? Inhalt lesen und die Unterschrift
+// gegen die AKTUELLEN öffentlichen Schlüssel des Dienstkontos prüfen. Passt sie
+// zu keinem, ist der Schlüssel im Worker-Secret gelöscht/ersetzt worden.
+async function ubTokenPruefen(token) {
+  try {
+    const teile = String(token).split(".");
+    const dekod = (t) => JSON.parse(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4)));
+    const kopf = dekod(teile[0]);
+    const n = dekod(teile[1]);
+    const jetzt = Math.floor(Date.now() / 1000);
+    let text = " [Token: iss " + n.iss + ", aud " + (String(n.aud).indexOf("identitytoolkit") >= 0 ? "ok" : n.aud) +
+      ", iat " + (n.iat - jetzt) + " s, exp " + (n.exp - n.iat) + " s, alg " + kopf.alg;
+    const antwort = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/" + encodeURIComponent(n.iss));
+    if (!antwort.ok) return text + " – Google kennt dieses Dienstkonto nicht (HTTP " + antwort.status + ")]";
+    const schluessel = ((await antwort.json()) || {}).keys || [];
+    const daten = new TextEncoder().encode(teile[0] + "." + teile[1]);
+    const b64 = teile[2].replace(/-/g, "+").replace(/_/g, "/") + "===".slice((teile[2].length + 3) % 4);
+    const sig = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    for (const k of schluessel) {
+      const key = await crypto.subtle.importKey("jwk", { kty: "RSA", n: k.n, e: k.e, alg: "RS256", ext: true },
+        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+      if (await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, sig, daten)) {
+        return text + " – Unterschrift passt zu Schlüssel " + String(k.kid).slice(0, 8) + "…]";
+      }
+    }
+    return text + " – Unterschrift passt zu KEINEM der " + schluessel.length +
+      " aktuellen Schlüssel: der Schlüssel im Worker-Secret ist gelöscht oder ersetzt]";
+  } catch (e) {
+    return " [Token-Prüfung fehlgeschlagen: " + (e && e.message) + "]";
   }
 }
 
