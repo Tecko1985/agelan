@@ -1215,6 +1215,11 @@ main#app.ub-breit { max-width: 980px; }
 .konto-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
 .konto-du { font-weight: 400; color: var(--muted); }
 .konto-datum { flex: 0 0 auto; font-size: 13px; color: var(--muted); }
+.konten-filter { margin: 14px 0 6px; }
+.konten-filter .eingabe { margin-bottom: 0; }
+.konten-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.konten-chips .sk-chip { padding: 6px 12px; font-size: 13px; }
+.konto-zeile[hidden] { display: none; }
 
 /* Datenschutz im Vorraum. Zugeklappt, damit er die Kacheln nicht erschlaegt -
    aber ohne Anmeldung erreichbar, und das ist der Punkt. */

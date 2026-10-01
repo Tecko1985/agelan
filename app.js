@@ -1629,6 +1629,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.29",
+    groups: [
+      { title: "Kontoliste durchsuchen und filtern", items: [
+          "Einstellungen: Über der Liste der angemeldeten Nutzer gibt es jetzt ein Suchfeld für den Namen und Filter für Veranstalter, Orga, Streamer, ohne Streamer-Haken und ohne Discord-ID – jeweils mit der Anzahl. Suche und Filter bleiben stehen, wenn ein Haken gesetzt wird und die Liste sich neu lädt."
+      ]},
+    ],
+  },
+  {
     version: "8.28",
     groups: [
       { title: "Übersicht zeigt den Gesamtstand", items: [
@@ -2920,6 +2928,51 @@ async function kontenRufe(aktion, extra) {
   return daten;
 }
 
+// Suche und Filter der Kontoliste. ⚠️ Modulweit gehalten, nicht im DOM der
+// Liste: ladeKonten() zeichnet nach jedem Orga-Haken alles neu, und die Suche
+// soll das überstehen.
+const KONTEN_FILTER = [
+  { id: "alle", label: "Alle", passt: () => true },
+  { id: "veranstalter", label: "⭐ Veranstalter", passt: (z) => z.dataset.admin === "1" },
+  { id: "orga", label: "🛠 Orga", passt: (z) => z.dataset.orga === "1" },
+  { id: "streamer", label: "🎥 Streamer", passt: (z) => z.dataset.streamer === "1" },
+  { id: "kein-streamer", label: "ohne 🎥", passt: (z) => z.dataset.streamer !== "1" },
+  { id: "kein-discord", label: "💬❌ ohne Discord", passt: (z) => z.dataset.discord !== "1" },
+];
+let kontenFilterAktiv = "alle";
+
+function kontenFiltern() {
+  const box = document.getElementById("konten-liste");
+  const chips = document.getElementById("konten-chips");
+  const suche = (document.getElementById("konten-suche").value || "").trim().toLowerCase();
+  const zeilen = Array.from(box.querySelectorAll(".konto-zeile"));
+  const filter = KONTEN_FILTER.find((f) => f.id === kontenFilterAktiv) || KONTEN_FILTER[0];
+  const nachName = (z) => !suche || z.dataset.name.indexOf(suche) >= 0;
+
+  let sichtbar = 0;
+  zeilen.forEach((z) => {
+    const zeigen = nachName(z) && filter.passt(z);
+    z.hidden = !zeigen;
+    if (zeigen) sichtbar += 1;
+  });
+
+  // Die Zahl an jedem Chip richtet sich nach der Suche: „🛠 Orga 2" heißt,
+  // zwei Orga-Leute passen zum eingegebenen Namen.
+  chips.innerHTML = KONTEN_FILTER.map((f) => {
+    const n = zeilen.filter((z) => nachName(z) && f.passt(z)).length;
+    return `<button type="button" class="sk-chip${f.id === kontenFilterAktiv ? " aktiv" : ""}" data-konten-filter="${f.id}" aria-pressed="${f.id === kontenFilterAktiv}">${escapeHtml(f.label)} <span class="sk-chip-zahl">${n}</span></button>`;
+  }).join("");
+
+  const treffer = document.getElementById("konten-treffer");
+  if (treffer) {
+    treffer.textContent = sichtbar === zeilen.length
+      ? zeilen.length + " " + (zeilen.length === 1 ? "Konto" : "Konten")
+      : sichtbar + " von " + zeilen.length + " Konten";
+  }
+  const leer = document.getElementById("konten-kein-treffer");
+  if (leer) leer.hidden = sichtbar > 0 || !zeilen.length;
+}
+
 function kontenDatum(ms) {
   if (!ms) return "";
   const d = new Date(ms);
@@ -2958,9 +3011,10 @@ async function ladeKonten() {
          Der Bot schreibt sie an jeden Veranstalter mit hinterlegter Discord-ID – gerade hat keiner eine. Trag deine oben über deinen Namen unter „Mein Konto“ ein.</p>`;
 
     box.innerHTML = daten.konten.length
-      ? fehlend + meldung + `<p class="hinweis-text">${daten.konten.length} ${daten.konten.length === 1 ? "Konto" : "Konten"}</p>` +
+      ? fehlend + meldung + `<p class="hinweis-text" id="konten-treffer"></p>` +
+        `<p class="hinweis-text" id="konten-kein-treffer" hidden>Niemand passt zu Suche und Filter.</p>` +
         daten.konten.map((k) => `
-          <div class="konto-zeile">
+          <div class="konto-zeile" data-name="${escapeHtml(String(k.nickname || "").toLowerCase())}" data-admin="${k.admin ? 1 : 0}" data-orga="${k.orga || k.admin ? 1 : 0}" data-streamer="${k.streamer ? 1 : 0}" data-discord="${k.discord ? 1 : 0}">
             <span class="konto-name">${k.admin ? "⭐ " : (k.orga ? "🛠 " : "👤 ")}${escapeHtml(k.nickname)}${k.nickname === eigener ? " <span class=\"konto-du\">(du)</span>" : ""}</span>
             ${k.discord ? "" : `<span class="konto-kein-discord" title="Keine Discord-ID hinterlegt – bekommt keine Nachricht, wenn das Essen bereitliegt">💬❌</span>`}
             <label class="konto-streamer" title="Gehört zur Organisation: hat alle Rechte und zahlt beim Essen nichts">
@@ -2977,6 +3031,8 @@ async function ladeKonten() {
             <button type="button" class="mini-btn" data-konto-loeschen="${escapeHtml(k.nickname)}" title="Konto löschen" aria-label="Konto ${escapeHtml(k.nickname)} löschen">🗑</button>
           </div>`).join("")
       : `<p class="hinweis-text">Noch niemand hat sich ein Konto angelegt.</p>`;
+    document.getElementById("konten-filter").hidden = !daten.konten.length;
+    kontenFiltern();
 
     // ⚠️ Nach dem Umstellen die ganze Liste neu holen: „Orga" aendert das
     // Symbol vor dem Namen und die Rechte in der ganzen App. Ohne Neuladen
@@ -3000,6 +3056,10 @@ async function ladeKonten() {
         try {
           await kontenRufe("konto-streamer", { nickname: cb.dataset.kontoStreamer, streamer: cb.checked });
           zeigeFehler("konten-fehler", "");
+          // Der Streamer-Haken lädt die Liste nicht neu – Filter und Zahlen
+          // trotzdem nachziehen, sonst steht jemand unter „ohne 🎥“, der es hat.
+          cb.closest(".konto-zeile").dataset.streamer = cb.checked ? "1" : "0";
+          kontenFiltern();
         } catch (e) {
           cb.checked = !cb.checked;   // zurueckdrehen, sonst behauptet der Haken etwas Falsches
           zeigeFehler("konten-fehler", e.message);
@@ -3032,6 +3092,14 @@ function setupEinstellungenTab() {
   const knopf = document.getElementById("btn-konten-laden");
   if (!knopf) return;
   knopf.addEventListener("click", ladeKonten);
+
+  document.getElementById("konten-suche").addEventListener("input", kontenFiltern);
+  document.getElementById("konten-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-konten-filter]");
+    if (!chip) return;
+    kontenFilterAktiv = chip.dataset.kontenFilter;
+    kontenFiltern();
+  });
 
   document.getElementById("btn-konten-leeren").addEventListener("click", async () => {
     if (!confirm("Wirklich ALLE Konten löschen? Auch dein eigenes – du musst dich danach neu anlegen. Das lässt sich nicht rückgängig machen.")) return;

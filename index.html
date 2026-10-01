@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.0">
+<link rel="stylesheet" href="style.css?v=6.1">
 </head>
 <body>
 
@@ -1141,6 +1141,13 @@
           nicht, und sie steht auch niemandem sonst zu. -->
      <p class="hinweis-text">Steht <b>💬❌</b> hinter einem Namen, hat die Person keine Discord-ID hinterlegt und bekommt <b>keine Nachricht</b>, wenn ihr Essen bereitliegt. Eintragen kann sie nur sie selbst – oben auf den eigenen Namen tippen, dann „Mein Konto“. Die ID selbst siehst du hier nicht.</p>
      <button class="btn btn-secondary btn-grow" id="btn-konten-laden">Liste laden</button>
+     <!-- Suche und Filter. Stehen AUSSERHALB von #konten-liste, damit sie das
+          Neuladen nach jedem Haken überleben – sonst wäre die Suche nach jedem
+          Klick weg. Erst sichtbar, wenn die Liste geladen ist. -->
+     <div class="konten-filter" id="konten-filter" hidden>
+       <input type="search" id="konten-suche" class="eingabe" placeholder="Name suchen …" autocomplete="off" aria-label="Konten nach Namen durchsuchen">
+       <div class="konten-chips" id="konten-chips" role="group" aria-label="Konten filtern"></div>
+     </div>
      <div id="konten-liste"></div>
      <p class="hinweis-text fehler" id="konten-fehler"></p>
    </div>
@@ -1353,7 +1360,7 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'turnier-service.js?v=2.18',
-    'app.js?v=3.92',
+    'app.js?v=3.93',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.15',
     'fruehstueck-service.js?v=1.16',
