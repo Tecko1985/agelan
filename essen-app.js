@@ -1259,8 +1259,13 @@ function esRenderSammelmail(z) {
 
       <label class="feld-label" for="es-mail-text">E-Mail-Text</label>
       <textarea id="es-mail-text" class="eingabe es-mail-text" rows="12" spellcheck="false">${escapeHtml(brief.text)}</textarea>
-      <p class="hinweis-text" id="es-mail-veraltet" style="display:none">⚠️ An den Bestellungen hat sich etwas geändert, seit dieser Text erzeugt wurde.
-        <button type="button" class="mini-btn" id="es-btn-mail-neu">Text neu erzeugen</button></p>
+      <!-- ⚠️ Auffällig, nicht als graue Fußnote (2026-10-01): der Text bleibt nach
+           „E-Mail öffnen“/„Kopieren“ absichtlich stehen, neue Bestellungen fehlen
+           dann darin – das muss man sehen, bevor die Mail rausgeht. -->
+      <div class="es-mail-veraltet" id="es-mail-veraltet" style="display:none" role="alert">
+        <span>⚠️ <b>Neue oder geänderte Bestellungen</b> – sie fehlen im Text oben.</span>
+        <button type="button" class="btn btn-primary" id="es-btn-mail-neu">Text mit allen Bestellungen neu erzeugen</button>
+      </div>
       <p class="hinweis-text">Der Text lässt sich hier noch ändern, bevor er rausgeht. Namen der Besteller stehen bewusst nicht drin. Bei Gerichten, von denen welche auf die Organisation gehen, steht dabei, wie viele – und was dafür wirklich zu zahlen ist.</p>
 
       <div class="es-mail-knoepfe">
@@ -1692,3 +1697,4 @@ function esWireEvents() {
   esWireEvents();
   essenService.onZustandsAenderung(esRender);
 })();
+

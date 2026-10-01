@@ -483,6 +483,12 @@ function frRenderAdmin(z) {
   // springt er unter dem Finger zurück, wenn jemand anders gerade bestellt.
   const schalter = frEl("fr-ein-annahme");
   if (schalter && document.activeElement !== schalter) schalter.checked = z.schalterAn;
+  // Kopfzeile des zugeklappten Kastens: das Wichtigste auf einen Blick.
+  const kurz = frEl("fr-ein-kurz");
+  if (kurz) {
+    kurz.textContent = (z.schalterAn ? "Annahme offen" : "Annahme zu") + " · " + z.meta.anzahlTage +
+      (Number(z.meta.anzahlTage) === 1 ? " Tag" : " Tage") + " · Schluss " + frZeitInputWert(z.meta.schlussUhr) + " Uhr";
+  }
 
   frRenderPaketeVerwalten(z);
 }

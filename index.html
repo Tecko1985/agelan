@@ -7,9 +7,14 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.6">
+<link rel="stylesheet" href="style.css?v=6.8">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
+<!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://agelan-ab042-default-rtdb.europe-west1.firebasedatabase.app">
 <script src="thema.js?v=1.0"></script>
+<!-- Zwangsaktualisierung: neue Fassung online → Seite lädt neu (siehe Datei). -->
+<script src="aktualisieren.js?v=1.0"></script>
 </head>
 <body>
 
@@ -864,7 +869,10 @@
       <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
       </details>
 
-      <p class="feld-label">Einstellungen</p>
+      <!-- Einstellungen zugeklappt (2026-10-01), samt „entfernen“/„löschen“ –
+           die braucht man selten, und zu sind sie auch vor Fehlgriffen sicherer. -->
+      <details class="es-klapp fr-ein-klapp">
+      <summary><span class="es-klapp-titel">Einstellungen</span><span class="es-klapp-kurz" id="fr-ein-kurz"></span></summary>
 
       <!-- ⚠️ Wirkt sofort, ohne „Einstellungen speichern" – im Gegensatz zu den
            beiden Feldern darunter. Der Bestellschluss läuft von allein, das hier
@@ -893,6 +901,7 @@
 
       <button class="btn btn-danger btn-grow" id="fr-btn-plan-loeschen">Frühstücksbestellung löschen</button>
       <p class="hinweis-text">Löscht alles: Pakete, Einstellungen und Bestellungen. Das Turnier bleibt davon unberührt.</p>
+      </details>
       <p class="hinweis-text fehler" id="fr-admin-panel-fehler"></p>
     </div>
   </div>
@@ -1394,9 +1403,9 @@
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.15',
     'fruehstueck-service.js?v=1.16',
-    'fruehstueck-app.js?v=1.21',
+    'fruehstueck-app.js?v=1.22',
     'essen-service.js?v=2.22',
-    'essen-app.js?v=2.25',
+    'essen-app.js?v=2.26',
     'uebersicht-app.js?v=1.17'
   ];
 
@@ -1463,22 +1472,27 @@
   }
 
   // --- Skripte nachladen ----------------------------------------------------
-  // Nacheinander, nicht parallel: firebase-config braucht das Firebase-SDK,
-  // die Services brauchen die Konfiguration, die Oberflächen die Services.
+  // Gleichzeitig LADEN, aber der Reihe nach AUSFÜHREN: firebase-config braucht
+  // das Firebase-SDK, die Services die Konfiguration, die Oberflächen die
+  // Services. `async = false` an eingefügten <script>-Tags garantiert genau das.
+  // ⚠️ Bis 2026-10-01 kam jedes Skript erst, wenn das vorige fertig war – 14
+  // Wartezeiten hintereinander, am Handy der größte Teil der Ladezeit.
   function ladeSkripte(fertig) {
-    var i = 0;
-    (function weiter() {
-      if (i >= SKRIPTE.length) return fertig();
+    var fehler = false;
+    SKRIPTE.forEach(function (src, i) {
       var s = document.createElement('script');
-      s.src = SKRIPTE[i++];
-      s.onload = weiter;
+      s.src = src;
+      s.async = false;
+      // Das letzte läuft als letztes – danach ist alles da.
+      if (i === SKRIPTE.length - 1) s.onload = function () { if (!fehler) fertig(); };
       s.onerror = function () {
+        fehler = true;
         msg.style.color = '#c0392b';
         msg.textContent = 'Die Seite konnte nicht vollständig geladen werden.';
         ladeFehlerZeigen();
       };
       document.body.appendChild(s);
-    })();
+    });
   }
 
   // ⚠️ #pw-gate-msg allein reicht nicht: wer ein gemerktes Konto hat, sieht den

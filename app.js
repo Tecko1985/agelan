@@ -1629,6 +1629,17 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.39",
+    groups: [
+      { title: "Schneller laden, von selbst aktuell", items: [
+          "Die Seite lädt ihre Bausteine jetzt gleichzeitig statt einen nach dem anderen – am Handy spürbar schneller nach dem Anmelden.",
+          "Ist eine neue Version online, laden alle Geräte von selbst neu, auch Beamer und Handys auf der Essensseite. Tippt gerade jemand oder liegt eine angefangene Bestellung im Korb, wartet das Neuladen; oben steht dann „Neue Version da“ mit einem Knopf zum sofortigen Neuladen.",
+          "Essen: Kommen neue Bestellungen, nachdem der Mailtext schon geöffnet oder kopiert wurde, steht jetzt ein deutlicher Hinweis mit „Text mit allen Bestellungen neu erzeugen“ darunter.",
+          "Frühstück: Die Einstellungen sind wie die Pakete zugeklappt; die Kopfzeile zeigt Annahme, Tage und Bestellschluss."
+      ]},
+    ],
+  },
+  {
     version: "8.38",
     groups: [
       { title: "Essen: Bestellungen filtern", items: [

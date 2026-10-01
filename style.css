@@ -1746,3 +1746,23 @@ button.es-zaehler-teil:hover { border-width: 2px; padding: 3px 8px; }
 button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); border-color: var(--es-farbe, var(--primary)); color: #fff; }
 .es-filter-alle { --es-farbe: var(--primary-akzent); }
 :root[data-theme="dark"] button.es-zaehler-teil.aktiv { color: #0f172a; }
+
+/* Balken „Neue Version da“ (aktualisieren.js) – nur, solange jemand tippt. */
+.neu-balken {
+  position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 9999;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: calc(100% - 20px);
+  padding: 10px 14px; border-radius: var(--radius-sm); box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  background: var(--primary); color: #fff; font-size: 14px;
+}
+.neu-balken button {
+  border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-weight: 700; cursor: pointer;
+  background: #fff; color: var(--primary);
+}
+
+/* Mailtext veraltet (Essen): auffällig statt graue Fußnote */
+.es-mail-veraltet {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 10px;
+  padding: 12px 14px; border-radius: var(--radius-sm); border: 2px solid #b45309;
+  background: rgba(180, 83, 9, 0.10); color: var(--text); font-size: 14px;
+}
+.es-mail-veraltet .btn { width: auto; }
