@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.15">
+<link rel="stylesheet" href="style.css?v=6.16">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -831,6 +831,11 @@
     <div class="sk-kopf">
       <h2 id="fr-titel">Frühstücksbestellung</h2>
       <p class="hinweis-text" id="fr-zeitraum"></p>
+      <!-- Michel am 01.10.2026: auffällig dazuschreiben, wie bezahlt wird. -->
+      <div class="fr-kasse-hinweis" role="note">
+        <span class="fr-kasse-icon" aria-hidden="true">💰</span>
+        <span><b>Bezahlt wird morgens an der Vertrauenskasse.</b><br>Beim Abholen deines Frühstücks einfach den Betrag in die Kasse legen.</span>
+      </div>
       <!-- Bleibt leer, solange die Annahme offen ist – ein Dauerhinweis „offen"
            wäre nur Rauschen über jedem Morgen. -->
       <p class="fr-annahme-stand" id="fr-annahme-stand"></p>
@@ -882,6 +887,9 @@
         <span>Bestellannahme ist offen</span>
       </label>
       <p class="hinweis-text">Ausschalten, wenn gerade nichts angenommen werden soll. Die Morgen bleiben sichtbar, die Knöpfe sind dann nur ausgegraut und es steht „Geschlossen" dabei. Du als Veranstalter kannst weiter bestellen.</p>
+
+      <label class="feld-label" for="fr-ein-titel">Name der Bestellung (Überschrift)</label>
+      <input type="text" id="fr-ein-titel" class="eingabe" maxlength="60" autocomplete="off" placeholder="z. B. AgeLan #3 Frühstück">
 
       <div class="feld-zeile">
         <div>
@@ -1403,8 +1411,8 @@
     'app.js?v=3.94',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.15',
-    'fruehstueck-service.js?v=1.16',
-    'fruehstueck-app.js?v=1.24',
+    'fruehstueck-service.js?v=1.17',
+    'fruehstueck-app.js?v=1.25',
     'essen-service.js?v=2.26',
     'essen-app.js?v=2.35',
     'uebersicht-app.js?v=1.18'

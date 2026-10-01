@@ -1629,6 +1629,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.50",
+    groups: [
+      { title: "Frühstück: Name änderbar", items: [
+          "In den Frühstücks-Einstellungen gibt es jetzt das Feld „Name der Bestellung (Überschrift)“. Bisher ließ sich der Name nach dem Anlegen nicht mehr ändern.",
+          "Oben auf der Frühstücksseite steht jetzt gut sichtbar: „💰 Bezahlt wird morgens an der Vertrauenskasse.“"
+      ]},
+    ],
+  },
+  {
     version: "8.49",
     groups: [
       { title: "Essen: Abholen per Häkchen", items: [

@@ -514,6 +514,7 @@ function frRenderAdmin(z) {
   // zurückgesetzt. Deshalb ein Entwurfs-Merker, und zwar je Feld: ein nicht
   // angefasstes Feld zieht weiter nach, sonst schriebe „Speichern“ dort einen
   // inzwischen woanders geänderten Wert zurück (Bugjagd 25.09.d T5a-1c).
+  if (!frEinstellungenBeruehrt.has("fr-ein-titel")) frEl("fr-ein-titel").value = z.meta.titel || "";
   if (!frEinstellungenBeruehrt.has("fr-ein-tage")) frEl("fr-ein-tage").value = z.meta.anzahlTage;
   if (!frEinstellungenBeruehrt.has("fr-ein-schluss")) frEl("fr-ein-schluss").value = frZeitInputWert(z.meta.schlussUhr);
 
@@ -636,6 +637,7 @@ function frWireEvents() {
 
   // Ab der ersten Änderung gehört das Feld dem Veranstalter, nicht mehr dem
   // Live-Update (siehe frRenderAdmin).
+  frEl("fr-ein-titel").addEventListener("input", () => { frEinstellungenBeruehrt.add("fr-ein-titel"); });
   frEl("fr-ein-tage").addEventListener("input", () => { frEinstellungenBeruehrt.add("fr-ein-tage"); });
   frEl("fr-ein-schluss").addEventListener("input", () => { frEinstellungenBeruehrt.add("fr-ein-schluss"); });
 
@@ -646,6 +648,7 @@ function frWireEvents() {
 
   frEl("fr-btn-einstellungen-speichern").addEventListener("click", async () => {
     const res = await fruehstueckService.setzeEinstellungen({
+      titel: frEl("fr-ein-titel").value,
       anzahlTage: frEl("fr-ein-tage").value,
       schlussUhr: frMinutenAusZeitInput(frEl("fr-ein-schluss").value, fruehstueckService.STANDARD_SCHLUSS),
     });

@@ -800,7 +800,7 @@ async function frSetzeAnnahme(offen) {
   return { erfolg: true };
 }
 
-async function frSetzeEinstellungen({ anzahlTage, schlussUhr }) {
+async function frSetzeEinstellungen({ titel, anzahlTage, schlussUhr }) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const tage = Math.round(frZahl(anzahlTage, 0));
@@ -809,6 +809,10 @@ async function frSetzeEinstellungen({ anzahlTage, schlussUhr }) {
   }
   const uhr = Math.round(frZahl(schlussUhr, -1));
   if (!(uhr >= 0 && uhr <= 1439)) return { erfolg: false, fehler: "Bitte wähle einen Bestellschluss." };
+  // Name der Bestellung (Überschrift). Seit 01.10.2026 änderbar – beim Anlegen
+  // stand dort „Kerem“, und es gab keinen Weg, das zu korrigieren.
+  const t = titel === undefined ? null : frText(titel, 60);
+  if (titel !== undefined && !t) return { erfolg: false, fehler: "Bitte gib der Bestellung einen Namen." };
 
   // ⚠️ Weniger Morgen blenden die Bestellungen der wegfallenden Morgen aus der
   // Abrechnung aus – bezahlte wie offene, die Daten lägen still weiter in der
@@ -828,7 +832,9 @@ async function frSetzeEinstellungen({ anzahlTage, schlussUhr }) {
     };
   }
 
-  await db.ref(FR_BASIS + "/meta").update({ anzahlTage: tage, schlussUhr: uhr });
+  const neu = { anzahlTage: tage, schlussUhr: uhr };
+  if (t) neu.titel = t;
+  await db.ref(FR_BASIS + "/meta").update(neu);
   return { erfolg: true };
 }
 
