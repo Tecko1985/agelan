@@ -45,6 +45,7 @@
           "spieltage":        { ".validate": "newData.isBoolean()" },
           "schweizerRunden":  { ".validate": "newData.isNumber()" },
           "setzlisteManuell": { ".validate": "newData.isBoolean()" },
+          "losmodus":         { ".validate": "newData.isString() && (newData.val() === 'setzliste' || newData.val() === 'zufaellig')" },
           "zeitplan": {
             "startDatum":   { ".validate": "newData.isString() && newData.val().length <= 10" },
             "startZeit":    { ".validate": "newData.isString() && newData.val().length <= 10" },

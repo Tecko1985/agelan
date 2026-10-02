@@ -1259,7 +1259,7 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
 // --- Turnierform & Ablauf ändern (Admin, nur während der Anmeldung) -------
 // Danach hängen Teams, Gruppen und Spiele daran – ein Wechsel würde sie
 // ungültig machen. Wer trotzdem umstellen will, setzt vorher zurück.
-async function setzeTurnierform({ teamGroesse, ablauf, koTyp, bestOf, bestOfFinale }) {
+async function setzeTurnierform({ teamGroesse, ablauf, koTyp, bestOf, bestOfFinale, losmodus }) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
@@ -1281,7 +1281,27 @@ async function setzeTurnierform({ teamGroesse, ablauf, koTyp, bestOf, bestOfFina
     ablauf: metaAblauf({ ablauf }),
     formatOffen: false,
   }, zusatz));
+  // Auslosungs-Art schon hier merken (Michel am 02.10.2026: Häkchen „nach
+  // Setzliste“ bei der Formatwahl). ⚠️ Eigener Schreibvorgang: das Feld
+  // meta/losmodus braucht die Regel-Fassung vom 02.10.2026. Ist sie noch nicht
+  // veröffentlicht, lehnt die Datenbank nur DIESES Feld ab – das Format selbst
+  // steht schon. Dann merkt sich das Gerät die Wahl lokal.
+  if (losmodus === "setzliste" || losmodus === "zufaellig") {
+    try { localStorage.setItem("agelan_losmodus_" + turnierId, losmodus); } catch (e) { /* privater Modus */ }
+    try { await db.ref(turnierBasis() + "/meta/losmodus").set(losmodus); } catch (e) { /* alte Regeln */ }
+  }
   return { erfolg: true };
+}
+
+// Gewählte Auslosungs-Art: aus dem Turnier, sonst vom Gerät, sonst Setzliste.
+function gewaehlterLosmodus() {
+  const m = letzterZustand && letzterZustand.meta && letzterZustand.meta.losmodus;
+  if (m === "setzliste" || m === "zufaellig") return m;
+  try {
+    const l = localStorage.getItem("agelan_losmodus_" + turnierId);
+    if (l === "setzliste" || l === "zufaellig") return l;
+  } catch (e) { /* privater Modus */ }
+  return "setzliste";
 }
 
 // --- als Admin auf einem weiteren Gerät anmelden --------------------------
@@ -3296,6 +3316,7 @@ const turnierService = {
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
   setzeSpielmodus,
+  gewaehlterLosmodus,
   // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,
   // unter dem abgerechnet wird. Steht kein Konto bereit (aeltere Anmeldung,
   // privater Modus), gilt weiter der zuletzt benutzte Name.

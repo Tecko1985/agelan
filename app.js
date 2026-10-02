@@ -203,10 +203,11 @@ function formatEntwurfAus(z) {
   const meta = z.meta || {};
   if (formatEntwurf.bestOf == null) formatEntwurf.bestOf = String(meta.bestOf || 3);
   if (formatEntwurf.bestOfFinale == null) formatEntwurf.bestOfFinale = meta.bestOfFinale ? String(meta.bestOfFinale) : "";
+  if (formatEntwurf.losmodus == null) formatEntwurf.losmodus = turnierService.gewaehlterLosmodus();
   return formatEntwurf;
 }
 function formatEntwurfZuruecksetzen() {
-  formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null, bestOf: null, bestOfFinale: null };
+  formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null, bestOf: null, bestOfFinale: null, losmodus: null };
 }
 
 // Kleiner Text-Setzer: es gibt nur zeigeFehler(), und der ist fuer Fehler.
@@ -225,6 +226,7 @@ function renderFormatWahl(z) {
   document.getElementById("form-kotyp").value = entwurf.koTyp;
   document.getElementById("form-bestof").value = entwurf.bestOf;
   document.getElementById("form-bestof-finale").value = entwurf.bestOfFinale;
+  document.getElementById("form-setzliste").checked = entwurf.losmodus !== "zufaellig";
 
   setzeText("format-stand", z.formatOffen
     ? "Noch nichts festgelegt. Warte, bis alle da sind – dann wähle hier."
@@ -522,6 +524,10 @@ function renderTeams(z) {
       : "— starke " + wort + " treffen erst spät aufeinander";
 
     if (!losFelderInit) {
+      // Auslosungs-Art aus der Formatwahl vorbelegen.
+      const lm = turnierService.gewaehlterLosmodus();
+      const radio = document.querySelector('input[name="losmodus"][value="' + lm + '"]');
+      if (radio) radio.checked = true;
       losFelderInit = true;
       document.getElementById("los-gruppen").value = turnierService.vorschlagGruppen(z.teams.length);
       document.getElementById("los-runden").value = turnierService.schweizerVorschlagRunden(z.teams.length);
@@ -1254,6 +1260,9 @@ function wireEvents() {
     formatEntwurf.bestOf = e.target.value;
     if (zustand) renderFormatWahl(zustand);
   });
+  document.getElementById("form-setzliste").addEventListener("change", (e) => {
+    formatEntwurf.losmodus = e.target.checked ? "setzliste" : "zufaellig";
+  });
   document.getElementById("form-bestof-finale").addEventListener("change", (e) => {
     formatEntwurf.bestOfFinale = e.target.value;
     if (zustand) renderFormatWahl(zustand);
@@ -1277,6 +1286,7 @@ function wireEvents() {
       koTyp: formatEntwurf.koTyp,
       bestOf: formatEntwurf.bestOf,
       bestOfFinale: formatEntwurf.bestOfFinale,
+      losmodus: formatEntwurf.losmodus,
     });
     zeigeFehler("form-fehler", res.erfolg ? "" : res.fehler);
     // Nach dem Speichern gilt wieder, was im Turnier steht – sonst hinge die
@@ -1694,6 +1704,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.59",
+    groups: [
+      { title: "Turnier: Setzliste schon bei der Formatwahl", items: [
+          "Bei „Format festlegen“ gibt es das Häkchen „Nach Setzliste auslosen“. Angehakt werden die Stärksten nach Elo verteilt (in Gruppen auf verschiedene Gruppen, im K.-o. und Schweizer System treffen sie erst spät aufeinander); ohne Haken wird rein zufällig gelost. Beim Auslosen ist die Wahl vorbelegt und noch änderbar."
+      ]},
+    ],
+  },
   {
     version: "8.58",
     groups: [
