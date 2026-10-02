@@ -422,10 +422,13 @@ function ubTurnierSeiteJetzt(anzahl) {
 
 // Wie lange eine Kachel steht: die Turnier-Kachel so lange, bis jede Seite
 // einmal dran war, alle anderen UB_WECHSEL_MS.
+// ⚠️ Die Turnier-Kachel steht mindestens 30 Sekunden (Michel am 02.10.2026),
+// bei mehr Seiten so lange, bis jede einmal dran war.
+const UB_TURNIER_MIN_MS = 30000;
 function ubStandzeit(id) {
   if (id !== "turnier") return UB_WECHSEL_MS;
   const n = ubTurnierSeiten().length;
-  return n ? Math.max(UB_WECHSEL_MS, n * UB_SEITE_MS) : UB_WECHSEL_MS;
+  return Math.max(UB_TURNIER_MIN_MS, n * UB_SEITE_MS);
 }
 
 function ubKachelTurnier() {

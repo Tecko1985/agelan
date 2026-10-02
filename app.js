@@ -1838,6 +1838,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.69",
+    groups: [
+      { title: "Übersicht: Turnier 30 Sekunden", items: [
+          "Die Turnier-Kachel steht auf der Übersicht jetzt mindestens 30 Sekunden (die anderen weiter 15). Hat sie mehr als drei Seiten, bleibt sie, bis jede Seite ihre 10 Sekunden hatte."
+      ]},
+    ],
+  },
+  {
     version: "8.68",
     groups: [
       { title: "Übersicht: laufende Turniere live", items: [
