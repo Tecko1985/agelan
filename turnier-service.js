@@ -774,6 +774,52 @@ function findeEigenesTeam() {
   return teamListe().find((t) => (t.mitglieder || {})[eigeneUid]) || null;
 }
 
+// Rückzug eines Teams aus der laufenden Vorrunde (Michel am 02.10.2026:
+// „lösche das Team … ohne viel an den Paarungen zu verdrehen“).
+// - Das Team fliegt aus seiner Gruppe → nicht mehr in Tabelle und Paarungen.
+// - Seine offenen Spiele gewinnt der Gegner kampflos (nötige Sätze zu 0).
+// - Gespielte Ergebnisse bleiben stehen und zählen für die Gegner weiter.
+// - Das Team selbst bleibt im Turnier gespeichert, Name mit „(zurückgezogen)“ –
+//   so stehen alte Paarungen und Partienummern unverändert da.
+// ⚠️ Nur in der Vorrunde. Im K.-o. ist das ein Admin-Win für den Gegner.
+async function zieheTeamZurueck(teamId) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const z = letzterZustand;
+  if (!z || !z.meta || z.meta.phase !== "gruppen") {
+    return { erfolg: false, fehler: "Zurückziehen geht nur in der Vorrunde. Im K.-o. bitte einen Admin-Win für den Gegner setzen." };
+  }
+  const team = z.teams && z.teams[teamId];
+  if (!team) return { erfolg: false, fehler: "Dieses Team gibt es nicht." };
+  const gid = Object.keys(z.gruppen || {}).find((g) => z.gruppen[g].teamIds && z.gruppen[g].teamIds[teamId]);
+  if (!gid) return { erfolg: false, fehler: "Das Team steht in keiner Gruppe (schon zurückgezogen?)." };
+
+  const updates = {};
+  updates["gruppen/" + gid + "/teamIds/" + teamId] = null;
+  const name = String(team.name || "Team").replace(/\s*\(zurückgezogen\)$/, "");
+  updates["teams/" + teamId + "/name"] = (name + " (zurückgezogen)").slice(0, 200);
+  let kampflos = 0;
+  Object.keys(z.spiele || {}).forEach((sid) => {
+    const s = z.spiele[sid];
+    if (!s || s.phase !== "gruppe" || s.status === "bestaetigt") return;
+    if (s.teamA !== teamId && s.teamB !== teamId) return;
+    if (!s.teamA || !s.teamB) return;
+    const noetig = noetigeSaetze(bestOfFuer(s, z.meta));
+    const gegnerIstA = s.teamB === teamId;
+    updates["spiele/" + sid + "/saetzeA"] = gegnerIstA ? noetig : 0;
+    updates["spiele/" + sid + "/saetzeB"] = gegnerIstA ? 0 : noetig;
+    updates["spiele/" + sid + "/status"] = "bestaetigt";
+    updates["spiele/" + sid + "/gemeldetVon"] = "rueckzug";
+    kampflos++;
+  });
+  try {
+    await db.ref(turnierBasis()).update(updates);
+  } catch (e) {
+    return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
+  }
+  return { erfolg: true, kampflos };
+}
+
 function teamAnzeigename(teamId, teams) {
   const t = teams.find((x) => x.id === teamId);
   return t ? t.name : "?";
@@ -794,12 +840,24 @@ function berechneTabelle(gruppenTeamIds, teams, spiele, meta) {
     };
   });
 
+  // ⚠️ Auch Spiele, in denen nur EIN Team noch in der Gruppe steht: das andere
+  // hat sich zurückgezogen (zieheTeamZurueck). Das Ergebnis zählt für das
+  // verbliebene Team, aber ohne Gegner in Buchholz & Co.
   const bestaetigte = spiele.filter(
-    (s) => s.phase === "gruppe" && s.status === "bestaetigt" && zeilen[s.teamA]
+    (s) => s.phase === "gruppe" && s.status === "bestaetigt" && (zeilen[s.teamA] || (s.teamB && zeilen[s.teamB]))
   );
 
   bestaetigte.forEach((s) => {
     const a = zeilen[s.teamA];
+    if (s.teamB && (!a || !zeilen[s.teamB])) {
+      const bleibt = a || zeilen[s.teamB];
+      const eigene = Number(a ? s.saetzeA : s.saetzeB) || 0;
+      const fremde = Number(a ? s.saetzeB : s.saetzeA) || 0;
+      bleibt.spiele++;
+      bleibt.saetzePlus += eigene; bleibt.saetzeMinus += fremde;
+      if (eigene > fremde) { bleibt.siege++; bleibt.punkte += punkteSieg; } else { bleibt.niederlagen++; }
+      return;
+    }
     // Freilos im Schweizer System: zählt als Sieg, hat aber keinen Gegner und
     // darf deshalb weder in die Buchholz-Summe noch in ein direktes Duell.
     if (!s.teamB || !zeilen[s.teamB]) {
@@ -3437,6 +3495,7 @@ const turnierService = {
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
   setzeSpielmodus,
+  zieheTeamZurueck,
   partieNummernAus,
   laufendePartien,
   adminWin,

@@ -1333,6 +1333,12 @@
         <button class="btn btn-secondary btn-grow" id="btn-admin-spielmodus">Spielmodus speichern</button>
         <p class="hinweis-text" id="admin-spielmodus-ok">Gilt für alle Spiele, die noch nicht bestätigt sind.</p>
       </div>
+      <div id="admin-rueckzug" hidden>
+        <p class="feld-label">Team zurückziehen (Vorrunde)</p>
+        <select id="admin-rueckzug-team" class="eingabe"></select>
+        <button class="btn btn-secondary btn-grow" id="btn-admin-rueckzug">Team zurückziehen</button>
+        <p class="hinweis-text" id="admin-rueckzug-ok">Wird nicht mehr gepaart; offene Spiele gewinnt der Gegner kampflos, gespielte Ergebnisse bleiben.</p>
+      </div>
       <button class="btn btn-secondary btn-grow" id="btn-admin-reset">Turnier zurücksetzen</button>
       <p class="hinweis-text">Teams, Gruppen und Spiele werden verworfen. Alle Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.</p>
       <button class="btn btn-danger btn-grow" id="btn-admin-loeschen">Turnier löschen</button>
@@ -1488,8 +1494,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.30',
-    'app.js?v=3.110',
+    'turnier-service.js?v=2.31',
+    'app.js?v=3.111',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

@@ -930,7 +930,7 @@ function spielZeileHtml(z, s) {
   const ergebnis =
     s.status === "offen"
       ? '<span class="spiel-status">offen</span>'
-      : `<span class="spiel-ergebnis${s.status === "bestaetigt" ? " ok" : ""}">${s.saetzeA}:${s.saetzeB}${s.status === "gemeldet" ? " ?" : " ✓"}${s.gemeldetVon === "adminwin" ? ' <span class="adminwin-marke">Admin-Win</span>' : ""}</span>`;
+      : `<span class="spiel-ergebnis${s.status === "bestaetigt" ? " ok" : ""}">${s.saetzeA}:${s.saetzeB}${s.status === "gemeldet" ? " ?" : " ✓"}${s.gemeldetVon === "adminwin" ? ' <span class="adminwin-marke">Admin-Win</span>' : ""}${s.gemeldetVon === "rueckzug" ? ' <span class="adminwin-marke">kampflos</span>' : ""}</span>`;
   // Freilos: kein Gegner, aber ein gewerteter Sieg – "vs —" liest sich wie ein Fehler.
   const gegner = s.teamB ? escapeHtml(teamNameVon(z, s.teamB)) : "Freilos";
   return `<div class="spiel-zeile">
@@ -1129,6 +1129,17 @@ function oeffneAdmin() {
   const meta = (zustand && zustand.meta) || {};
   const laeuft = istAdmin && meta.phase && meta.phase !== "anmeldung" && meta.phase !== "teams" && meta.phase !== "beendet";
   document.getElementById("admin-spielmodus").hidden = !laeuft;
+  // Team zurückziehen: nur in der Vorrunde, Auswahl = Teams, die noch in einer Gruppe stehen.
+  const vorrunde = istAdmin && meta.phase === "gruppen";
+  document.getElementById("admin-rueckzug").hidden = !vorrunde;
+  if (vorrunde) {
+    const inGruppe = new Set();
+    (zustand.gruppen || []).forEach((g) => (g.teamIds || []).forEach((tid) => inGruppe.add(tid)));
+    document.getElementById("admin-rueckzug-team").innerHTML = '<option value="">– Team wählen –</option>' +
+      zustand.teams.filter((t) => inGruppe.has(t.id))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+        .map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`).join("");
+  }
   if (laeuft) {
     document.getElementById("admin-bestof").value = String(meta.bestOf || 3);
     document.getElementById("admin-bestof-finale").value = meta.bestOfFinale ? String(meta.bestOfFinale) : "";
@@ -1740,6 +1751,19 @@ function wireEvents() {
     if (res.erfolg) oeffneAdmin();
     else zeigeFehler("admin-fehler", res.fehler);
   });
+  document.getElementById("btn-admin-rueckzug").addEventListener("click", async () => {
+    const wahl = document.getElementById("admin-rueckzug-team");
+    if (!wahl.value) return zeigeFehler("admin-panel-fehler", "Bitte ein Team wählen.");
+    const name = wahl.options[wahl.selectedIndex].textContent;
+    if (!confirm(name + " aus dem Turnier zurückziehen?\n\nOffene Spiele des Teams gewinnt der Gegner kampflos. Gespielte Ergebnisse bleiben. In weiteren Runden wird das Team nicht mehr gepaart.")) return;
+    const res = await turnierService.zieheTeamZurueck(wahl.value);
+    zeigeFehler("admin-panel-fehler", res.erfolg ? "" : res.fehler);
+    if (res.erfolg) {
+      document.getElementById("admin-rueckzug-ok").textContent = name + " ist zurückgezogen" +
+        (res.kampflos ? " – " + res.kampflos + (res.kampflos === 1 ? " offenes Spiel" : " offene Spiele") + " kampflos gewertet." : ".");
+      oeffneAdmin();
+    }
+  });
   document.getElementById("btn-admin-spielmodus").addEventListener("click", async () => {
     const res = await turnierService.setzeSpielmodus({
       bestOf: document.getElementById("admin-bestof").value,
@@ -1837,6 +1861,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.70",
+    groups: [
+      { title: "Turnier: Team zurückziehen", items: [
+          "Im Veranstalter-Dialog gibt es in der Vorrunde „Team zurückziehen“: Das Team wird ab sofort nicht mehr gepaart und verschwindet aus der Tabelle. Seine offenen Spiele gewinnt der Gegner kampflos, gespielte Ergebnisse bleiben und zählen für die Gegner weiter. Bisherige Paarungen und Partienummern bleiben unverändert."
+      ]},
+    ],
+  },
   {
     version: "8.70",
     groups: [
