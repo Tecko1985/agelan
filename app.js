@@ -1659,7 +1659,7 @@ const APP_CHANGELOG = [
     version: "8.56",
     groups: [
       { title: "Turnier: ungefähre Dauer je Format", items: [
-          "Bei der Formatwahl steht auf jeder Karte die ungefähre Dauer, z. B. „Dauer ca. 5 h 15 min – 7 Runden à 45 min“. Gerechnet mit 45 Minuten je Partie; alle Partien einer Runde laufen gleichzeitig, die Runden nacheinander. Pausen und Best-of-3 sind nicht eingerechnet."
+          "Bei der Formatwahl steht auf jeder Karte die ungefähre Dauer, z. B. „Dauer ca. 6 h 15 min – 7 Runden à 45 min + je 10 min Pause“. Gerechnet mit 45 Minuten je Partie und 10 Minuten Pause zwischen den Runden; alle Partien einer Runde laufen gleichzeitig, die Runden nacheinander. Best-of-3 ist nicht eingerechnet."
       ]},
     ],
   },

@@ -3147,9 +3147,9 @@ function formatVorschau(optionen) {
     freilose: freilose,
     kurz: spiele + (spiele === 1 ? " Partie" : " Partien") + " · " + runden + " " + rundenText +
       " · jede:r spielt " + proText,
-    dauerMin: runden * MIN_PRO_PARTIE,
-    dauer: "Dauer " + dauerText(runden * MIN_PRO_PARTIE) + " – " + runden + " " + rundenText + " à " + MIN_PRO_PARTIE +
-      " min, die Partien " + (rundenWort === "Spieltage" ? "eines Spieltags" : "einer Runde") + " gleichzeitig",
+    dauerMin: turnierDauerMin(runden),
+    dauer: "Dauer " + dauerText(turnierDauerMin(runden)) + " – " + runden + " " + rundenText + " à " + MIN_PRO_PARTIE +
+      " min + je " + MIN_PAUSE + " min Pause, die Partien " + (rundenWort === "Spieltage" ? "eines Spieltags" : "einer Runde") + " gleichzeitig",
     zeilen: zeilen,
   };
 }
@@ -3157,9 +3157,13 @@ function formatVorschau(optionen) {
 // Ungefähre Turnierdauer für die Formatwahl (Michel am 02.10.2026): 45 min je
 // Partie, und alle Partien EINER Runde laufen gleichzeitig – auf der LAN sitzt
 // jede:r am eigenen Rechner, Plätze sind also nicht knapp. Die Runden selbst
-// laufen nacheinander. Pausen, Best-of-3 und Nachzügler sind nicht drin – das
-// ist eine Untergrenze zum Vergleichen, kein Zeitplan.
+// laufen nacheinander, dazwischen je 10 min Pause (Ergebnisse melden, nächste
+// Paarung finden). Best-of-3 und Nachzügler sind nicht drin.
 const MIN_PRO_PARTIE = 45;
+const MIN_PAUSE = 10;
+function turnierDauerMin(runden) {
+  return runden * MIN_PRO_PARTIE + Math.max(0, runden - 1) * MIN_PAUSE;
+}
 function dauerText(minuten) {
   const h = Math.floor(minuten / 60);
   const m = minuten % 60;
