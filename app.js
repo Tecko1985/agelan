@@ -831,13 +831,49 @@ function freiloseZeileHtml(z, matches) {
     frei.map((m) => escapeHtml(m.teamAName)).join(", ") + "</p>";
 }
 
+// Lücken einer K.-o.-Runde sichtbar machen (Michel am 02.10.2026): Seit die
+// nächste Runde Partie für Partie entsteht, fehlte z. B. kingofthrowing123 –
+// sein Gegner stand noch nicht fest. Jetzt steht an der Stelle eine Karte
+// „wartet“ mit beiden Seiten: schon feststehender Name oder „Sieger Partie N“.
+// Nur einfaches K.-o.; nur Runden, die schon angefangen haben.
+function koLueckenHtml(z, rundeNr) {
+  if (!z.meta || z.koTyp === "doppel" || !rundeNr) return [];
+  const ko = z.spiele.filter((s) => s.phase === "ko" && !s.platz3 && (s.bracket || "w") === "w");
+  const runde0 = ko.filter((s) => (Number(s.runde) || 0) === 0).length;
+  if (!runde0 || (runde0 & (runde0 - 1)) !== 0) return [];
+  const finden = (r, p) => ko.find((s) => (Number(s.runde) || 0) === r && (Number(s.position) || 0) === p);
+  const erwartet = runde0 / Math.pow(2, rundeNr);
+  const nr = partieNummern(z);
+  const seite = (s) => {
+    if (!s) return { text: "offen", fest: false };
+    if (s.status === "bestaetigt") {
+      const sieger = !s.teamB ? s.teamA : (s.saetzeA > s.saetzeB ? s.teamA : s.teamB);
+      return sieger ? { text: teamNameVon(z, sieger), fest: true } : { text: "—", fest: false };
+    }
+    return { text: nr.get(s.id) ? "Sieger Partie " + nr.get(s.id) : "Sieger offen", fest: false, partie: nr.get(s.id) };
+  };
+  const karten = [];
+  for (let p = 0; p < erwartet; p++) {
+    if (finden(rundeNr, p)) continue;
+    const a = seite(finden(rundeNr - 1, p * 2)), b = seite(finden(rundeNr - 1, p * 2 + 1));
+    const warten = [a, b].filter((x) => !x.fest && x.partie).map((x) => x.partie);
+    karten.push({ position: p, html: `<div class="match match-wartet">
+      <div class="match-nr">wartet${warten.length ? " auf Partie " + warten.join(" und ") : ""}</div>
+      <div class="match-team${a.fest ? "" : " offen"}"><span>${escapeHtml(a.text)}</span><span class="match-saetze"></span></div>
+      <div class="match-team${b.fest ? "" : " offen"}"><span>${escapeHtml(b.text)}</span><span class="match-saetze"></span></div>
+    </div>` });
+  }
+  return karten;
+}
+
 function bracketHtml(z) {
   if (!z.bracket || z.bracket.runden.length === 0) return '<p class="hinweis-text">Noch keine Paarungen.</p>';
   return z.bracket.runden
     .map((r) => {
+      const posVon = (id) => { const sp = z.spiele.find((x) => x.id === id); return sp ? Number(sp.position) || 0 : 0; };
       const matches = r.matches
         .filter((m) => !istFreilosMatch(m) && !istLeerMatch(m))
-        .map((m) => {
+        .map((m) => ({ position: posVon(m.id), html: (() => {
           const sieger = m.siegerTeamId;
           const aWin = sieger && sieger === m.teamA ? " sieger" : "";
           const bWin = sieger && sieger === m.teamB ? " sieger" : "";
@@ -850,7 +886,10 @@ function bracketHtml(z) {
             ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
             ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
           </div>`;
-        })
+        })() }))
+        .concat(koLueckenHtml(z, r.runde))
+        .sort((a, b) => a.position - b.position)
+        .map((k) => k.html)
         .join("");
       return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${freiloseZeileHtml(z, r.matches)}${matches}</div>`;
     })
@@ -1867,6 +1906,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.73",
+    groups: [
+      { title: "Turnier: wartende Partien sichtbar", items: [
+          "Steht im K.-o. eine Partie der nächsten Runde noch nicht fest, erscheint an ihrer Stelle eine Karte „wartet auf Partie 1“ – mit dem schon feststehenden Namen und „Sieger Partie 1“ für die offene Seite. So fehlt niemand mehr scheinbar im Baum."
+      ]},
+    ],
+  },
   {
     version: "8.72",
     groups: [

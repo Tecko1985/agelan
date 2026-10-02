@@ -1844,3 +1844,7 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 /* Übersicht: Turnier-Seiten (2026-10-02) */
 .ub-seite { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-align: right; }
 .ub-buehne .ub-turnier .ub-block-titel { font-size: clamp(15px, 1.8vw, 20px); margin-bottom: 10px; }
+
+/* K.-o.: wartende Partie (Gegner steht noch nicht fest) */
+.match.match-wartet { border-style: dashed; opacity: 0.85; }
+.match-wartet .match-team.offen span:first-child { color: var(--muted); font-style: italic; }
