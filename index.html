@@ -1187,6 +1187,16 @@
     </div>
 
     <div class="karte-block">
+      <h2>AoE2-Klickzähler (Spieler) für Linux</h2>
+      <p class="hinweis-text">Dasselbe für Linux-PCs (Wayland oder X11). Zählt und sendet wie die Windows-Version, nur ohne Overlay im Spiel – das eigene Team steht im Programmfenster. Der Klickfilter arbeitet nur nach Zonen (Minimap, obere Leiste).</p>
+      <a class="btn btn-primary btn-grow dl-link" href="downloads/AoE2Klickzaehler_Spieler_Linux?v=1.0" download>⬇ AoE2Klickzaehler_Spieler_Linux · Version 1.0 (10,5 MB)</a>
+      <p class="hinweis-text">Einmalig einrichten:<br>
+        1. Datei ausführbar machen: Rechtsklick › Eigenschaften › <b>Als Programm ausführen</b> (oder <code>chmod +x AoE2Klickzaehler_Spieler_Linux</code>).<br>
+        2. Im Terminal <code>sudo usermod -aG input $USER</code> eingeben, dann <b>ab- und wieder anmelden</b> – sonst darf das Programm Maus und Tastatur nicht mitzählen.<br>
+        3. Falls eine Firewall läuft: <code>sudo ufw allow 50505/udp</code>.</p>
+    </div>
+
+    <div class="karte-block">
       <h2>DC3-MapPack</h2>
       <p class="hinweis-text">Die Karten für das 2vs2-Coop-Turnier. Auf dem eigenen Rechner installieren, bevor es losgeht.</p>
       <a class="btn btn-primary btn-grow dl-link" href="downloads/DC3-MapPack-Installer.exe?v=1" download>⬇ DC3-MapPack-Installer.exe (5,6 MB)</a>
@@ -1479,7 +1489,7 @@
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
     'turnier-service.js?v=2.30',
-    'app.js?v=3.109',
+    'app.js?v=3.110',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

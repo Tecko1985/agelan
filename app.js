@@ -1838,6 +1838,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.70",
+    groups: [
+      { title: "Downloads: Klickzähler für Linux", items: [
+          "Neu im Download-Bereich: der AoE2-Klickzähler (Spieler) als Linux-Datei, mit kurzer Anleitung zum Einrichten.",
+          "Linux-Spieler erscheinen beim Turnierleiter wie alle anderen – gleicher Turnier-Code, gleiches Netzwerk."
+      ]},
+    ],
+  },
+  {
     version: "8.69",
     groups: [
       { title: "Übersicht: Turnier 30 Sekunden", items: [
