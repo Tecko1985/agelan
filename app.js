@@ -1762,6 +1762,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.64",
+    groups: [
+      { title: "Turnier: keine Doppelanmeldung mehr", items: [
+          "Wer mit Konto angemeldet ist, kann sich nicht ein zweites Mal von einem anderen Gerät ins selbe Turnier eintragen. Bisher ging das nach einer Rückfrage – so standen zwei Spieler doppelt im Baum."
+      ]},
+    ],
+  },
+  {
     version: "8.63",
     groups: [
       { title: "Turnier: Freilose kompakt", items: [

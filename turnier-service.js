@@ -1353,6 +1353,17 @@ async function tritBei({ name, rating, trotzdem }) {
   const gleich = name.trim().toLowerCase();
   const schonDa = Object.entries(letzterZustand.spieler || {})
     .find(([uid, sp]) => uid !== eigeneUid && sp && String(sp.name || "").trim().toLowerCase() === gleich);
+  // ⚠️ Mit Konto ist der Name fest der Kontoname – derselbe Name ist dann
+  // dieselbe Person auf einem zweiten Gerät. Kein „trotzdem“: am 02.10.2026
+  // standen SneakyShady und SneakySnakeFish so doppelt im 1vs1-Baum.
+  let mitKonto = false;
+  try { mitKonto = !!(window.__AGELAN_KONTO__ && window.__AGELAN_KONTO__.nickname); } catch (e) { mitKonto = false; }
+  if (schonDa && mitKonto) {
+    return {
+      erfolg: false,
+      fehler: "Du bist schon angemeldet – von einem anderen Gerät aus. Ein zweites Mal geht nicht.",
+    };
+  }
   if (schonDa && !trotzdem) {
     return {
       erfolg: false, doppelt: true,
