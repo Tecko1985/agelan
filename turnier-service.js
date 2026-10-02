@@ -1154,9 +1154,30 @@ function getListe() {
 // Turnier „#8“. Reihenfolge: Vorrunde nach Runde, Gruppe, Position, dann K.-o.
 // nach Runde, Gewinner- vor Verliererbaum, Platz 3 vor dem Finale, Position.
 // Freilose und leere Durchreicher zählen nicht.
-function partieNummernAus(spiele) {
+// ⚠️ Einfaches K.-o. entsteht Partie für Partie: ein Halbfinale kann vor dem
+// letzten Viertelfinale angelegt sein. Ohne Platzhalter rutschte es beim
+// Anlegen des Viertelfinales eine Nummer weiter („Partie 31“ wurde „Partie 32“).
+// Deshalb zählen noch nicht angelegte Plätze des Baums (und Platz 3) schon mit –
+// unter der Id, die einfachKoSchritt ihnen später gibt (ko_r{runde}_p{pos}).
+function partieNummernAus(spiele, meta) {
   const baum = { w: 0, l: 1, f: 2 };
   const echt = (spiele || []).filter((s) => s && s.teamA && s.teamB);
+  const ko = (spiele || []).filter((s) => s && s.phase === "ko");
+  const doppel = (meta && metaKoTyp(meta) === "doppel") || ko.some((s) => s.bracket === "l" || s.bracket === "f");
+  const w = ko.filter((s) => !s.platz3);
+  const runde0 = w.filter((s) => (Number(s.runde) || 0) === 0).length;
+  if (!doppel && runde0 > 1 && (runde0 & (runde0 - 1)) === 0) {
+    const runden = Math.round(Math.log2(runde0)) + 1;
+    const da = new Set(w.map((s) => (Number(s.runde) || 0) + "_" + (Number(s.position) || 0)));
+    for (let r = 1; r < runden; r++) {
+      for (let p = 0; p < runde0 / Math.pow(2, r); p++) {
+        if (!da.has(r + "_" + p)) echt.push({ id: "ko_r" + r + "_p" + p, phase: "ko", bracket: "w", runde: r, position: p });
+      }
+    }
+    if (meta && meta.spielUmPlatz3 && !ko.some((s) => s.platz3)) {
+      echt.push({ id: "ko_platz3", phase: "ko", bracket: "w", runde: runden - 1, position: 1, platz3: true });
+    }
+  }
   echt.sort((a, b) =>
     (a.phase === "ko" ? 1 : 0) - (b.phase === "ko" ? 1 : 0) ||
     (Number(a.runde) || 0) - (Number(b.runde) || 0) ||
@@ -1181,7 +1202,7 @@ function laufendePartien() {
       const meta = baum.meta || {};
       const teams = baum.teams || {};
       const spiele = Object.keys(baum.spiele || {}).map((sid) => ({ id: sid, ...baum.spiele[sid] }));
-      const nr = partieNummernAus(spiele);
+      const nr = partieNummernAus(spiele, meta);
       const name = (tid) => (teams[tid] && teams[tid].name) || "?";
       // ⚠️ In Gruppen stehen ALLE Spieltage von Anfang an als „offen“ da. Gezeigt
       // wird je Gruppe (bzw. je Baum) nur die früheste Runde, in der noch etwas
@@ -1486,7 +1507,9 @@ async function tritBei({ name, rating, trotzdem }) {
   if (schonDa && mitKonto) {
     return {
       erfolg: false,
-      fehler: "Du bist schon angemeldet – von einem anderen Gerät aus. Ein zweites Mal geht nicht.",
+      fehler: String(schonDa[0]).indexOf("man_") === 0
+        ? "Du bist schon angemeldet – der Veranstalter hat dich eingetragen. Ein zweites Mal geht nicht."
+        : "Du bist schon angemeldet – von einem anderen Gerät aus. Ein zweites Mal geht nicht.",
     };
   }
   if (schonDa && !trotzdem) {

@@ -857,8 +857,9 @@ function koLueckenHtml(z, rundeNr) {
     if (finden(rundeNr, p)) continue;
     const a = seite(finden(rundeNr - 1, p * 2)), b = seite(finden(rundeNr - 1, p * 2 + 1));
     const warten = [a, b].filter((x) => !x.fest && x.partie).map((x) => x.partie);
+    const eigene = nr.get("ko_r" + rundeNr + "_p" + p);
     karten.push({ position: p, html: `<div class="match match-wartet">
-      <div class="match-nr">wartet${warten.length ? " auf Partie " + warten.join(" und ") : ""}</div>
+      <div class="match-nr">${eigene ? "Partie " + eigene + " · " : ""}wartet${warten.length ? " auf Partie " + warten.join(" und ") : ""}</div>
       <div class="match-team${a.fest ? "" : " offen"}"><span>${escapeHtml(a.text)}</span><span class="match-saetze"></span></div>
       <div class="match-team${b.fest ? "" : " offen"}"><span>${escapeHtml(b.text)}</span><span class="match-saetze"></span></div>
     </div>` });
@@ -955,7 +956,7 @@ function partieNummern(z) {
   const liste = z.spiele || [];
   if (PARTIE_NR_CACHE.has(liste)) return PARTIE_NR_CACHE.get(liste);
   // Gerechnet im Service – dieselbe Zählung zeigt auch die Übersicht.
-  const nr = turnierService.partieNummernAus(liste);
+  const nr = turnierService.partieNummernAus(liste, z.meta);
   PARTIE_NR_CACHE.set(liste, nr);
   return nr;
 }
@@ -1908,6 +1909,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.76",
+    groups: [
+      { title: "Fehlerbehebungen", items: [
+          "Turnier: Partienummern im K.-o. bleiben fest. Seit die nächste Runde Partie für Partie entsteht, konnte eine schon angesagte Partie eine Nummer weiterrutschen, wenn davor noch eine Partie der vorigen Runde angelegt wurde. Noch nicht angelegte Partien des Baums zählen jetzt schon mit; die wartenden Karten zeigen ihre spätere Nummer.",
+          "Turnier: Wer schon vom Veranstalter eingetragen ist, bekommt beim eigenen Anmelden einen passenden Hinweis statt „von einem anderen Gerät aus“."
+      ]},
+    ],
+  },
+  {
     version: "8.75",
     groups: [
       { title: "Essen: Foodbot meldet „bestellt“", items: [
@@ -1956,11 +1966,6 @@ const APP_CHANGELOG = [
       { title: "Turnier: Team zurückziehen", items: [
           "Im Veranstalter-Dialog gibt es in der Vorrunde „Team zurückziehen“: Das Team wird ab sofort nicht mehr gepaart und verschwindet aus der Tabelle. Seine offenen Spiele gewinnt der Gegner kampflos, gespielte Ergebnisse bleiben und zählen für die Gegner weiter. Bisherige Paarungen und Partienummern bleiben unverändert."
       ]},
-    ],
-  },
-  {
-    version: "8.70",
-    groups: [
       { title: "Downloads: Klickzähler für Linux", items: [
           "Neu im Download-Bereich: der AoE2-Klickzähler (Spieler) als Linux-Datei, mit kurzer Anleitung zum Einrichten.",
           "Linux-Spieler erscheinen beim Turnierleiter wie alle anderen – gleicher Turnier-Code, gleiches Netzwerk."
