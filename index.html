@@ -445,6 +445,19 @@
       <button class="btn btn-secondary btn-grow" id="btn-lobby-selbst-anmelden" style="display:none">＋ Selbst mitspielen</button>
 
       <div id="lobby-admin" style="display:none">
+        <button class="btn btn-secondary btn-grow" id="btn-lobby-fremd-auf">＋ Andere:n eintragen</button>
+        <div class="karte-block" id="lobby-fremd" hidden>
+          <p class="feld-label">Spieler:in eintragen</p>
+          <p class="hinweis-text">Für alle, die sich nicht selbst anmelden können. Vorschläge kommen aus der Kontoliste.</p>
+          <label class="feld-label" for="lobby-fremd-name">Name</label>
+          <input type="text" id="lobby-fremd-name" class="eingabe" maxlength="40" autocomplete="off" list="lobby-fremd-namen" placeholder="Kontoname">
+          <datalist id="lobby-fremd-namen"></datalist>
+          <label class="feld-label" for="lobby-fremd-rating">1vs1-Elo (500–3000)</label>
+          <input type="number" id="lobby-fremd-rating" class="eingabe" min="500" max="3000" step="10" value="1200">
+          <button class="btn btn-primary btn-grow" id="btn-lobby-fremd">Eintragen</button>
+          <p class="hinweis-text" id="lobby-fremd-ok"></p>
+          <p class="hinweis-text fehler" id="lobby-fremd-fehler"></p>
+        </div>
         <div class="karte-block" id="format-block">
           <p class="feld-label">Turnierformat festlegen</p>
           <p class="hinweis-text" id="format-stand"></p>
@@ -1454,8 +1467,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.26',
-    'app.js?v=3.100',
+    'turnier-service.js?v=2.27',
+    'app.js?v=3.101',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

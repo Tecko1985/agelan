@@ -1391,6 +1391,36 @@ function wireEvents() {
   });
 
   // Lobby: als Veranstalter selbst mitspielen
+  // Veranstalter trägt jemand anderen ein. Die Kontonamen kommen als
+  // Vorschlagsliste (nur für ⭐/🛠 abrufbar); frei tippen geht trotzdem.
+  document.getElementById("btn-lobby-fremd-auf").addEventListener("click", async () => {
+    const box = document.getElementById("lobby-fremd");
+    box.hidden = !box.hidden;
+    if (box.hidden) return;
+    document.getElementById("lobby-fremd-name").focus();
+    try {
+      const daten = await kontenRufe("konto-liste");
+      const angemeldet = new Set(((zustand && zustand.spieler) || []).map((s) => String(s.name || "").toLowerCase()));
+      document.getElementById("lobby-fremd-namen").innerHTML = (daten.konten || [])
+        .map((k) => k.nickname).filter((nick) => nick && !angemeldet.has(nick.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b))
+        .map((nick) => `<option value="${escapeHtml(nick)}"></option>`).join("");
+    } catch (e) { /* ohne Vorschläge – tippen geht trotzdem */ }
+  });
+  document.getElementById("btn-lobby-fremd").addEventListener("click", async () => {
+    const nameEl = document.getElementById("lobby-fremd-name");
+    const res = await turnierService.fuegeSpielerHinzu({
+      name: nameEl.value,
+      rating: document.getElementById("lobby-fremd-rating").value,
+    });
+    zeigeFehler("lobby-fremd-fehler", res.erfolg ? "" : res.fehler);
+    if (!res.erfolg) document.getElementById("lobby-fremd-ok").textContent = "";
+    if (res.erfolg) {
+      document.getElementById("lobby-fremd-ok").textContent = "„" + nameEl.value.trim() + "“ ist eingetragen.";
+      nameEl.value = "";
+      nameEl.focus();
+    }
+  });
   document.getElementById("btn-lobby-selbst-anmelden").addEventListener("click", () => {
     willMitmachen = true;
     loginNameSetzen();
@@ -1704,6 +1734,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.60",
+    groups: [
+      { title: "Turnier: Veranstalter trägt andere ein", items: [
+          "In der Anmeldung gibt es für Veranstalter „＋ Andere:n eintragen“: Name (Vorschläge aus der Kontoliste) und 1vs1-Elo eingeben, fertig. Für alle, die sich nicht selbst anmelden können. Herausnehmen geht wie gewohnt mit dem Papierkorb."
+      ]},
+    ],
+  },
   {
     version: "8.59",
     groups: [

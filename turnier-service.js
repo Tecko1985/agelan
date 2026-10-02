@@ -1433,6 +1433,41 @@ async function entferneSpieler(uid) {
   return { erfolg: true };
 }
 
+// Der Veranstalter trägt jemand anderen ein (Michel am 02.10.2026) – z. B. wer
+// kein Handy dabei hat oder sich nicht selbst anmelden kann.
+// ⚠️ Der Eintrag hängt nicht an einem Gerät: Schlüssel „man_…“ statt einer uid.
+// Ändern kann die Person ihr Elo deshalb nicht selbst – das macht der
+// Veranstalter (herausnehmen, neu eintragen). Die Regel lässt es zu, weil der
+// Veranstalter auf das ganze Turnier schreiben darf.
+async function fuegeSpielerHinzu({ name, rating }) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!letzterZustand || !letzterZustand.meta || letzterZustand.meta.phase !== "anmeldung") {
+    return { erfolg: false, fehler: "Eintragen geht nur, solange die Anmeldung läuft." };
+  }
+  const n = String(name == null ? "" : name).trim().slice(0, 40);
+  if (!n) return { erfolg: false, fehler: "Bitte einen Namen eingeben." };
+  const r = Math.round(Number(rating));
+  if (!Number.isFinite(r) || r < RATING_MIN || r > RATING_MAX) {
+    return { erfolg: false, fehler: `Das 1vs1-Elo muss zwischen ${RATING_MIN} und ${RATING_MAX} liegen.` };
+  }
+  const gleich = n.toLowerCase();
+  const schonDa = Object.values(letzterZustand.spieler || {})
+    .some((sp) => sp && String(sp.name || "").trim().toLowerCase() === gleich);
+  if (schonDa) return { erfolg: false, fehler: "„" + n + "“ ist schon angemeldet." };
+  const schluessel = "man_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+  try {
+    await db.ref(turnierBasis() + "/spieler/" + schluessel).set({
+      name: n,
+      rating: r,
+      beigetretenAm: firebase.database.ServerValue.TIMESTAMP,
+    });
+  } catch (e) {
+    return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
+  }
+  return { erfolg: true };
+}
+
 // --- Teams bilden (Admin) --------------------------------------------------
 // Balanced-Pairing: sortiert nach Rating, paart Bester+Schlechtester. Bei
 // ungerader Zahl bekommt das schwächste Paar einen dritten Spieler (3er-Team).
@@ -3316,6 +3351,7 @@ const turnierService = {
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
   setzeSpielmodus,
+  fuegeSpielerHinzu,
   gewaehlterLosmodus,
   // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,
   // unter dem abgerechnet wird. Steht kein Konto bereit (aeltere Anmeldung,
