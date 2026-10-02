@@ -1826,3 +1826,6 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 
 /* Veranstalter-Knopf in der Turnierleiste rechtsbündig */
 .turnier-leiste-admin { margin-left: auto; }
+
+/* K.-o.: Freilose einer Runde als eine Zeile (2026-10-02) */
+.bracket-freilose { margin: 4px 0 10px; line-height: 1.5; }

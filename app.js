@@ -784,11 +784,25 @@ function endtabelleHtml(z) {
     .join("");
 }
 
+// Freilose einer Runde nicht als eigene Karten (Michel am 02.10.2026: „viel zu
+// viele Freilose“ – bei 35 im 1 gegen 1 füllt der Baum auf 64 auf: 3 echte
+// Spiele, 29 Freilose). Sie stehen kompakt als eine Zeile über den Spielen.
+// Leere Durchreicher (kein Team) erscheinen gar nicht.
+function istFreilosMatch(m) { return !!(m && m.teamA && !m.teamB); }
+function istLeerMatch(m) { return !!(m && !m.teamA && !m.teamB); }
+function freiloseZeileHtml(z, matches) {
+  const frei = matches.filter(istFreilosMatch);
+  if (!frei.length) return "";
+  return `<p class="hinweis-text bracket-freilose"><b>${frei.length === 1 ? "1 Freilos" : frei.length + " Freilose"}</b> – direkt in der nächsten Runde: ` +
+    frei.map((m) => escapeHtml(m.teamAName)).join(", ") + "</p>";
+}
+
 function bracketHtml(z) {
   if (!z.bracket || z.bracket.runden.length === 0) return '<p class="hinweis-text">Noch keine Paarungen.</p>';
   return z.bracket.runden
     .map((r) => {
       const matches = r.matches
+        .filter((m) => !istFreilosMatch(m) && !istLeerMatch(m))
         .map((m) => {
           const sieger = m.siegerTeamId;
           const aWin = sieger && sieger === m.teamA ? " sieger" : "";
@@ -803,7 +817,7 @@ function bracketHtml(z) {
           </div>`;
         })
         .join("");
-      return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${matches}</div>`;
+      return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${freiloseZeileHtml(z, r.matches)}${matches}</div>`;
     })
     .join("") + verliererHtml(z) + grossesFinaleHtml(z) + platz3Html(z);
 }
@@ -813,7 +827,8 @@ function verliererHtml(z) {
   const runden = (z.bracket && z.bracket.verliererRunden) || [];
   if (!runden.length) return "";
   return runden
-    .map((r) => `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${r.matches.map((m) => matchHtml(z, m)).join("")}</div>`)
+    .map((r) => `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${freiloseZeileHtml(z, r.matches)}${r.matches
+      .filter((m) => !istFreilosMatch(m) && !istLeerMatch(m)).map((m) => matchHtml(z, m)).join("")}</div>`)
     .join("");
 }
 
@@ -1746,6 +1761,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.63",
+    groups: [
+      { title: "Turnier: Freilose kompakt", items: [
+          "Im K.-o.-Baum stehen Freilose nicht mehr als eigene Karten, sondern in einer Zeile über den Spielen der Runde („29 Freilose – direkt in der nächsten Runde: …“). Zu sehen sind nur noch die Spiele, die wirklich gespielt werden."
+      ]},
+    ],
+  },
   {
     version: "8.62",
     groups: [
