@@ -200,10 +200,13 @@ function formatEntwurfAus(z) {
   if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
   if (formatEntwurf.koTyp === null) formatEntwurf.koTyp = z.koTyp;
   if (formatEntwurf.ablauf === null) formatEntwurf.ablauf = z.formatOffen ? "" : z.ablauf;
+  const meta = z.meta || {};
+  if (formatEntwurf.bestOf == null) formatEntwurf.bestOf = String(meta.bestOf || 3);
+  if (formatEntwurf.bestOfFinale == null) formatEntwurf.bestOfFinale = meta.bestOfFinale ? String(meta.bestOfFinale) : "";
   return formatEntwurf;
 }
 function formatEntwurfZuruecksetzen() {
-  formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null };
+  formatEntwurf = { teamGroesse: null, koTyp: null, ablauf: null, bestOf: null, bestOfFinale: null };
 }
 
 // Kleiner Text-Setzer: es gibt nur zeigeFehler(), und der ist fuer Fehler.
@@ -220,6 +223,8 @@ function renderFormatWahl(z) {
 
   document.getElementById("form-teamgroesse").value = String(entwurf.teamGroesse);
   document.getElementById("form-kotyp").value = entwurf.koTyp;
+  document.getElementById("form-bestof").value = entwurf.bestOf;
+  document.getElementById("form-bestof-finale").value = entwurf.bestOfFinale;
 
   setzeText("format-stand", z.formatOffen
     ? "Noch nichts festgelegt. Warte, bis alle da sind – dann wähle hier."
@@ -229,7 +234,8 @@ function renderFormatWahl(z) {
   const wort = anzahl === 1 ? "1 Angemeldeten" : anzahl + " Angemeldeten";
   setzeText("format-vorschau-titel", "Ablauf – so sähe er mit " + wort + " aus");
 
-  const vergleich = turnierService.formatVergleich(anzahl, entwurf.teamGroesse, entwurf.koTyp);
+  const vergleich = turnierService.formatVergleich(anzahl, entwurf.teamGroesse, entwurf.koTyp,
+    Number(entwurf.bestOf), entwurf.bestOfFinale ? Number(entwurf.bestOfFinale) : null);
   // Was aus den Angemeldeten wird, gehört direkt unter die Auswahl: sonst
   // steht auf den Karten "6 Teams", ohne dass jemand sieht, wo die herkommen.
   const probe = vergleich[0];
@@ -474,6 +480,11 @@ function renderTeams(z) {
     // hier fest „einfach“, und „Auslosen“ schrieb das über ein gewähltes „Doppel“.
     // Vor dem Lesen unten, damit Hinweis und Zeilen gleich zum Wert passen.
     if (!losFelderInit) document.getElementById("los-kotyp").value = z.koTyp === "doppel" ? "doppel" : "einfach";
+    // Best-of aus der Formatwahl ebenso vorbelegen.
+    if (!losFelderInit && z.meta) {
+      document.getElementById("los-bestof").value = String([1, 3, 5].includes(Number(z.meta.bestOf)) ? z.meta.bestOf : 3);
+      document.getElementById("los-bestof-finale").value = [3, 5].includes(Number(z.meta.bestOfFinale)) ? String(z.meta.bestOfFinale) : "";
+    }
     // Im Doppel-K.-o. ergibt sich Platz 3 aus dem Verliererbaum.
     const doppelKo = document.getElementById("los-kotyp").value === "doppel";
     document.getElementById("los-platz3-zeile").style.display = z.hatKoRunde && !doppelKo ? "" : "none";
@@ -1239,6 +1250,14 @@ function wireEvents() {
     formatEntwurf.koTyp = e.target.value;
     if (zustand) renderFormatWahl(zustand);
   });
+  document.getElementById("form-bestof").addEventListener("change", (e) => {
+    formatEntwurf.bestOf = e.target.value;
+    if (zustand) renderFormatWahl(zustand);
+  });
+  document.getElementById("form-bestof-finale").addEventListener("change", (e) => {
+    formatEntwurf.bestOfFinale = e.target.value;
+    if (zustand) renderFormatWahl(zustand);
+  });
   document.getElementById("format-liste").addEventListener("click", (e) => {
     const karte = e.target.closest("[data-ablauf]");
     if (!karte || karte.disabled) return;
@@ -1256,6 +1275,8 @@ function wireEvents() {
       teamGroesse: formatEntwurf.teamGroesse,
       ablauf: formatEntwurf.ablauf,
       koTyp: formatEntwurf.koTyp,
+      bestOf: formatEntwurf.bestOf,
+      bestOfFinale: formatEntwurf.bestOfFinale,
     });
     zeigeFehler("form-fehler", res.erfolg ? "" : res.fehler);
     // Nach dem Speichern gilt wieder, was im Turnier steht – sonst hinge die
@@ -1673,6 +1694,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.58",
+    groups: [
+      { title: "Turnier: Best-of schon bei der Formatwahl", items: [
+          "Bei „Format festlegen“ gibt es jetzt „Modus je Spiel“ (Best of 1/3/5) und „Finale“ (Best of 3/5). Die Auswahl wird mit dem Format gespeichert und beim Auslosen vorbelegt.",
+          "Die Dauer auf den Format-Karten rechnet mit dem gewählten Modus: Best of 3 im Schnitt 2,5 Spiele, Best of 5 im Schnitt 4 Spiele je Partie, das Finale mit seinem eigenen Modus."
+      ]},
+    ],
+  },
   {
     version: "8.57",
     groups: [

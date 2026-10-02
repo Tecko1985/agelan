@@ -465,6 +465,26 @@
           </select>
           <p class="hinweis-text">Nur für Abläufe mit K.-o. – beim Auslosen noch einmal änderbar.</p>
 
+          <div class="feld-zeile">
+            <div>
+              <label class="feld-label" for="form-bestof">Modus je Spiel</label>
+              <select id="form-bestof" class="eingabe">
+                <option value="1">Best of 1</option>
+                <option value="3">Best of 3</option>
+                <option value="5">Best of 5</option>
+              </select>
+            </div>
+            <div>
+              <label class="feld-label" for="form-bestof-finale">Finale</label>
+              <select id="form-bestof-finale" class="eingabe">
+                <option value="">wie die anderen</option>
+                <option value="3">Best of 3</option>
+                <option value="5">Best of 5</option>
+              </select>
+            </div>
+          </div>
+          <p class="hinweis-text">Gilt für Vorrunde und K.-o.; das Finale nur bei Abläufen mit K.-o. Beim Auslosen und im Veranstalter-Dialog noch änderbar.</p>
+
           <p class="feld-label" id="format-vorschau-titel">Ablauf wählen</p>
           <div class="format-liste" id="format-liste"></div>
 
@@ -1429,8 +1449,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.24',
-    'app.js?v=3.98',
+    'turnier-service.js?v=2.25',
+    'app.js?v=3.99',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

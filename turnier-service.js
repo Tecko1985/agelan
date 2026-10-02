@@ -1259,7 +1259,7 @@ async function erstelleTurnier({ name, adminPin, teamGroesse, ablauf }) {
 // --- Turnierform & Ablauf ändern (Admin, nur während der Anmeldung) -------
 // Danach hängen Teams, Gruppen und Spiele daran – ein Wechsel würde sie
 // ungültig machen. Wer trotzdem umstellen will, setzt vorher zurück.
-async function setzeTurnierform({ teamGroesse, ablauf, koTyp }) {
+async function setzeTurnierform({ teamGroesse, ablauf, koTyp, bestOf, bestOfFinale }) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const meta = letzterZustand.meta;
@@ -1270,6 +1270,12 @@ async function setzeTurnierform({ teamGroesse, ablauf, koTyp }) {
   // koTyp ist beim Auslosen nochmal wählbar; hier nur, damit die Vorschau in
   // der Anmeldung und das spätere Auslosen dasselbe meinen.
   if (koTyp === "doppel" || koTyp === "einfach") zusatz.koTyp = koTyp;
+  // Best-of schon hier festlegen (Michel am 02.10.2026: „wo gebe ich bo1 an?“) –
+  // beim Auslosen und im Veranstalter-Dialog bleibt es änderbar.
+  if (BEST_OF_ERLAUBT.includes(Number(bestOf))) zusatz.bestOf = Number(bestOf);
+  if (bestOfFinale !== undefined) {
+    zusatz.bestOfFinale = BEST_OF_FINALE_ERLAUBT.includes(Number(bestOfFinale)) ? Number(bestOfFinale) : null;
+  }
   await db.ref(turnierBasis() + "/meta").update(Object.assign({
     teamGroesse: metaTeamGroesse({ teamGroesse }),
     ablauf: metaAblauf({ ablauf }),
@@ -3068,6 +3074,9 @@ function formatVorschau(optionen) {
   const koTyp = opt.koTyp === "doppel" ? "doppel" : "einfach";
   const durchgaenge = opt.doppelrunde ? 2 : 1;
   const einheit = groesse === 1 ? "Teilnehmer" : "Teams";
+  const bestOf = BEST_OF_ERLAUBT.includes(Number(opt.bestOf)) ? Number(opt.bestOf) : 1;
+  const bestOfFinale = BEST_OF_FINALE_ERLAUBT.includes(Number(opt.bestOfFinale)) ? Number(opt.bestOfFinale) : null;
+  const mitFinale = ablauf === "gruppen_ko" || ablauf === "nur_ko" || ablauf === "schweizer_ko";
 
   // Teamzahl exakt wie balancedGruppen: floor(n/k). Übrige rücken in
   // bestehende Teams nach, es entsteht also kein unvollständiges Team.
@@ -3181,9 +3190,10 @@ function formatVorschau(optionen) {
     freilose: freilose,
     kurz: spiele + (spiele === 1 ? " Partie" : " Partien") + " · " + runden + " " + rundenText +
       " · jede:r spielt " + proText,
-    dauerMin: turnierDauerMin(runden),
-    dauer: "Dauer " + dauerText(turnierDauerMin(runden)) + " – " + runden + " " + rundenText + " à " + MIN_PRO_PARTIE +
-      " min + je " + MIN_PAUSE + " min Pause, die Partien " + (rundenWort === "Spieltage" ? "eines Spieltags" : "einer Runde") + " gleichzeitig",
+    dauerMin: turnierDauerMin(runden, bestOf, mitFinale ? bestOfFinale : null),
+    dauer: "Dauer " + dauerText(turnierDauerMin(runden, bestOf, mitFinale ? bestOfFinale : null)) + " – " + runden + " " + rundenText +
+      ", " + boText(bestOf) + (mitFinale && bestOfFinale && bestOfFinale !== bestOf ? ", Finale Bo" + bestOfFinale : "") +
+      ", je " + MIN_PAUSE + " min Pause, die Partien " + (rundenWort === "Spieltage" ? "eines Spieltags" : "einer Runde") + " gleichzeitig",
     zeilen: zeilen,
   };
 }
@@ -3195,8 +3205,23 @@ function formatVorschau(optionen) {
 // Paarung finden). Best-of-3 und Nachzügler sind nicht drin.
 const MIN_PRO_PARTIE = 45;
 const MIN_PAUSE = 10;
-function turnierDauerMin(runden) {
-  return runden * MIN_PRO_PARTIE + Math.max(0, runden - 1) * MIN_PAUSE;
+// Wie viele Spiele eine Partie im Schnitt hat: Bo3 endet mal 2:0, mal 2:1,
+// Bo5 mal 3:0 bis 3:2. Durchschnitt, kein schlimmster Fall.
+const SPIELE_JE_PARTIE = { 1: 1, 3: 2.5, 5: 4, 7: 5.5 };
+function partieMin(bestOf) {
+  return MIN_PRO_PARTIE * (SPIELE_JE_PARTIE[bestOf] || 1);
+}
+// Das Finale ist die letzte Runde – nur bei Abläufen mit K.-o. hat es ein
+// eigenes Best-of.
+function turnierDauerMin(runden, bestOf, bestOfFinale) {
+  if (!runden) return 0;
+  const bo = SPIELE_JE_PARTIE[bestOf] ? bestOf : 1;
+  const fin = SPIELE_JE_PARTIE[bestOfFinale] ? bestOfFinale : bo;
+  const roh = (runden - 1) * partieMin(bo) + partieMin(fin) + (runden - 1) * MIN_PAUSE;
+  return Math.round(roh / 5) * 5;
+}
+function boText(bo) {
+  return bo === 1 ? "Bo1 à 45 min" : "Bo" + bo + " (Ø " + String(SPIELE_JE_PARTIE[bo]).replace(".", ",") + " Spiele à 45 min)";
 }
 function dauerText(minuten) {
   const h = Math.floor(minuten / 60);
@@ -3205,7 +3230,7 @@ function dauerText(minuten) {
 }
 
 // Alle Abläufe auf einmal durchrechnen – für den Vergleich in der Anmeldung.
-function formatVergleich(spielerAnzahl, teamGroesse, koTyp) {
+function formatVergleich(spielerAnzahl, teamGroesse, koTyp, bestOf, bestOfFinale) {
   return ABLAUF_ARTEN.map(function (a) {
     return Object.assign(
       { ablauf: a },
@@ -3214,6 +3239,8 @@ function formatVergleich(spielerAnzahl, teamGroesse, koTyp) {
         teamGroesse: teamGroesse,
         ablauf: a,
         koTyp: koTyp,
+        bestOf: bestOf,
+        bestOfFinale: bestOfFinale,
       })
     );
   });
