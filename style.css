@@ -1829,3 +1829,7 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 
 /* K.-o.: Freilose einer Runde als eine Zeile (2026-10-02) */
 .bracket-freilose { margin: 4px 0 10px; line-height: 1.5; }
+
+/* Turnier: fortlaufende Partienummern (2026-10-02) */
+.partie-nr { display: inline-block; min-width: 2.2em; margin-right: 6px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.match-nr { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }

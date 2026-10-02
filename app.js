@@ -810,6 +810,7 @@ function bracketHtml(z) {
           const spiel = z.spiele.find((s) => s.id === m.id);
           const aktionen = spiel ? spielAktionenHtml(z, spiel) : "";
           return `<div class="match">
+            ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}</div>` : ""}
             <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
             <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
             ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
@@ -852,6 +853,7 @@ function matchHtml(z, m) {
   const aWin = m.siegerTeamId && m.siegerTeamId === m.teamA ? " sieger" : "";
   const bWin = m.siegerTeamId && m.siegerTeamId === m.teamB ? " sieger" : "";
   return `<div class="match">
+    ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}</div>` : ""}
     <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
     <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
     ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
@@ -867,6 +869,38 @@ function platz3Html(z) {
   return `<div class="bracket-runde"><h3>Spiel um Platz 3</h3>${matchHtml(z, m)}</div>`;
 }
 
+// Fortlaufende Partienummern über das ganze Turnier (Michel am 02.10.2026) –
+// zum Ansagen und Suchen („Partie 7 bitte melden“). Reihenfolge: erst die
+// Vorrunde nach Runde, Gruppe, Position, dann das K.-o. nach Runde,
+// Gewinner- vor Verliererbaum, Position; Spiel um Platz 3 vor dem Finale.
+// Freilose und leere Durchreicher bekommen keine Nummer.
+// ⚠️ Gerechnet aus den Spielen selbst, nicht gespeichert: kommt eine neue
+// Runde dazu, behalten alle bisherigen Partien ihre Nummer, weil neue Runden
+// immer hinten einsortiert werden.
+const PARTIE_NR_CACHE = new WeakMap();
+function partieNummern(z) {
+  const liste = z.spiele || [];
+  if (PARTIE_NR_CACHE.has(liste)) return PARTIE_NR_CACHE.get(liste);
+  const baum = { w: 0, l: 1, f: 2 };
+  const echt = liste.filter((s) => s.teamA && s.teamB);
+  echt.sort((a, b) =>
+    (a.phase === "ko" ? 1 : 0) - (b.phase === "ko" ? 1 : 0) ||
+    (Number(a.runde) || 0) - (Number(b.runde) || 0) ||
+    (baum[a.bracket] || 0) - (baum[b.bracket] || 0) ||
+    (b.platz3 ? 1 : 0) - (a.platz3 ? 1 : 0) ||
+    String(a.gruppe || "").localeCompare(String(b.gruppe || "")) ||
+    (Number(a.position) || 0) - (Number(b.position) || 0) ||
+    String(a.id).localeCompare(String(b.id)));
+  const nr = new Map();
+  echt.forEach((s, i) => nr.set(s.id, i + 1));
+  PARTIE_NR_CACHE.set(liste, nr);
+  return nr;
+}
+function partieNrHtml(z, id) {
+  const n = partieNummern(z).get(id);
+  return n ? `<span class="partie-nr">#${n}</span>` : "";
+}
+
 // --- Spiel-Zeile (Gruppe) + Aktionen --------------------------------------
 function spielZeileHtml(z, s) {
   const ergebnis =
@@ -876,7 +910,7 @@ function spielZeileHtml(z, s) {
   // Freilos: kein Gegner, aber ein gewerteter Sieg – "vs —" liest sich wie ein Fehler.
   const gegner = s.teamB ? escapeHtml(teamNameVon(z, s.teamB)) : "Freilos";
   return `<div class="spiel-zeile">
-    <div class="spiel-teams"><span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${gegner}</span>${zeitMarkeHtml(s)}</div>
+    <div class="spiel-teams">${partieNrHtml(z, s.id)}<span>${escapeHtml(teamNameVon(z, s.teamA))}</span> <span class="vs">vs</span> <span>${gegner}</span>${zeitMarkeHtml(s)}</div>
     <div class="spiel-rechts">${ergebnis}</div>
     <div class="spiel-aktionen">${spielAktionenHtml(z, s)}</div>
   </div>`;
@@ -1761,6 +1795,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.65",
+    groups: [
+      { title: "Turnier: Partienummern", items: [
+          "Jede Partie hat eine fortlaufende Nummer über das ganze Turnier – in der Vorrunde als „#7“ vor der Paarung, im K.-o.-Baum als „Partie 23“ über dem Spiel. Freilose zählen nicht mit. Neue Runden werden hinten angehängt, die Nummern bisheriger Partien bleiben."
+      ]},
+    ],
+  },
   {
     version: "8.64",
     groups: [
