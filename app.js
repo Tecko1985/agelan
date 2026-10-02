@@ -124,6 +124,7 @@ function render(z) {
   const leiste = document.getElementById("turnier-leiste");
   leiste.style.display = screen === "screen-auswahl" ? "none" : "";
   document.getElementById("turnier-leiste-name").textContent = z.vorhanden ? z.meta.name : "";
+  renderBedingungen(z);
 
   // Admin-Zahnrad nur zeigen, wenn ein Turnier existiert – und gar nicht,
   // solange der Turnierteil ausgeblendet ist (es öffnet nur Turnier-Aktionen;
@@ -135,6 +136,38 @@ function render(z) {
   // und wer dann ein Feld anfasst, schreibt den alten Stand zurück.
   const zpOffen = document.getElementById("modal-zeitplan");
   if (zpOffen && zpOffen.classList.contains("aktiv")) renderZeitplanListe(z);
+}
+
+// Turnierbedingungen über dem Turnier (Michel am 02.10.2026): was gespielt
+// wird – Format, Best-of, Finale. Erst, wenn das Format feststeht.
+function renderBedingungen(z) {
+  const el = document.getElementById("turnier-bedingungen");
+  if (!el) return;
+  const meta = (z && z.meta) || {};
+  if (!z || !z.vorhanden || meta.formatOffen) { el.hidden = true; return; }
+  const teile = [];
+  teile.push(FORM_TEXT[z.teamGroesse] || "");
+  let ablauf = ABLAUF_TITEL[z.ablauf] || "";
+  if (z.hatKoRunde) {
+    const ko = [z.koTyp === "doppel" ? "Doppel-K.-o." : "einfaches K.-o."];
+    if (meta.spielUmPlatz3 && z.koTyp !== "doppel") ko.push("mit Spiel um Platz 3");
+    ablauf += " (" + ko.join(", ") + ")";
+  }
+  teile.push(ablauf);
+  const bo = Number(meta.bestOf) || 3;
+  teile.push("Spiele: Best of " + bo + (bo === 1 ? " (ein Spiel entscheidet)" : " (" + Math.ceil(bo / 2) + " Siege nötig)"));
+  if (z.hatKoRunde && [3, 5, 7].includes(Number(meta.bestOfFinale)) && Number(meta.bestOfFinale) !== bo) {
+    teile.push("Finale: Best of " + meta.bestOfFinale);
+  }
+  el.innerHTML = "<b>Turnierbedingungen:</b> " + teile.filter(Boolean).map(escapeHtml).join(" · ");
+  el.hidden = false;
+}
+
+// Kurz unter der Partienummer: welcher Modus gilt für genau dieses Spiel.
+function boMarke(z, spiel) {
+  if (!spiel || !z.meta) return "";
+  const bo = turnierService.bestOfFuer(spiel, z.meta);
+  return " · Best of " + bo + (spiel.istFinale && bo !== (Number(z.meta.bestOf) || 3) ? " (Finale)" : "");
 }
 
 // --- AUSWAHL: alle Turniere nebeneinander ----------------------------------
@@ -810,7 +843,7 @@ function bracketHtml(z) {
           const spiel = z.spiele.find((s) => s.id === m.id);
           const aktionen = spiel ? spielAktionenHtml(z, spiel) : "";
           return `<div class="match">
-            ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}</div>` : ""}
+            ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}${escapeHtml(boMarke(z, spiel))}</div>` : ""}
             <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
             <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
             ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
@@ -853,7 +886,7 @@ function matchHtml(z, m) {
   const aWin = m.siegerTeamId && m.siegerTeamId === m.teamA ? " sieger" : "";
   const bWin = m.siegerTeamId && m.siegerTeamId === m.teamB ? " sieger" : "";
   return `<div class="match">
-    ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}</div>` : ""}
+    ${partieNrHtml(z, m.id) ? `<div class="match-nr">Partie ${partieNummern(z).get(m.id)}${escapeHtml(boMarke(z, spiel))}</div>` : ""}
     <div class="match-team${aWin}"><span>${escapeHtml(m.teamAName)}</span><span class="match-saetze">${m.saetzeA == null ? "" : m.saetzeA}</span></div>
     <div class="match-team${bWin}"><span>${escapeHtml(m.teamBName)}</span><span class="match-saetze">${m.saetzeB == null ? "" : m.saetzeB}</span></div>
     ${m.geplantAm ? `<div class="match-zeit">${zeitMarkeHtml(m)}</div>` : ""}
@@ -1795,6 +1828,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.66",
+    groups: [
+      { title: "Turnier: Bedingungen sichtbar", items: [
+          "Über jedem Turnier stehen die Turnierbedingungen, z. B. „1 gegen 1 · Nur K.-o. (einfaches K.-o., mit Spiel um Platz 3) · Spiele: Best of 3 (2 Siege nötig) · Finale: Best of 5“.",
+          "Im K.-o.-Baum steht bei jedem Spiel dabei, was gespielt wird: „Partie 4 · Best of 3“, beim Finale ggf. „Best of 5 (Finale)“."
+      ]},
+    ],
+  },
   {
     version: "8.65",
     groups: [

@@ -1833,3 +1833,6 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 /* Turnier: fortlaufende Partienummern (2026-10-02) */
 .partie-nr { display: inline-block; min-width: 2.2em; margin-right: 6px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .match-nr { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+
+/* Turnierbedingungen über dem Turnier (2026-10-02) */
+.turnier-bedingungen { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; line-height: 1.5; }
