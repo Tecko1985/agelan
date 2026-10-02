@@ -1868,6 +1868,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.72",
+    groups: [
+      { title: "Übersicht: alle offenen K.-o.-Partien", items: [
+          "Die Turnier-Kachel zeigte im K.-o. nur die Partien der frühesten noch offenen Runde – seit die nächste Runde Partie für Partie entsteht, fehlten so alle schon spielbaren Partien. Jetzt stehen alle offenen K.-o.-Partien da."
+      ]},
+    ],
+  },
+  {
     version: "8.71",
     groups: [
       { title: "Turnier: K.-o. Partie für Partie", items: [

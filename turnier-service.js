@@ -1194,7 +1194,10 @@ function laufendePartien() {
         if (!(k in ersteRunde) || r < ersteRunde[k]) ersteRunde[k] = r;
       });
       const partien = offen
-        .filter((s) => (Number(s.runde) || 0) === ersteRunde[schluessel(s)])
+        // ⚠️ Nur in der Vorrunde auf die früheste Runde beschränken. Im K.-o.
+        // laufen seit „Partie für Partie“ mehrere Runden gleichzeitig – dort ist
+        // jede angelegte, offene Partie spielbar.
+        .filter((s) => s.phase === "ko" || (Number(s.runde) || 0) === ersteRunde[schluessel(s)])
         .sort((a, b) => (nr.get(a.id) || 0) - (nr.get(b.id) || 0))
         .map((s) => ({
           nr: nr.get(s.id) || 0,
