@@ -105,6 +105,7 @@ export default {
     if (aktion === "konto-discord")  return kontoDiscord(body, env, cors);
     if (aktion === "discord-test")   return discordTest(body, env, cors);
     if (aktion === "discord-sammel") return discordSammel(request, body, env, cors);
+    if (aktion === "discord-bestellt") return discordBestellt(request, body, env, cors);
     if (aktion === "firebase-rolle") return firebaseRolle(body, env, cors);
     return json({ error: "Unbekannte Aktion" }, 400, cors);
   },
@@ -1451,4 +1452,77 @@ function b64UrlZuBytes(s) {
   let b64 = String(s).replace(/-/g, "+").replace(/_/g, "/");
   while (b64.length % 4) b64 += "=";
   return b64ZuBytes(b64);
+}
+
+// --- Foodbot: „deine Bestellung ist beim Lieferanten“ ------------------------
+//
+// Michel am 02.10.2026: Sobald eine Sammelbestellung rausgeht („Ist raus – als
+// … festhalten“), bekommt jede:r darin eine DM: bestellt, welche Bestellung
+// („Bestellung 8 am Freitag“), was drin ist. Gleiche Prüfung, gleiche Bremse,
+// gleiche Eingabe wie discordSammel – nur ein anderer Text.
+// ⚠️ Eigene Aktion statt eines Schalters in discordSammel: ein Worker ohne
+// diese Funktion antwortet „Unbekannte Aktion“, statt fälschlich „Dein Essen
+// ist da“ zu verschicken.
+async function discordBestellt(request, body, env, cors) {
+  if (!kvDa(env)) return json({ error: "Konten sind noch nicht eingerichtet." }, 500, cors);
+  const erlaubt = await veranstalterOk(request, body, env);
+  if (!erlaubt.ok) return json({ error: erlaubt.fehler }, erlaubt.status, cors);
+  if (!env.DISCORD_BOT_TOKEN) {
+    return json({ error: "Der Discord-Bot ist noch nicht eingerichtet (Secret DISCORD_BOT_TOKEN fehlt)." }, 500, cors);
+  }
+  const rohLeute = Array.isArray(body.leute) ? body.leute : [];
+  const namen = [];
+  const postenZuName = new Map();
+  const gesehen = new Set();
+  for (const l of rohLeute) {
+    const wert = String(l && l.name != null ? l.name : "").trim();
+    if (!wert) continue;
+    const schluessel = wert.toLowerCase();
+    if (gesehen.has(schluessel)) continue;
+    gesehen.add(schluessel);
+    namen.push(wert);
+    postenZuName.set(schluessel, postenListe(l.posten));
+  }
+  if (!namen.length) return json({ error: "Es sind keine Namen mitgekommen." }, 400, cors);
+  if (namen.length > DISCORD_SAMMEL_MAX) {
+    return json({ error: "Das sind " + namen.length + " Leute auf einmal. Mehr als " + DISCORD_SAMMEL_MAX + " gehen in einem Durchgang nicht." }, 400, cors);
+  }
+  const welche = discordSauber(body.titel, 60);
+  const um = discordSauber(body.um, 20);
+
+  const erreicht = [];
+  const offen = [];
+  const budget = { rest: DISCORD_FETCH_BUDGET };
+  for (const name of namen) {
+    const eintrag = await env.KONTEN.get(nickSchluessel(name));
+    if (!eintrag) { offen.push({ nickname: name, grund: "Kein Konto mit diesem Namen." }); continue; }
+    let konto;
+    try { konto = JSON.parse(eintrag); } catch (e) {
+      offen.push({ nickname: name, grund: "Der Konto-Eintrag ist beschädigt." });
+      continue;
+    }
+    if (!konto.discordId) { offen.push({ nickname: konto.nick || name, grund: "Keine Discord-ID hinterlegt." }); continue; }
+
+    const posten = postenZuName.get(name.toLowerCase()) || [];
+    const liste = posten.length
+      ? "\n\nDas ist deins:\n" + posten.map((p) =>
+          "• " + p.anzahl + "x " + p.gericht + (p.sonderwunsch ? " (" + p.sonderwunsch + ")" : "")
+        ).join("\n")
+      : "";
+    const text =
+      "Hallo " + (konto.nick || name) + "! 🍕\n\n" +
+      "Deine Bestellung wurde soeben beim Pizzalieferanten bestellt" + (welche ? " – " + welche : "") + "." +
+      (um ? "\nBestellt um: " + um : "") +
+      liste +
+      "\n\nSobald das Essen da ist, sagen wir dir Bescheid.";
+
+    if (budget.rest < 2) {
+      offen.push({ nickname: konto.nick || name, grund: "Nicht versucht – zu viele auf einmal, kommt im nächsten Durchgang dran.", nichtVersucht: true });
+      continue;
+    }
+    const ergebnis = await discordDm(env, konto.discordId, text, budget);
+    if (ergebnis.ok) erreicht.push(konto.nick || name);
+    else offen.push({ nickname: konto.nick || name, grund: ergebnis.grund });
+  }
+  return json({ ok: true, geschickt: erreicht.length, erreicht: erreicht, offen: offen }, 200, cors);
 }

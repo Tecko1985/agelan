@@ -1908,6 +1908,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.75",
+    groups: [
+      { title: "Essen: Foodbot meldet „bestellt“", items: [
+          "Sobald eine Sammelbestellung als rausgeschickt festgehalten wird, schreibt der Foodbot allen darin per Discord: „Deine Bestellung wurde soeben beim Pizzalieferanten bestellt – Bestellung 8 am Freitag“, dazu die eigenen Posten. An der Lieferung steht, wie viele erreicht wurden und wer nicht (z. B. ohne Discord-ID); bei einem Fehler gibt es „erneut senden“.",
+          "Geht nur mit ⭐/🛠-Konto, wie „Bescheid geben“. Braucht die neue Worker-Fassung."
+      ]},
+    ],
+  },
+  {
     version: "8.74",
     groups: [
       { title: "Turnier: Ergebnisse folgen dem Spielmodus", items: [

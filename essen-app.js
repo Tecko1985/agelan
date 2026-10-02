@@ -873,6 +873,7 @@ function esRundeHtml(r) {
           <span><b>${essenService.centLabel(r.zahltCent)}</b></span>
         </div>
         ${note.length ? `<p class="hinweis-text es-geldnote">${note.join(" ")}</p>` : ""}
+        ${esBestelltHtml(r)}
         ${esBescheidHtml(r)}
         ${!r.fertig && !esDarfBescheid() ? `<p class="hinweis-text">📣 Bescheid per Discord geht nur mit einem Veranstalter- oder Orga-Konto (⭐/🛠) – mit dem PIN allein lehnt der Bot ab.</p>` : ""}
         <div class="es-best-aktionen es-runde-knoepfe">
@@ -958,6 +959,90 @@ function esSchonBescheid(r) {
 // Knopf trotzdem und danach „Nur der Veranstalter.“ in Rot (Bugjagd 25.09.d T5a-3a).
 function esDarfBescheid() {
   return typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
+}
+
+// --- Foodbot: „bestellt“ ----------------------------------------------------
+// Michel am 02.10.2026: Sobald eine Sammelbestellung rausgeht, bekommt jede:r
+// darin per Discord „Deine Bestellung wurde soeben beim Pizzalieferanten
+// bestellt – Bestellung 8 am Freitag“ samt der eigenen Posten. Läuft von selbst
+// nach „Ist raus – … festhalten“; das Ergebnis steht an der Lieferung, mit
+// „erneut senden“, falls etwas schiefging.
+// ⚠️ Eigene Worker-Aktion „discord-bestellt“. Kennt der Worker sie noch nicht,
+// kommt „Unbekannte Aktion“ zurück – es geht dann NICHTS raus, insbesondere
+// kein falsches „Dein Essen ist da“.
+let esBestelltStand = {};
+
+function esBestelltLeute(runde) {
+  const leute = new Map();
+  runde.bestellungen.forEach((b) => {
+    const roh = String(b.name || "").trim();
+    const k = roh.toLowerCase();
+    if (!k) return;
+    if (!leute.has(k)) leute.set(k, { name: roh, posten: [] });
+    b.positionen.forEach((p) => leute.get(k).posten.push({
+      anzahl: p.anzahl,
+      gericht: (p.nummer ? "Nr. " + p.nummer + " " : "") + p.name,
+      sonderwunsch: p.sonderwunsch,
+    }));
+  });
+  return Array.from(leute.values());
+}
+
+async function esBestelltMelden(rundeId) {
+  if (!esDarfBescheid()) {
+    esBestelltStand[rundeId] = { fehler: "Foodbot nicht verschickt – geht nur mit einem ⭐/🛠-Konto." };
+    esRender(esZustand);
+    return;
+  }
+  // Die Runde steht nach dem Schreiben sofort im lokalen Stand; zur Sicherheit kurz warten.
+  let runde = null;
+  for (let i = 0; i < 20 && !runde; i++) {
+    runde = (esZustand.runden || []).find((r) => r.id === rundeId);
+    if (!runde) await new Promise((r) => setTimeout(r, 150));
+  }
+  if (!runde) return;
+  const leute = esBestelltLeute(runde);
+  if (!leute.length) return;
+  esBestelltStand[rundeId] = { laeuft: true };
+  esRender(esZustand);
+  const titel = esMailBetreff(esZustand, runde);
+  const um = essenService.zeitLabel(runde.erstelltAm || Date.now());
+  const ergebnis = { geschickt: 0, offen: [] };
+  try {
+    let schlange = leute.slice();
+    for (let lauf = 0; schlange.length && lauf < 10; lauf++) {
+      const happen = schlange.slice(0, 24);
+      schlange = schlange.slice(24);
+      const d = await kontenRufe("discord-bestellt", { leute: happen, titel, um });
+      ergebnis.geschickt += d.geschickt || 0;
+      const nochmal = [];
+      (d.offen || []).forEach((o) => {
+        const l = o && o.nichtVersucht && happen.find((x) => x.name.toLowerCase() === String(o.nickname || "").toLowerCase());
+        if (l) nochmal.push(l); else ergebnis.offen.push(o);
+      });
+      if (nochmal.length === happen.length) { nochmal.forEach((l) => ergebnis.offen.push({ nickname: l.name, grund: "Nicht versucht." })); break; }
+      schlange = nochmal.concat(schlange);
+    }
+    esBestelltStand[rundeId] = ergebnis;
+  } catch (e) {
+    const unbekannt = /Unbekannte Aktion/i.test(String(e && e.message));
+    esBestelltStand[rundeId] = { fehler: unbekannt
+      ? "Foodbot nicht verschickt – der Worker kennt die Nachricht „bestellt“ noch nicht (Worker aktualisieren)."
+      : "Foodbot nicht verschickt: " + (e && e.message ? e.message : "Fehler") };
+  }
+  esRender(esZustand);
+}
+
+function esBestelltHtml(r) {
+  const e = esBestelltStand[r.id];
+  if (!e) return "";
+  if (e.laeuft) return `<p class="hinweis-text">🍕 Foodbot meldet „bestellt“ …</p>`;
+  const nochmal = esDarfBescheid() ? ` <button type="button" class="mini-btn" data-es-bestellt-nochmal="${escapeHtml(r.id)}">erneut senden</button>` : "";
+  if (e.fehler) return `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}${nochmal}</p>`;
+  const ohne = e.offen && e.offen.length
+    ? " · nicht erreicht: " + e.offen.map((o) => escapeHtml(o.nickname || "?") + " (" + escapeHtml(o.grund || "") + ")").join(", ")
+    : "";
+  return `<p class="hinweis-text">🍕 Foodbot: ${e.geschickt || 0} über „bestellt“ informiert${ohne}</p>`;
 }
 
 async function esBescheidGeben(runde, knopf) {
@@ -1192,6 +1277,9 @@ function esRenderAdminBestellungen(z) {
       if (d.open) esOffeneRunden.add(d.dataset.esRunde);
       else esOffeneRunden.delete(d.dataset.esRunde);
     });
+  });
+  box.querySelectorAll("[data-es-bestellt-nochmal]").forEach((btn) => {
+    btn.addEventListener("click", () => esBestelltMelden(btn.dataset.esBestelltNochmal));
   });
   box.querySelectorAll("[data-es-runde-mail]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1697,6 +1785,10 @@ function esRenderSammelmail(z) {
       esMailGeoeffnet = geoeffnetVorher;
       if (!esMailBearbeitet && !esMailGeoeffnet) esRenderSammelmail(esZustand);
       esZeigeFehler("es-mail-fehler", res.fehler);
+    } else if (res.id) {
+      // Foodbot: allen in dieser Lieferung „bestellt“ melden. Ohne await – die
+      // Ansicht soll nicht auf Discord warten.
+      esBestelltMelden(res.id);
     }
   });
 }
