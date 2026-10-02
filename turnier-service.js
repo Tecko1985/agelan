@@ -2156,12 +2156,35 @@ async function setzeSpielmodus({ bestOf, bestOfFinale }) {
     return { erfolg: false, fehler: gemeldet + (gemeldet === 1 ? " Ergebnis ist" : " Ergebnisse sind") +
       " gemeldet, aber noch nicht bestätigt. Erst bestätigen lassen, dann den Modus ändern." };
   }
+  // Bestätigte Ergebnisse an den neuen Modus anpassen (Michel am 02.10.2026:
+  // „die Sätze müssen sich auch richten“). Der SIEGER bleibt immer derselbe –
+  // er bekommt die jetzt nötigen Siege, der Verlierer behält seine, höchstens
+  // einen weniger. Bo5 3:1 → Bo3 2:1, Bo5 3:0 → Bo3 2:0, Bo3 2:1 → Bo1 1:0.
+  // Kampflose Wertungen (Freilos, Admin-Win, Rückzug) werden nötig:0.
+  // ⚠️ Weil der Sieger gleich bleibt, ändert sich am K.-o.-Baum nichts.
+  const neuMeta = Object.assign({}, z.meta, { bestOf: bo, bestOfFinale: fin });
+  const updates = { "meta/bestOf": bo, "meta/bestOfFinale": fin };
+  let angepasst = 0;
+  Object.keys(z.spiele || {}).forEach((sid) => {
+    const s = Object.assign({ id: sid }, z.spiele[sid]);
+    if (!s || s.status !== "bestaetigt" || !s.teamA) return;
+    const noetig = noetigeSaetze(bestOfFuer(s, neuMeta));
+    const a = Number(s.saetzeA) || 0, b = Number(s.saetzeB) || 0;
+    const kampflos = !s.teamB || s.gemeldetVon === "freilos" || s.gemeldetVon === "adminwin" || s.gemeldetVon === "rueckzug";
+    const aSiegt = !s.teamB || a > b;
+    const verlierer = kampflos ? 0 : Math.min(aSiegt ? b : a, noetig - 1);
+    const neuA = aSiegt ? noetig : verlierer, neuB = aSiegt ? verlierer : noetig;
+    if (neuA === a && neuB === b) return;
+    updates["spiele/" + sid + "/saetzeA"] = neuA;
+    updates["spiele/" + sid + "/saetzeB"] = neuB;
+    angepasst++;
+  });
   try {
-    await db.ref(turnierBasis() + "/meta").update({ bestOf: bo, bestOfFinale: fin });
+    await db.ref(turnierBasis()).update(updates);
   } catch (e) {
     return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
   }
-  return { erfolg: true };
+  return { erfolg: true, angepasst };
 }
 
 // --- Ergebnis melden / bestätigen -----------------------------------------

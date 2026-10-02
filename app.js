@@ -1815,7 +1815,8 @@ function wireEvents() {
       bestOfFinale: document.getElementById("admin-bestof-finale").value,
     });
     zeigeFehler("admin-panel-fehler", res.erfolg ? "" : res.fehler);
-    if (res.erfolg) document.getElementById("admin-spielmodus-ok").textContent = "Gespeichert – gilt für alle Spiele, die noch nicht bestätigt sind.";
+    if (res.erfolg) document.getElementById("admin-spielmodus-ok").textContent = "Gespeichert." +
+      (res.angepasst ? " " + res.angepasst + (res.angepasst === 1 ? " bestätigtes Ergebnis wurde" : " bestätigte Ergebnisse wurden") + " an den neuen Modus angepasst – die Sieger bleiben gleich." : "");
   });
   // Zurücksetzen: Angemeldete bleiben drin, nur Teams/Gruppen/Spiele fallen weg.
   document.getElementById("btn-admin-reset").addEventListener("click", async () => {
@@ -1906,6 +1907,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.74",
+    groups: [
+      { title: "Turnier: Ergebnisse folgen dem Spielmodus", items: [
+          "Wird der Spielmodus im Veranstalter-Dialog umgestellt, passen sich bestätigte Ergebnisse automatisch an – der Sieger bleibt derselbe: Bo5 3:1 wird Bo3 2:1, 3:0 wird 2:0. Freilose, Admin-Wins und kampflose Spiele werden zu „nötige Siege : 0“."
+      ]},
+    ],
+  },
   {
     version: "8.73",
     groups: [
