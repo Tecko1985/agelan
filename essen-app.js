@@ -221,7 +221,8 @@ function esRenderKarte(z) {
   const cursor = sucheAktiv ? altesFeld.selectionStart : null;
 
   const darfBestellen = z.annahmeOffen || z.istAdmin;
-  const treffer = essenService.sucheKarte(z.karte, esSuchtext);
+  // Ausgeblendete Gerichte (Auge in „Speisekarte verwalten“) stehen nicht zur Wahl.
+  const treffer = essenService.sucheKarte(z.karte.filter((g) => !g.aus), esSuchtext);
   const gruppen = essenService.nachKategorie(treffer);
   const suchtLaeuft = !!esSuchtext.trim();
 
@@ -1826,21 +1827,24 @@ function esRenderKarteVerwalten(z) {
   // nur um zu sehen, ob die Karte ueberhaupt schon steht.
   const anzahl = esEl("es-karte-anzahl");
   if (anzahl) {
+    const aus = z.karte.filter((g) => g.aus).length;
     anzahl.textContent = z.karte.length
-      ? z.karte.length + (z.karte.length === 1 ? " Gericht" : " Gerichte")
+      ? z.karte.length + (z.karte.length === 1 ? " Gericht" : " Gerichte") + (aus ? " · " + aus + " ausgeblendet" : "")
       : "noch leer";
   }
   const box = esEl("es-karte-verwalten");
   box.innerHTML = z.karte.length
     ? z.karte.map((g, i) => `
-        <div class="fr-paket-verwalten">
+        <div class="fr-paket-verwalten${g.aus ? " es-ger-aus" : ""}">
           <div class="fr-pv-info">
-            <div class="fr-pv-name">${g.nummer ? `<span class="es-pv-nr">${escapeHtml(g.nummer)}</span> ` : ""}${escapeHtml(g.name)}</div>
+            <div class="fr-pv-name">${g.nummer ? `<span class="es-pv-nr">${escapeHtml(g.nummer)}</span> ` : ""}${escapeHtml(g.name)}${g.aus ? ' <span class="es-aus-marke">ausgeblendet</span>' : ""}</div>
             <div class="fr-pv-preis">${g.preisCent ? essenService.centLabel(g.preisCent) : "kostenlos"}${g.kategorie ? " · " + escapeHtml(g.kategorie) : ""}${g.beschreibung ? " · " + escapeHtml(g.beschreibung) : ""}</div>
           </div>
           <div class="fr-pv-aktionen">
             <button type="button" class="mini-btn" data-es-hoch="${escapeHtml(g.id)}" ${i === 0 ? "disabled" : ""} title="Nach oben" aria-label="${escapeHtml(g.name)} nach oben">▲</button>
             <button type="button" class="mini-btn" data-es-runter="${escapeHtml(g.id)}" ${i === z.karte.length - 1 ? "disabled" : ""} title="Nach unten" aria-label="${escapeHtml(g.name)} nach unten">▼</button>
+            <button type="button" class="mini-btn${g.aus ? " es-auge-aus" : ""}" data-es-auge="${escapeHtml(g.id)}" aria-pressed="${g.aus}"
+              title="${g.aus ? "Ausgeblendet – wieder anzeigen" : "Vorübergehend ausblenden"}" aria-label="${escapeHtml(g.name)} ${g.aus ? "wieder anzeigen" : "ausblenden"}">${g.aus ? "🙈" : "👁"}</button>
             <button type="button" class="mini-btn" data-es-edit="${escapeHtml(g.id)}" title="Bearbeiten" aria-label="${escapeHtml(g.name)} bearbeiten">✎</button>
             <button type="button" class="mini-btn" data-es-loeschen="${escapeHtml(g.id)}" title="Löschen" aria-label="${escapeHtml(g.name)} löschen">🗑</button>
           </div>
@@ -1854,6 +1858,14 @@ function esRenderKarteVerwalten(z) {
   };
   box.querySelectorAll("[data-es-hoch]").forEach((b) => b.addEventListener("click", () => esVerschiebe(b.dataset.esHoch, -1)));
   box.querySelectorAll("[data-es-runter]").forEach((b) => b.addEventListener("click", () => esVerschiebe(b.dataset.esRunter, 1)));
+  box.querySelectorAll("[data-es-auge]").forEach((b) => b.addEventListener("click", async () => {
+    const g = esZustand.karte.find((x) => x.id === b.dataset.esAuge);
+    if (!g) return;
+    b.disabled = true;
+    const res = await essenService.setzeGerichtAus(g.id, !g.aus);
+    b.disabled = false;
+    if (!res.erfolg) esZeigeFehler("es-gericht-fehler", res.fehler);
+  }));
   box.querySelectorAll("[data-es-loeschen]").forEach((b) => b.addEventListener("click", async () => {
     if (!confirm("Dieses Gericht von der Karte nehmen? Schon abgeschickte Bestellungen bleiben, wie sie sind.")) return;
     const res = await essenService.loescheGericht(b.dataset.esLoeschen);

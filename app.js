@@ -1935,6 +1935,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.78",
+    groups: [
+      { title: "Essen: Gerichte ausblenden", items: [
+          "In „Speisekarte verwalten“ hat jedes Gericht ein Auge 👁: Ein Klick blendet es vorübergehend aus (🙈), es steht dann nicht mehr in der Bestellkarte, bleibt aber mit Nummer, Preis und Platz auf der Karte. Ein zweiter Klick zeigt es wieder an.",
+          "Ausgeblendete Gerichte lassen sich nicht neu bestellen; in schon abgeschickten Bestellungen bleiben sie stehen."
+      ]},
+    ],
+  },
+  {
     version: "8.77",
     groups: [
       { title: "Turnier: Ergebnis und Runde zurücknehmen", items: [

@@ -461,6 +461,9 @@ function esKarteListe(karteRoh) {
     preisCent: Math.max(0, Math.round(esZahl(g && g.preisCent, 0))),
     sort: esZahl(g && g.sort, 0),
     erstelltAm: esZahl(g && g.erstelltAm, 0),
+    // Vorübergehend ausgeblendet (Michel am 02.10.2026: „Auge“ in der
+    // Speisekarte) – steht nicht in der Bestellkarte, bleibt aber auf der Karte.
+    aus: !!(g && g.aus === true),
   }));
   liste.sort((a, b) => (a.sort - b.sort) || (a.erstelltAm - b.erstelltAm) || a.name.localeCompare(b.name));
   return liste;
@@ -1406,6 +1409,18 @@ async function esLoescheGericht(id) {
   return { erfolg: true };
 }
 
+// Gericht vorübergehend aus- bzw. wieder einblenden (Auge in der Speisekarte).
+async function esSetzeGerichtAus(id, aus) {
+  await esAuthBereit;
+  if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  if (!esGetZustand().karte.some((g) => g.id === id)) {
+    return { erfolg: false, fehler: "Dieses Gericht gibt es nicht mehr." };
+  }
+  const fehler = await esAdminSchreibe(() => db.ref(ES_BASIS + "/karte/" + id + "/aus").set(aus ? true : null));
+  if (fehler) return { erfolg: false, fehler };
+  return { erfolg: true };
+}
+
 async function esVerschiebeGericht(id, richtung) {
   await esAuthBereit;
   if (!esIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
@@ -1545,6 +1560,18 @@ async function esBestelle({ name, positionen, notiz, bestellungId }) {
 
   const n = esText(name, 40);
   if (!n) return { erfolg: false, fehler: "Bitte trag deinen Namen ein." };
+
+  // ⚠️ Ausgeblendete Gerichte nicht neu bestellen lassen. Stand das Gericht
+  // schon in DIESER Bestellung, bleibt es drin – sonst ließe sich eine alte
+  // Bestellung nicht mehr ändern, ohne es zu verlieren.
+  const hatteSchon = new Set(bisher ? (bisher.positionen || []).map((p) => p.gerichtId) : []);
+  const gesperrt = (positionen || [])
+    .map((pos) => z.karte.find((g) => g.id === (pos && pos.gerichtId)))
+    .filter((g) => g && g.aus && !hatteSchon.has(g.id));
+  if (gesperrt.length) {
+    return { erfolg: false, fehler: gesperrt.map((g) => (g.nummer ? "Nr. " + g.nummer + " " : "") + g.name).join(", ") +
+      (gesperrt.length === 1 ? " ist" : " sind") + " gerade nicht bestellbar. Bitte aus der Bestellung nehmen." };
+  }
 
   const sauber = {};
   let anzahlPositionen = 0;
@@ -2126,6 +2153,7 @@ const essenService = {
   aendereGericht: esAendereGericht,
   loescheGericht: esLoescheGericht,
   verschiebeGericht: esVerschiebeGericht,
+  setzeGerichtAus: esSetzeGerichtAus,
   parseImport: esParseImport,
   importiereKarte: esImportiereKarte,
   bestelle: esBestelle,

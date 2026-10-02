@@ -1848,3 +1848,8 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 /* K.-o.: wartende Partie (Gegner steht noch nicht fest) */
 .match.match-wartet { border-style: dashed; opacity: 0.85; }
 .match-wartet .match-team.offen span:first-child { color: var(--muted); font-style: italic; }
+
+/* Essen: ausgeblendetes Gericht in „Speisekarte verwalten“ (2026-10-02) */
+.es-ger-aus .fr-pv-info { opacity: 0.5; }
+.es-aus-marke { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; border: 1px solid currentColor; margin-left: 4px; color: var(--muted); }
+.mini-btn.es-auge-aus { border-color: var(--primary); }
