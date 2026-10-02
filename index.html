@@ -1292,6 +1292,7 @@
       <button type="button" class="btn btn-secondary btn-grow" id="btn-adminwin-a">🏳 Admin-Win: Team A</button>
       <button type="button" class="btn btn-secondary btn-grow" id="btn-adminwin-b">🏳 Admin-Win: Team B</button>
       <p class="hinweis-text">Das gewählte Team gewinnt, das andere verliert kampflos.</p>
+      <button type="button" class="btn btn-secondary btn-grow" id="btn-ergebnis-zurueck" hidden>↺ Ergebnis zurücksetzen (wieder offen)</button>
     </div>
     <button class="btn btn-link" id="btn-melden-abbrechen">Abbrechen</button>
   </div>
@@ -1332,6 +1333,11 @@
         </div>
         <button class="btn btn-secondary btn-grow" id="btn-admin-spielmodus">Spielmodus speichern</button>
         <p class="hinweis-text" id="admin-spielmodus-ok">Gilt für alle Spiele, die noch nicht bestätigt sind.</p>
+      </div>
+      <div id="admin-runde-zurueck" hidden>
+        <p class="feld-label">Schweizer System: Auslosung zurücknehmen</p>
+        <button class="btn btn-secondary btn-grow" id="btn-admin-runde-zurueck">Auslosung der letzten Runde zurücknehmen</button>
+        <p class="hinweis-text" id="admin-runde-zurueck-ok">Löscht die Paarungen der letzten Runde, solange dort noch nichts gemeldet ist. Danach lassen sich Ergebnisse der Runde davor zurücksetzen und neu auslosen.</p>
       </div>
       <div id="admin-rueckzug" hidden>
         <p class="feld-label">Team zurückziehen (Vorrunde)</p>
@@ -1494,8 +1500,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.35',
-    'app.js?v=3.115',
+    'turnier-service.js?v=2.36',
+    'app.js?v=3.116',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

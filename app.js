@@ -1142,6 +1142,8 @@ function oeffneMeldeDialog(spielId, adminModus) {
   winBox.hidden = !(zustand.istAdmin && s.teamA && s.teamB);
   document.getElementById("btn-adminwin-a").textContent = "🏳 Admin-Win: " + teamNameVon(zustand, s.teamA);
   document.getElementById("btn-adminwin-b").textContent = "🏳 Admin-Win: " + teamNameVon(zustand, s.teamB);
+  // Zurücksetzen auf „offen“: Veranstalter, echte Paarung, schon ein Ergebnis da.
+  document.getElementById("btn-ergebnis-zurueck").hidden = !(zustand.istAdmin && s.teamA && s.teamB && s.status !== "offen");
   document.getElementById("modal-melden").classList.add("aktiv");
   dlgFokusRein("modal-melden");
 }
@@ -1172,6 +1174,11 @@ function oeffneAdmin() {
   // Team zurückziehen: nur in der Vorrunde, Auswahl = Teams, die noch in einer Gruppe stehen.
   const vorrunde = istAdmin && meta.phase === "gruppen";
   document.getElementById("admin-rueckzug").hidden = !vorrunde;
+  // Letzte Schweizer Runde zurücknehmen: ab Runde 2.
+  const schweizerRunde = vorrunde && zustand.istSchweizer
+    ? zustand.spiele.filter((s) => s.phase === "gruppe").reduce((m, s) => Math.max(m, Number(s.runde) || 0), 0) : 0;
+  document.getElementById("admin-runde-zurueck").hidden = !(schweizerRunde >= 1);
+  if (schweizerRunde >= 1) document.getElementById("btn-admin-runde-zurueck").textContent = "Auslosung von Runde " + (schweizerRunde + 1) + " zurücknehmen";
   if (vorrunde) {
     const inGruppe = new Set();
     (zustand.gruppen || []).forEach((g) => (g.teamIds || []).forEach((tid) => inGruppe.add(tid)));
@@ -1772,6 +1779,16 @@ function wireEvents() {
     else zeigeFehler("melden-fehler", res.fehler);
   });
   document.getElementById("btn-melden-abbrechen").addEventListener("click", schliesseMeldeDialog);
+  document.getElementById("btn-ergebnis-zurueck").addEventListener("click", async () => {
+    if (!meldeSpielId) return;
+    const s = zustand.spiele.find((x) => x.id === meldeSpielId);
+    if (!s) return;
+    if (!confirm("Ergebnis zurücksetzen?\n" + teamNameVon(zustand, s.teamA) + " vs " + teamNameVon(zustand, s.teamB) +
+      " ist danach wieder offen, als wäre es nicht gespielt.")) return;
+    const res = await turnierService.setzeErgebnisZurueck(meldeSpielId);
+    if (res.erfolg) schliesseMeldeDialog();
+    else zeigeFehler("melden-fehler", res.fehler);
+  });
   ["A", "B"].forEach((seite) => {
     document.getElementById("btn-adminwin-" + seite.toLowerCase()).addEventListener("click", async () => {
       if (!meldeSpielId) return;
@@ -1796,6 +1813,15 @@ function wireEvents() {
     const res = await turnierService.authentifiziereAlsAdmin(document.getElementById("admin-pin").value);
     if (res.erfolg) oeffneAdmin();
     else zeigeFehler("admin-fehler", res.fehler);
+  });
+  document.getElementById("btn-admin-runde-zurueck").addEventListener("click", async () => {
+    if (!confirm("Die Auslosung der letzten Runde zurücknehmen?\n\nIhre Paarungen werden gelöscht (es ist dort noch nichts gespielt). Danach kannst du Ergebnisse der Runde davor zurücksetzen oder korrigieren und neu auslosen.")) return;
+    const res = await turnierService.nimmSchweizerRundeZurueck();
+    zeigeFehler("admin-panel-fehler", res.erfolg ? "" : res.fehler);
+    if (res.erfolg) {
+      document.getElementById("admin-runde-zurueck-ok").textContent = "Runde " + res.runde + " ist zurückgenommen (" + res.partien + " Paarungen gelöscht).";
+      oeffneAdmin();
+    }
   });
   document.getElementById("btn-admin-rueckzug").addEventListener("click", async () => {
     const wahl = document.getElementById("admin-rueckzug-team");
@@ -1908,6 +1934,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.77",
+    groups: [
+      { title: "Turnier: Ergebnis und Runde zurücknehmen", items: [
+          "Im Dialog „Ergebnis korrigieren“ gibt es für Veranstalter „↺ Ergebnis zurücksetzen“: Das Spiel ist danach wieder offen, als wäre es nicht gespielt. Geht nur, solange nichts darauf aufbaut (keine spätere Schweizer Runde, kein K.-o.-Folgespiel).",
+          "Im Veranstalter-Dialog lässt sich im Schweizer System die Auslosung der letzten Runde zurücknehmen – solange dort noch nichts gemeldet ist. Danach Ergebnisse korrigieren und neu auslosen."
+      ]},
+    ],
+  },
   {
     version: "8.76",
     groups: [

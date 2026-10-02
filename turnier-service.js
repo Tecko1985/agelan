@@ -2300,6 +2300,75 @@ async function widersprichErgebnis(spielId) {
   return { erfolg: true };
 }
 
+// Ergebnis zurücksetzen (Michel am 02.10.2026): ein bestätigtes oder
+// gemeldetes Spiel wird wieder „offen“, als wäre nie gespielt worden.
+// ⚠️ Nur, solange nichts darauf aufbaut: im Schweizer System keine spätere
+// Runde (die Paarungen kamen aus der Tabelle mit diesem Ergebnis – erst die
+// Runde zurücknehmen), im K.-o. kein Folgespiel mit einem der beiden Teams,
+// und die Vorrunde nicht mehr, sobald das K.-o. ausgelost ist.
+async function setzeErgebnisZurueck(spielId) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const spiel = findeSpiel(spielId);
+  if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
+  if (!spiel.teamA || !spiel.teamB) return { erfolg: false, fehler: "Ein Freilos lässt sich nicht zurücksetzen." };
+  if (spiel.status === "offen") return { erfolg: false, fehler: "Das Spiel ist schon offen." };
+  const meta = letzterZustand.meta || {};
+  if (spiel.phase === "gruppe") {
+    if (meta.phase !== "gruppen") return { erfolg: false, fehler: "Die Vorrunde ist abgeschlossen – ihre Ergebnisse lassen sich nicht mehr zurücksetzen." };
+    if (istSchweizer(meta)) {
+      const spaeter = spielListe().some((s) => s.phase === "gruppe" && (Number(s.runde) || 0) > (Number(spiel.runde) || 0));
+      if (spaeter) return { erfolg: false, fehler: "Die nächste Runde ist schon ausgelost. Erst im Veranstalter-Dialog die Auslosung dieser Runde zurücknehmen, dann dieses Ergebnis zurücksetzen." };
+    }
+  } else if (spiel.phase === "ko") {
+    if (meta.phase !== "ko") return { erfolg: false, fehler: "Das Turnier ist beendet – Ergebnisse lassen sich nicht mehr zurücksetzen." };
+    const doppel = metaKoTyp(meta) === "doppel";
+    const folge = spielListe().some((s) => koIstSpaeter(spiel, s, doppel) &&
+      [s.teamA, s.teamB].some((t) => t && (t === spiel.teamA || t === spiel.teamB)));
+    if (folge) return { erfolg: false, fehler: "Das Folgespiel ist schon angelegt. Ein falsches Ergebnis hier bitte mit ✎ korrigieren." };
+  }
+  try {
+    await db.ref(turnierBasis() + "/spiele/" + spielId).update({
+      saetzeA: null, saetzeB: null, status: "offen", gemeldetVon: null,
+    });
+  } catch (e) {
+    return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
+  }
+  return { erfolg: true };
+}
+
+// Letzte Schweizer Runde zurücknehmen (Michel am 02.10.2026): die Auslosung
+// der Runde wird gelöscht, als hätte es sie nie gegeben. Danach lassen sich
+// Ergebnisse der Runde davor korrigieren/zurücksetzen und neu auslosen.
+// ⚠️ Nur, solange in der Runde noch NICHTS gemeldet oder gespielt ist – sonst
+// gingen echte Ergebnisse verloren. Die erste Runde nicht: dafür gibt es
+// „Turnier zurücksetzen“.
+async function nimmSchweizerRundeZurueck() {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const meta = letzterZustand && letzterZustand.meta;
+  if (!meta || meta.phase !== "gruppen" || !istSchweizer(meta)) {
+    return { erfolg: false, fehler: "Geht nur in der Vorrunde im Schweizer System." };
+  }
+  const gruppe = spielListe().filter((s) => s.phase === "gruppe");
+  const letzte = gruppe.reduce((m, s) => Math.max(m, Number(s.runde) || 0), 0);
+  if (letzte < 1) return { erfolg: false, fehler: "Die erste Runde lässt sich nicht zurücknehmen – dafür „Turnier zurücksetzen“." };
+  const runde = gruppe.filter((s) => (Number(s.runde) || 0) === letzte);
+  const gespielt = runde.filter((s) => s.teamB && s.status !== "offen").length;
+  if (gespielt) {
+    return { erfolg: false, fehler: "In Runde " + (letzte + 1) + " " + (gespielt === 1 ? "ist schon 1 Ergebnis" : "sind schon " + gespielt + " Ergebnisse") +
+      " gemeldet oder gespielt. Erst diese zurücksetzen, dann die Runde zurücknehmen." };
+  }
+  const updates = {};
+  runde.forEach((s) => { updates["spiele/" + s.id] = null; });
+  try {
+    await db.ref(turnierBasis()).update(updates);
+  } catch (e) {
+    return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
+  }
+  return { erfolg: true, runde: letzte + 1, partien: runde.length };
+}
+
 // Admin überschreibt ein Ergebnis direkt (gilt sofort als bestätigt).
 // Admin-Win (Michel am 02.10.2026): ein Spiel kommt nicht zustande – der
 // Veranstalter spricht es einem Team zu, das andere verliert. Gewertet mit den
@@ -3602,6 +3671,8 @@ const turnierService = {
   bestOfFuer,
   setzeSpielmodus,
   zieheTeamZurueck,
+  setzeErgebnisZurueck,
+  nimmSchweizerRundeZurueck,
   partieNummernAus,
   laufendePartien,
   adminWin,
