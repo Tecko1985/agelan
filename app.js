@@ -197,7 +197,10 @@ const ratingBeruehrt = { lobby: false, teams: false };
 let letzteRenderTurnierId;
 
 function formatEntwurfAus(z) {
-  if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.teamGroesse;
+  // ⚠️ Bei offenem Format NICHT den Platzhalter (2 gegen 2) vorbelegen: Am
+  // 02.10.2026 wurde das Turnier „1vs1“ so als 2 gegen 2 ausgelost – das Feld
+  // stand schon da, niemand hat es angefasst. Jetzt muss man aktiv wählen.
+  if (formatEntwurf.teamGroesse === null) formatEntwurf.teamGroesse = z.formatOffen ? "" : z.teamGroesse;
   if (formatEntwurf.koTyp === null) formatEntwurf.koTyp = z.koTyp;
   if (formatEntwurf.ablauf === null) formatEntwurf.ablauf = z.formatOffen ? "" : z.ablauf;
   const meta = z.meta || {};
@@ -236,6 +239,11 @@ function renderFormatWahl(z) {
   const wort = anzahl === 1 ? "1 Angemeldeten" : anzahl + " Angemeldeten";
   setzeText("format-vorschau-titel", "Ablauf – so sähe er mit " + wort + " aus");
 
+  if (!entwurf.teamGroesse) {
+    setzeText("format-teams-zeile", "");
+    liste.innerHTML = `<p class="fk-warnung">Bitte zuerst oben wählen, wer zusammen spielt – 1 gegen 1, 2 gegen 2 …</p>`;
+    return;
+  }
   const vergleich = turnierService.formatVergleich(anzahl, entwurf.teamGroesse, entwurf.koTyp,
     Number(entwurf.bestOf), entwurf.bestOfFinale ? Number(entwurf.bestOfFinale) : null);
   // Was aus den Angemeldeten wird, gehört direkt unter die Auswahl: sonst
@@ -1249,7 +1257,7 @@ function wireEvents() {
   // Formatwahl: Teamgröße und K.-o.-Art ändern nur den Entwurf und rechnen
   // die Vorschau neu – gespeichert wird erst mit "Format festlegen".
   document.getElementById("form-teamgroesse").addEventListener("change", (e) => {
-    formatEntwurf.teamGroesse = Number(e.target.value) || 2;
+    formatEntwurf.teamGroesse = Number(e.target.value) || "";
     if (zustand) renderFormatWahl(zustand);
   });
   document.getElementById("form-kotyp").addEventListener("change", (e) => {
@@ -1277,6 +1285,9 @@ function wireEvents() {
 
   // Turnierform/Ablauf festlegen (nur während der Anmeldung)
   document.getElementById("btn-form-speichern").addEventListener("click", async () => {
+    if (!formatEntwurf.teamGroesse) {
+      return zeigeFehler("form-fehler", "Bitte oben wählen, wer zusammen spielt (1 gegen 1, 2 gegen 2 …).");
+    }
     if (!formatEntwurf.ablauf) {
       return zeigeFehler("form-fehler", "Bitte oben einen Ablauf auswählen.");
     }
@@ -1629,6 +1640,7 @@ function wireEvents() {
 
   // Admin-Dialog
   document.getElementById("btn-admin-oeffnen").addEventListener("click", oeffneAdmin);
+  document.getElementById("btn-turnier-veranstalter").addEventListener("click", oeffneAdmin);
   document.getElementById("btn-admin-schliessen").addEventListener("click", schliesseAdmin);
   // ⚠️ await: die Pruefung laeuft seit 2026-09-15 ueber den Server. Ohne await
   // waere res ein Promise – und `res.erfolg` damit immer undefined.
@@ -1734,6 +1746,22 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.62",
+    groups: [
+      { title: "Turnier: Veranstalter-Knopf sichtbar", items: [
+          "Neben „← Alle Turniere“ steht jetzt „⚙️ Veranstalter“. Darüber gehen PIN-Anmeldung, Spielmodus, Zurücksetzen und Löschen – vorher nur über das kleine ⚙️ oben rechts."
+      ]},
+    ],
+  },
+  {
+    version: "8.61",
+    groups: [
+      { title: "Turnier: Teamgröße muss gewählt werden", items: [
+          "Bei der Formatwahl stand „Wer spielt zusammen?“ von selbst auf „2 gegen 2“ – so wurde das Turnier „1vs1“ versehentlich als 2 gegen 2 ausgelost. Solange kein Format festgelegt ist, steht dort jetzt „– bitte wählen –“, und ohne Wahl lässt sich nichts festlegen."
+      ]},
+    ],
+  },
   {
     version: "8.60",
     groups: [

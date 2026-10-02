@@ -1823,3 +1823,6 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 
 /* Turnier-Formatwahl: ungefähre Dauer (2026-10-02) */
 .fk-dauer { display: block; font-size: 13px; font-weight: 600; margin: 2px 0 4px; }
+
+/* Veranstalter-Knopf in der Turnierleiste rechtsbündig */
+.turnier-leiste-admin { margin-left: auto; }

@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.20">
+<link rel="stylesheet" href="style.css?v=6.21">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -327,6 +327,9 @@
   <div class="turnier-leiste" id="turnier-leiste" style="display:none">
     <button class="btn btn-link" id="btn-turnier-wechseln">← Alle Turniere</button>
     <span class="turnier-leiste-name" id="turnier-leiste-name"></span>
+    <!-- Gut sichtbarer Zugang zum Veranstalter-Dialog (zurücksetzen, Spielmodus …).
+         Das ⚙️ oben rechts war zu leicht zu übersehen (Michel am 02.10.2026). -->
+    <button type="button" class="mini-btn turnier-leiste-admin" id="btn-turnier-veranstalter">⚙️ Veranstalter</button>
   </div>
 
   <!-- ============ AUSWAHL (mehrere Turniere nebeneinander) ============ -->
@@ -464,6 +467,7 @@
 
           <label class="feld-label" for="form-teamgroesse">Wer spielt zusammen?</label>
           <select id="form-teamgroesse" class="eingabe">
+            <option value="">– bitte wählen –</option>
             <option value="2">2 gegen 2 — die App bildet ratingfaire Paare</option>
             <option value="1">1 gegen 1 — jede:r spielt für sich</option>
             <option value="3">3 gegen 3</option>
@@ -1468,7 +1472,7 @@
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
     'turnier-service.js?v=2.27',
-    'app.js?v=3.101',
+    'app.js?v=3.103',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',
