@@ -2130,7 +2130,21 @@ async function widersprichErgebnis(spielId) {
 }
 
 // Admin überschreibt ein Ergebnis direkt (gilt sofort als bestätigt).
-async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
+// Admin-Win (Michel am 02.10.2026): ein Spiel kommt nicht zustande – der
+// Veranstalter spricht es einem Team zu, das andere verliert. Gewertet mit den
+// nötigen Sätzen zu 0 (Bo3 → 2:0), damit Tabelle, Buchholz und Baum ganz
+// normal weiterrechnen. Markiert als „adminwin“, damit es sichtbar bleibt.
+async function adminWin(spielId, fuer) {
+  const spiel = findeSpiel(spielId);
+  if (!spiel) return { erfolg: false, fehler: "Spiel nicht gefunden." };
+  if (!spiel.teamA || !spiel.teamB) return { erfolg: false, fehler: "Bei einem Freilos gibt es nichts zuzusprechen." };
+  const noetig = noetigeSaetze(bestOfFuer(spiel, letzterZustand.meta));
+  return fuer === "B"
+    ? adminSetzeErgebnis(spielId, 0, noetig, "adminwin")
+    : adminSetzeErgebnis(spielId, noetig, 0, "adminwin");
+}
+
+async function adminSetzeErgebnis(spielId, saetzeA, saetzeB, art) {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const spiel = findeSpiel(spielId);
@@ -2141,7 +2155,7 @@ async function adminSetzeErgebnis(spielId, saetzeA, saetzeB) {
   updates["spiele/" + spielId + "/saetzeA"] = v.a;
   updates["spiele/" + spielId + "/saetzeB"] = v.b;
   updates["spiele/" + spielId + "/status"] = "bestaetigt";
-  updates["spiele/" + spielId + "/gemeldetVon"] = "admin";
+  updates["spiele/" + spielId + "/gemeldetVon"] = art === "adminwin" ? "adminwin" : "admin";
   // ⚠️ Korrektur an einem schon bestätigten K.-o.-Spiel mit NEUEM Sieger: die
   // Folgespiele sind längst mit dem alten Sieger (und Verlierer) angelegt, und
   // die Progression legt eine vorhandene Runde nie neu an. Ohne Nachzug zeigte
@@ -3362,6 +3376,7 @@ const turnierService = {
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
   setzeSpielmodus,
+  adminWin,
   fuegeSpielerHinzu,
   gewaehlterLosmodus,
   // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,

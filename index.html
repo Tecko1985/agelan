@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.24">
+<link rel="stylesheet" href="style.css?v=6.25">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -1277,6 +1277,12 @@
     <p class="hinweis-text" id="melden-hinweis"></p>
     <p class="hinweis-text fehler" id="melden-fehler"></p>
     <button class="btn btn-primary btn-grow" id="btn-melden-speichern">Speichern</button>
+    <div id="melden-adminwin" class="melden-adminwin" hidden>
+      <p class="feld-label">Spiel findet nicht statt? (nur Veranstalter)</p>
+      <button type="button" class="btn btn-secondary btn-grow" id="btn-adminwin-a">🏳 Admin-Win: Team A</button>
+      <button type="button" class="btn btn-secondary btn-grow" id="btn-adminwin-b">🏳 Admin-Win: Team B</button>
+      <p class="hinweis-text">Das gewählte Team gewinnt, das andere verliert kampflos.</p>
+    </div>
     <button class="btn btn-link" id="btn-melden-abbrechen">Abbrechen</button>
   </div>
 </div>
@@ -1472,8 +1478,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.28',
-    'app.js?v=3.107',
+    'turnier-service.js?v=2.29',
+    'app.js?v=3.108',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',

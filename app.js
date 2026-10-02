@@ -166,6 +166,7 @@ function renderBedingungen(z) {
 // Kurz unter der Partienummer: welcher Modus gilt für genau dieses Spiel.
 function boMarke(z, spiel) {
   if (!spiel || !z.meta) return "";
+  if (spiel.gemeldetVon === "adminwin") return " · Admin-Win";
   const bo = turnierService.bestOfFuer(spiel, z.meta);
   return " · Best of " + bo + (spiel.istFinale && bo !== (Number(z.meta.bestOf) || 3) ? " (Finale)" : "");
 }
@@ -939,7 +940,7 @@ function spielZeileHtml(z, s) {
   const ergebnis =
     s.status === "offen"
       ? '<span class="spiel-status">offen</span>'
-      : `<span class="spiel-ergebnis${s.status === "bestaetigt" ? " ok" : ""}">${s.saetzeA}:${s.saetzeB}${s.status === "gemeldet" ? " ?" : " ✓"}</span>`;
+      : `<span class="spiel-ergebnis${s.status === "bestaetigt" ? " ok" : ""}">${s.saetzeA}:${s.saetzeB}${s.status === "gemeldet" ? " ?" : " ✓"}${s.gemeldetVon === "adminwin" ? ' <span class="adminwin-marke">Admin-Win</span>' : ""}</span>`;
   // Freilos: kein Gegner, aber ein gewerteter Sieg – "vs —" liest sich wie ein Fehler.
   const gegner = s.teamB ? escapeHtml(teamNameVon(z, s.teamB)) : "Freilos";
   return `<div class="spiel-zeile">
@@ -1106,6 +1107,11 @@ function oeffneMeldeDialog(spielId, adminModus) {
     ? "Best of 1: ein Spiel entscheidet – trag 1:0 oder 0:1 ein."
     : `Best of ${bestOf}: Sieger braucht ${noetig} Sätze.`;
   document.getElementById("melden-fehler").textContent = "";
+  // Admin-Win nur für Veranstalter und nur bei echten Paarungen.
+  const winBox = document.getElementById("melden-adminwin");
+  winBox.hidden = !(zustand.istAdmin && s.teamA && s.teamB);
+  document.getElementById("btn-adminwin-a").textContent = "🏳 Admin-Win: " + teamNameVon(zustand, s.teamA);
+  document.getElementById("btn-adminwin-b").textContent = "🏳 Admin-Win: " + teamNameVon(zustand, s.teamB);
   document.getElementById("modal-melden").classList.add("aktiv");
   dlgFokusRein("modal-melden");
 }
@@ -1719,6 +1725,19 @@ function wireEvents() {
     else zeigeFehler("melden-fehler", res.fehler);
   });
   document.getElementById("btn-melden-abbrechen").addEventListener("click", schliesseMeldeDialog);
+  ["A", "B"].forEach((seite) => {
+    document.getElementById("btn-adminwin-" + seite.toLowerCase()).addEventListener("click", async () => {
+      if (!meldeSpielId) return;
+      const s = zustand.spiele.find((x) => x.id === meldeSpielId);
+      if (!s) return;
+      const sieger = teamNameVon(zustand, seite === "A" ? s.teamA : s.teamB);
+      const verlierer = teamNameVon(zustand, seite === "A" ? s.teamB : s.teamA);
+      if (!confirm("Admin-Win für " + sieger + "?\n" + verlierer + " verliert dieses Spiel kampflos.")) return;
+      const res = await turnierService.adminWin(meldeSpielId, seite);
+      if (res.erfolg) schliesseMeldeDialog();
+      else zeigeFehler("melden-fehler", res.fehler);
+    });
+  });
 
   // Admin-Dialog
   document.getElementById("btn-admin-oeffnen").addEventListener("click", oeffneAdmin);
@@ -1828,6 +1847,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.67",
+    groups: [
+      { title: "Turnier: Admin-Win", items: [
+          "Im Dialog „Ergebnis melden/korrigieren“ gibt es für Veranstalter „🏳 Admin-Win“ je Team: Kommt ein Spiel nicht zustande, wird es dem einen Team zugesprochen, das andere verliert kampflos. Gewertet mit den nötigen Sätzen zu 0 (Bo3 = 2:0), markiert als „Admin-Win“. Korrigieren geht danach wie gewohnt mit ✎."
+      ]},
+    ],
+  },
   {
     version: "8.66",
     groups: [
