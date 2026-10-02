@@ -1820,3 +1820,6 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 
 /* Fester Name (Konto) beim Turnier-Einschreiben: sichtbar nicht änderbar. */
 .eingabe.feld-fest { opacity: 0.75; cursor: not-allowed; }
+
+/* Turnier-Formatwahl: ungefähre Dauer (2026-10-02) */
+.fk-dauer { display: block; font-size: 13px; font-weight: 600; margin: 2px 0 4px; }

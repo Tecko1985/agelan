@@ -3147,8 +3147,23 @@ function formatVorschau(optionen) {
     freilose: freilose,
     kurz: spiele + (spiele === 1 ? " Partie" : " Partien") + " · " + runden + " " + rundenText +
       " · jede:r spielt " + proText,
+    dauerMin: runden * MIN_PRO_PARTIE,
+    dauer: "Dauer " + dauerText(runden * MIN_PRO_PARTIE) + " – " + runden + " " + rundenText + " à " + MIN_PRO_PARTIE +
+      " min, die Partien " + (rundenWort === "Spieltage" ? "eines Spieltags" : "einer Runde") + " gleichzeitig",
     zeilen: zeilen,
   };
+}
+
+// Ungefähre Turnierdauer für die Formatwahl (Michel am 02.10.2026): 45 min je
+// Partie, und alle Partien EINER Runde laufen gleichzeitig – auf der LAN sitzt
+// jede:r am eigenen Rechner, Plätze sind also nicht knapp. Die Runden selbst
+// laufen nacheinander. Pausen, Best-of-3 und Nachzügler sind nicht drin – das
+// ist eine Untergrenze zum Vergleichen, kein Zeitplan.
+const MIN_PRO_PARTIE = 45;
+function dauerText(minuten) {
+  const h = Math.floor(minuten / 60);
+  const m = minuten % 60;
+  return "ca. " + (h ? h + " h" : "") + (h && m ? " " : "") + (m ? m + " min" : "");
 }
 
 // Alle Abläufe auf einmal durchrechnen – für den Vergleich in der Anmeldung.

@@ -249,7 +249,7 @@ function renderFormatWahl(z) {
       const zeilen = v.zeilen.map((t) => `<span class="fk-zeile">${escapeHtml(t)}</span>`).join("");
       const warnung = v.warnung ? `<span class="fk-warnung">${escapeHtml(v.warnung)}</span>` : "";
       const zahlen = v.moeglich
-        ? `<span class="fk-zahlen">${escapeHtml(v.kurz)}</span>`
+        ? `<span class="fk-zahlen">${escapeHtml(v.kurz)}</span><span class="fk-dauer">${escapeHtml(v.dauer || "")}</span>`
         : "";
       return `<button type="button" class="format-karte${aktiv ? " aktiv" : ""}${v.moeglich ? "" : " gesperrt"}"
         data-ablauf="${escapeHtml(v.ablauf)}"${v.moeglich ? "" : " disabled"}>
@@ -1655,6 +1655,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.56",
+    groups: [
+      { title: "Turnier: ungefähre Dauer je Format", items: [
+          "Bei der Formatwahl steht auf jeder Karte die ungefähre Dauer, z. B. „Dauer ca. 5 h 15 min – 7 Runden à 45 min“. Gerechnet mit 45 Minuten je Partie; alle Partien einer Runde laufen gleichzeitig, die Runden nacheinander. Pausen und Best-of-3 sind nicht eingerechnet."
+      ]},
+    ],
+  },
   {
     version: "8.55",
     groups: [
