@@ -915,18 +915,8 @@ const PARTIE_NR_CACHE = new WeakMap();
 function partieNummern(z) {
   const liste = z.spiele || [];
   if (PARTIE_NR_CACHE.has(liste)) return PARTIE_NR_CACHE.get(liste);
-  const baum = { w: 0, l: 1, f: 2 };
-  const echt = liste.filter((s) => s.teamA && s.teamB);
-  echt.sort((a, b) =>
-    (a.phase === "ko" ? 1 : 0) - (b.phase === "ko" ? 1 : 0) ||
-    (Number(a.runde) || 0) - (Number(b.runde) || 0) ||
-    (baum[a.bracket] || 0) - (baum[b.bracket] || 0) ||
-    (b.platz3 ? 1 : 0) - (a.platz3 ? 1 : 0) ||
-    String(a.gruppe || "").localeCompare(String(b.gruppe || "")) ||
-    (Number(a.position) || 0) - (Number(b.position) || 0) ||
-    String(a.id).localeCompare(String(b.id)));
-  const nr = new Map();
-  echt.forEach((s, i) => nr.set(s.id, i + 1));
+  // Gerechnet im Service – dieselbe Zählung zeigt auch die Übersicht.
+  const nr = turnierService.partieNummernAus(liste);
   PARTIE_NR_CACHE.set(liste, nr);
   return nr;
 }
@@ -1847,6 +1837,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.68",
+    groups: [
+      { title: "Übersicht: laufende Turniere live", items: [
+          "Sobald ein Turnier ausgelost ist, zeigt die Turnier-Kachel der Übersicht statt der Turnierliste die offenen Partien – je Turnier eine Seite mit Partienummer, Paarung und Modus. Die Seiten wechseln alle 10 Sekunden, die Kachel bleibt so lange stehen, bis alle einmal dran waren.",
+          "Gemeldete, noch nicht bestätigte Ergebnisse stehen als „Ergebnis gemeldet“ dabei. Läuft daneben noch eine Anmeldung, kommt sie als letzte Seite."
+      ]},
+    ],
+  },
   {
     version: "8.67",
     groups: [

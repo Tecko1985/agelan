@@ -1088,6 +1088,67 @@ function getListe() {
     .sort((a, b) => (a.erstelltAm || 0) - (b.erstelltAm || 0));
 }
 
+// Fortlaufende Partienummern (app.js zeigt sie im Turnier, die Übersicht auf
+// dem Beamer) – EINE Rechnung für beide, sonst sagt der Beamer „#7“ und das
+// Turnier „#8“. Reihenfolge: Vorrunde nach Runde, Gruppe, Position, dann K.-o.
+// nach Runde, Gewinner- vor Verliererbaum, Platz 3 vor dem Finale, Position.
+// Freilose und leere Durchreicher zählen nicht.
+function partieNummernAus(spiele) {
+  const baum = { w: 0, l: 1, f: 2 };
+  const echt = (spiele || []).filter((s) => s && s.teamA && s.teamB);
+  echt.sort((a, b) =>
+    (a.phase === "ko" ? 1 : 0) - (b.phase === "ko" ? 1 : 0) ||
+    (Number(a.runde) || 0) - (Number(b.runde) || 0) ||
+    (baum[a.bracket] || 0) - (baum[b.bracket] || 0) ||
+    (b.platz3 ? 1 : 0) - (a.platz3 ? 1 : 0) ||
+    String(a.gruppe || "").localeCompare(String(b.gruppe || "")) ||
+    (Number(a.position) || 0) - (Number(b.position) || 0) ||
+    String(a.id).localeCompare(String(b.id)));
+  const nr = new Map();
+  echt.forEach((s, i) => nr.set(s.id, i + 1));
+  return nr;
+}
+
+// Für die Übersicht: alle laufenden Turniere (ausgelost, nicht beendet) mit
+// ihren offenen Partien – gespielt wird gerade bzw. gleich. Aus den Live-Bäumen
+// aller Turniere, nicht nur dem geöffneten.
+function laufendePartien() {
+  return getListe()
+    .filter((t) => t.phase === "gruppen" || t.phase === "ko")
+    .map((t) => {
+      const baum = uebersicht[t.id] || {};
+      const meta = baum.meta || {};
+      const teams = baum.teams || {};
+      const spiele = Object.keys(baum.spiele || {}).map((sid) => ({ id: sid, ...baum.spiele[sid] }));
+      const nr = partieNummernAus(spiele);
+      const name = (tid) => (teams[tid] && teams[tid].name) || "?";
+      // ⚠️ In Gruppen stehen ALLE Spieltage von Anfang an als „offen“ da. Gezeigt
+      // wird je Gruppe (bzw. je Baum) nur die früheste Runde, in der noch etwas
+      // offen ist – also das, was jetzt gespielt wird.
+      const offen = spiele.filter((s) => s.teamA && s.teamB && (s.status === "offen" || s.status === "gemeldet"));
+      const schluessel = (s) => [s.phase, s.gruppe || "", s.bracket || ""].join("|");
+      const ersteRunde = {};
+      offen.forEach((s) => {
+        const k = schluessel(s), r = Number(s.runde) || 0;
+        if (!(k in ersteRunde) || r < ersteRunde[k]) ersteRunde[k] = r;
+      });
+      const partien = offen
+        .filter((s) => (Number(s.runde) || 0) === ersteRunde[schluessel(s)])
+        .sort((a, b) => (nr.get(a.id) || 0) - (nr.get(b.id) || 0))
+        .map((s) => ({
+          nr: nr.get(s.id) || 0,
+          a: name(s.teamA),
+          b: name(s.teamB),
+          gemeldet: s.status === "gemeldet",
+          bestOf: bestOfFuer(s, meta),
+          finale: !!s.istFinale,
+          platz3: !!s.platz3,
+          ko: s.phase === "ko",
+        }));
+      return { id: t.id, name: t.name, phase: t.phase, bestOf: Number(meta.bestOf) || 3, partien };
+    });
+}
+
 function synchronisiereUebersicht() {
   Object.keys(indexRoh).forEach((id) => {
     if (uebersichtRefs[id]) return;
@@ -3376,6 +3437,8 @@ const turnierService = {
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
   setzeSpielmodus,
+  partieNummernAus,
+  laufendePartien,
   adminWin,
   fuegeSpielerHinzu,
   gewaehlterLosmodus,

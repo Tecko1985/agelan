@@ -30,6 +30,8 @@
 
 const UB_TAKT_MS = 30000;   // dieselbe Taktung wie das Essens-Zeitfenster
 const UB_WECHSEL_MS = 15000; // so lange steht eine Kachel, dann kommt die nächste
+const UB_SEITE_MS = 10000;   // Turnier-Kachel: so lange steht eine Seite (Michel am 02.10.2026)
+const UB_PARTIEN_JE_SEITE = 8; // mehr passt auf dem Beamer nicht lesbar untereinander
 
 // Welche Kachel gerade gezeigt wird – nach ID, nicht nach Position: fällt eine
 // Kachel weg (Orga schaltet ab), springt die Anzeige nicht auf eine falsche.
@@ -384,10 +386,75 @@ function ubKachelFruehstueck() {
 
 // --- Kachel: Turnier --------------------------------------------------------
 
+// Laufende Turniere als Seiten: je Turnier seine offenen Partien, zu viele
+// werden auf mehrere Seiten verteilt. Läuft daneben noch eine Anmeldung, ist
+// sie die letzte Seite. Leer, solange kein Turnier ausgelost ist.
+function ubTurnierSeiten() {
+  if (typeof turnierService === "undefined" || typeof turnierService.laufendePartien !== "function") return [];
+  let laufend = [];
+  try { laufend = turnierService.laufendePartien(); } catch (e) { return []; }
+  if (!laufend.length) return [];
+  const seiten = [];
+  laufend.forEach((t) => {
+    const art = t.phase === "ko" ? "K.-o.-Runde" : "Vorrunde";
+    const kopf = t.name + " · " + art + " · Best of " + t.bestOf;
+    if (!t.partien.length) {
+      seiten.push({ kopf, zeilen: [], leer: "Alle Partien dieser Runde sind fertig – die nächste Runde kommt gleich." });
+      return;
+    }
+    for (let i = 0; i < t.partien.length; i += UB_PARTIEN_JE_SEITE) {
+      seiten.push({ kopf, zeilen: t.partien.slice(i, i + UB_PARTIEN_JE_SEITE) });
+    }
+  });
+  const z = ubZustand("turnier");
+  const offen = ((z && z.liste) || []).filter((t) => t.istOffen);
+  if (offen.length) {
+    seiten.push({ anmeldung: offen.map((t) => t.name + " – " + t.spielerAnzahl + " Teilnehmer") });
+  }
+  return seiten;
+}
+
+// Welche Seite gerade dran ist – gerechnet aus der Zeit seit dem Kachelwechsel,
+// damit ein Neuzeichnen (neue Bestellung) die Reihenfolge nicht durcheinanderbringt.
+function ubTurnierSeiteJetzt(anzahl) {
+  return anzahl ? Math.floor(Math.max(0, Date.now() - ubWechselSeit) / UB_SEITE_MS) % anzahl : 0;
+}
+
+// Wie lange eine Kachel steht: die Turnier-Kachel so lange, bis jede Seite
+// einmal dran war, alle anderen UB_WECHSEL_MS.
+function ubStandzeit(id) {
+  if (id !== "turnier") return UB_WECHSEL_MS;
+  const n = ubTurnierSeiten().length;
+  return n ? Math.max(UB_WECHSEL_MS, n * UB_SEITE_MS) : UB_WECHSEL_MS;
+}
+
 function ubKachelTurnier() {
   if (typeof TURNIER_SICHTBAR !== "undefined" && !TURNIER_SICHTBAR) return "";
   const z = ubZustand("turnier");
   if (!z) return "";
+
+  // Laufen Turniere, zeigt die Kachel deren offene Partien statt der Liste.
+  const seiten = ubTurnierSeiten();
+  if (seiten.length) {
+    const i = ubTurnierSeiteJetzt(seiten.length);
+    const s = seiten[i];
+    let inhalt = "";
+    if (s.anmeldung) {
+      inhalt += ubStatus(true, "✅ Turnieranmeldung offen", "Jetzt eintragen");
+      inhalt += s.anmeldung.map((t) => ubZeile("Anmeldung", t, "", "ub-live")).join("");
+    } else {
+      inhalt += '<p class="ub-block-titel">' + escapeHtml(s.kopf) + "</p>";
+      inhalt += s.zeilen.length
+        ? s.zeilen.map((p) => ubZeile("#" + p.nr, p.a + "  vs  " + p.b,
+            [p.platz3 ? "Spiel um Platz 3" : (p.finale ? "Finale" : ""),
+             p.bestOf !== undefined && (p.finale || p.platz3) ? "Best of " + p.bestOf : "",
+             p.gemeldet ? "Ergebnis gemeldet" : ""].filter(Boolean).join(" · "),
+            p.gemeldet ? "ub-still" : "ub-live")).join("")
+        : ubLeer(s.leer);
+    }
+    if (seiten.length > 1) inhalt += '<p class="ub-seite">Seite ' + (i + 1) + " / " + seiten.length + "</p>";
+    return ubKachel("ub-turnier ub-breit", "🏆 Turnier – offene Partien", inhalt, ubKnopf("turnier", "Zu den Turnieren"));
+  }
 
   const liste = (z.liste || []).filter((t) => t.phase !== "beendet");
   const offen = liste.filter((t) => t.istOffen);
@@ -687,13 +754,14 @@ function ubRender() {
   // jeder Änderung von vorn an und stimmte nicht mehr mit dem Wechsel überein.
   let leiste = "";
   if (kacheln.length > 1) {
-    const vergangen = Math.min(UB_WECHSEL_MS, Date.now() - ubWechselSeit);
+    const standzeit = ubStandzeit(ubAktivId);
+    const vergangen = Math.min(standzeit, Date.now() - ubWechselSeit);
     leiste = '<div class="ub-leiste" role="tablist">' +
       kacheln.map((k) => '<button type="button" role="tab" class="ub-punkt' +
         (k.id === ubAktivId ? " aktiv" : "") + '" data-ub-zeige="' + k.id + '" aria-selected="' +
         (k.id === ubAktivId) + '">' + escapeHtml(k.kurz) + "</button>").join("") +
       "</div>" +
-      '<div class="ub-fortschritt"><i style="animation-duration:' + UB_WECHSEL_MS +
+      '<div class="ub-fortschritt"><i style="animation-duration:' + standzeit +
       "ms;animation-delay:-" + vergangen + 'ms"></i></div>';
   }
   ziel.innerHTML = '<div class="ub-buehne">' + aktiv.html + "</div>" + leiste;
@@ -702,12 +770,21 @@ function ubRender() {
 // Nächste Kachel. Läuft im Sekundentakt mit, gewechselt wird erst nach
 // UB_WECHSEL_MS – so bleibt der Wechsel auch nach einem Klick auf die Leiste
 // (der die Uhr neu startet) im richtigen Abstand.
+let ubLetzteSeite = -1;
 function ubWechselPruefen() {
-  if (!ubSichtbar() || ubSichtbareIds.length < 2) return;
-  if (Date.now() - ubWechselSeit < UB_WECHSEL_MS) return;
+  if (!ubSichtbar()) return;
+  // Turnier-Kachel: innerhalb der Kachel alle UB_SEITE_MS die nächste Seite.
+  if (ubAktivId === "turnier") {
+    const n = ubTurnierSeiten().length;
+    const seite = ubTurnierSeiteJetzt(n);
+    if (n > 1 && seite !== ubLetzteSeite) { ubLetzteSeite = seite; ubRender(); }
+  }
+  if (ubSichtbareIds.length < 2) return;
+  if (Date.now() - ubWechselSeit < ubStandzeit(ubAktivId)) return;
   const i = ubSichtbareIds.indexOf(ubAktivId);
   ubAktivId = ubSichtbareIds[(i + 1) % ubSichtbareIds.length];
   ubWechselSeit = Date.now();
+  ubLetzteSeite = -1;
   ubRender();
 }
 
