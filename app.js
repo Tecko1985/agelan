@@ -995,7 +995,9 @@ function oeffneMeldeDialog(spielId, adminModus) {
   // Aufruf ist sicher.
   const bestOf = turnierService.bestOfFuer(s, zustand.meta);
   const noetig = turnierService.noetigeSaetze(bestOf);
-  document.getElementById("melden-hinweis").textContent = `Best of ${bestOf}: Sieger braucht ${noetig} Sätze.`;
+  document.getElementById("melden-hinweis").textContent = noetig === 1
+    ? "Best of 1: ein Spiel entscheidet – trag 1:0 oder 0:1 ein."
+    : `Best of ${bestOf}: Sieger braucht ${noetig} Sätze.`;
   document.getElementById("melden-fehler").textContent = "";
   document.getElementById("modal-melden").classList.add("aktiv");
   dlgFokusRein("modal-melden");
@@ -1020,6 +1022,14 @@ function oeffneAdmin() {
   document.getElementById("admin-fehler").textContent = "";
   document.getElementById("admin-panel-fehler").textContent = "";
   document.getElementById("admin-pin").value = "";
+  // Spielmodus: nur sinnvoll, wenn ausgelost ist und noch gespielt wird.
+  const meta = (zustand && zustand.meta) || {};
+  const laeuft = istAdmin && meta.phase && meta.phase !== "anmeldung" && meta.phase !== "teams" && meta.phase !== "beendet";
+  document.getElementById("admin-spielmodus").hidden = !laeuft;
+  if (laeuft) {
+    document.getElementById("admin-bestof").value = String(meta.bestOf || 3);
+    document.getElementById("admin-bestof-finale").value = meta.bestOfFinale ? String(meta.bestOfFinale) : "";
+  }
   document.getElementById("modal-admin").classList.add("aktiv");
   dlgFokusRein("modal-admin");
 }
@@ -1566,6 +1576,14 @@ function wireEvents() {
     if (res.erfolg) oeffneAdmin();
     else zeigeFehler("admin-fehler", res.fehler);
   });
+  document.getElementById("btn-admin-spielmodus").addEventListener("click", async () => {
+    const res = await turnierService.setzeSpielmodus({
+      bestOf: document.getElementById("admin-bestof").value,
+      bestOfFinale: document.getElementById("admin-bestof-finale").value,
+    });
+    zeigeFehler("admin-panel-fehler", res.erfolg ? "" : res.fehler);
+    if (res.erfolg) document.getElementById("admin-spielmodus-ok").textContent = "Gespeichert – gilt für alle Spiele, die noch nicht bestätigt sind.";
+  });
   // Zurücksetzen: Angemeldete bleiben drin, nur Teams/Gruppen/Spiele fallen weg.
   document.getElementById("btn-admin-reset").addEventListener("click", async () => {
     if (!confirm("Turnier zurücksetzen? Teams, Gruppen und alle Ergebnisse werden verworfen. Die Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.")) return;
@@ -1655,6 +1673,16 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.57",
+    groups: [
+      { title: "Turnier: Best of 1 / 3 / 5", items: [
+          "Beim Auslosen gibt es für die Spiele jetzt Best of 1, Best of 3 und Best of 5, fürs Finale Best of 3 oder Best of 5.",
+          "Im Veranstalter-Dialog („Veranstalter“) lässt sich der Modus auch bei laufendem Turnier noch ändern. Das gilt für alle Spiele, die noch nicht bestätigt sind – solange ein Ergebnis gemeldet, aber nicht bestätigt ist, wird die Änderung abgelehnt.",
+          "Bei Best of 1 sagt der Melde-Dialog „1:0 oder 0:1“."
+      ]},
+    ],
+  },
   {
     version: "8.56",
     groups: [

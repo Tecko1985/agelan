@@ -141,6 +141,11 @@ function mischeArray(arr) {
   return a;
 }
 
+// Best-of je Turnier (Michel am 02.10.2026): Vorrunde/K.-o. Bo1, Bo3, Bo5,
+// Finale Bo3/Bo5. 7 bleibt erlaubt, damit ältere Turniere weiterlaufen.
+const BEST_OF_ERLAUBT = [1, 3, 5, 7];
+const BEST_OF_FINALE_ERLAUBT = [3, 5, 7];
+
 function noetigeSaetze(bestOf) {
   return Math.ceil((bestOf || 3) / 2); // best-of-3 -> 2, best-of-5 -> 3
 }
@@ -1637,7 +1642,7 @@ async function loseTurnier(optionen) {
 // Werte, die bei jeder Auslosungs-Art gleich aus den Optionen kommen.
 function gemeinsameLosMeta(opt, meta) {
   const updates = {};
-  updates["meta/bestOf"] = [3, 5, 7].includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
+  updates["meta/bestOf"] = BEST_OF_ERLAUBT.includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
   updates["meta/bestOfFinale"] = [3, 5, 7].includes(Number(opt.bestOfFinale)) ? Number(opt.bestOfFinale) : null;
   updates["meta/punkteSieg"] = metaPunkteSieg({ punkteSieg: opt.punkteSieg });
   updates["meta/tiebreak"] = TIEBREAK_ARTEN.indexOf(opt.tiebreak) !== -1
@@ -1935,6 +1940,33 @@ async function naechsteSchweizerRunde() {
   return { erfolg: true, runde: gespielt + 1 };
 }
 
+// Spielmodus während des laufenden Turniers ändern (Veranstalter-Dialog).
+// ⚠️ Nicht, solange ein Ergebnis gemeldet, aber noch nicht bestätigt ist: das
+// Bestätigen prüft die Sätze gegen den NEUEN Modus – aus einem gemeldeten 2:1
+// (Bo3) würde unter Bo1 ein Ergebnis, das sich nicht mehr bestätigen lässt.
+// Bestätigte Spiele bleiben, wie sie sind.
+async function setzeSpielmodus({ bestOf, bestOfFinale }) {
+  await authBereit;
+  if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const z = letzterZustand;
+  if (!z || !z.meta) return { erfolg: false, fehler: "Kein Turnier vorhanden." };
+  const bo = Number(bestOf);
+  if (!BEST_OF_ERLAUBT.includes(bo)) return { erfolg: false, fehler: "Bitte einen Modus wählen." };
+  const fin = bestOfFinale === "" || bestOfFinale == null ? null : Number(bestOfFinale);
+  if (fin !== null && !BEST_OF_FINALE_ERLAUBT.includes(fin)) return { erfolg: false, fehler: "Bitte einen Finalmodus wählen." };
+  const gemeldet = Object.values(z.spiele || {}).filter((s) => s && s.status === "gemeldet").length;
+  if (gemeldet) {
+    return { erfolg: false, fehler: gemeldet + (gemeldet === 1 ? " Ergebnis ist" : " Ergebnisse sind") +
+      " gemeldet, aber noch nicht bestätigt. Erst bestätigen lassen, dann den Modus ändern." };
+  }
+  try {
+    await db.ref(turnierBasis() + "/meta").update({ bestOf: bo, bestOfFinale: fin });
+  } catch (e) {
+    return { erfolg: false, fehler: "Speichern abgelehnt – bist du als Veranstalter angemeldet?" };
+  }
+  return { erfolg: true };
+}
+
 // --- Ergebnis melden / bestätigen -----------------------------------------
 function validiereSaetze(saetzeA, saetzeB, bestOf) {
   const a = Number(saetzeA), b = Number(saetzeB);
@@ -1943,7 +1975,9 @@ function validiereSaetze(saetzeA, saetzeB, bestOf) {
     return { ok: false, fehler: "Bitte gültige Satzzahlen eingeben." };
   }
   if (Math.max(a, b) !== noetig || Math.min(a, b) >= noetig) {
-    return { ok: false, fehler: `Best-of-${bestOf}: Sieger braucht genau ${noetig} Sätze (z. B. ${noetig}:0 oder ${noetig}:${noetig - 1}).` };
+    return { ok: false, fehler: noetig === 1
+      ? "Best of 1: ein Spiel entscheidet – das Ergebnis ist 1:0 oder 0:1."
+      : `Best-of-${bestOf}: Sieger braucht genau ${noetig} Sätze (z. B. ${noetig}:0 oder ${noetig}:${noetig - 1}).` };
   }
   return { ok: true, a, b };
 }
@@ -3234,6 +3268,7 @@ const turnierService = {
   // (meta.bestOfFinale). Wer im Melde-Dialog einen Modus benennt, muss diese
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
+  setzeSpielmodus,
   // ⚠️ Das angemeldete Konto schlaegt jeden gemerkten Namen: es ist der Name,
   // unter dem abgerechnet wird. Steht kein Konto bereit (aeltere Anmeldung,
   // privater Modus), gilt weiter der zuletzt benutzte Name.

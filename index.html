@@ -540,11 +540,11 @@
           <p class="feld-label">Turnier auslosen <span class="los-teamzahl" id="los-teamzahl"></span></p>
           <p class="hinweis-text" id="los-ablauf-hinweis"></p>
 
-          <label class="feld-label" for="los-bestof">Modus je Spiel</label>
+          <label class="feld-label" for="los-bestof">Modus je Spiel (Vorrunde und K.-o.)</label>
           <select id="los-bestof" class="eingabe">
-            <option value="3">Best of 3 (erst 2 Sätze gewinnen)</option>
+            <option value="1">Best of 1 (ein Spiel entscheidet)</option>
+            <option value="3" selected>Best of 3 (erst 2 Sätze gewinnen)</option>
             <option value="5">Best of 5 (erst 3 Sätze gewinnen)</option>
-            <option value="7">Best of 7 (erst 4 Sätze gewinnen)</option>
           </select>
 
           <div id="los-kotyp-feld">
@@ -562,7 +562,6 @@
               <option value="">wie die anderen Spiele</option>
               <option value="3">Best of 3</option>
               <option value="5">Best of 5</option>
-              <option value="7">Best of 7</option>
             </select>
           </div>
 
@@ -1252,6 +1251,29 @@
     </div>
     <div id="admin-panel" style="display:none">
       <p class="hinweis-text" id="admin-panel-info">Du bist als Veranstalter angemeldet.</p>
+      <div id="admin-spielmodus" hidden>
+        <p class="feld-label">Spielmodus</p>
+        <div class="feld-zeile">
+          <div>
+            <label class="feld-label" for="admin-bestof">Vorrunde und K.-o.</label>
+            <select id="admin-bestof" class="eingabe">
+              <option value="1">Best of 1</option>
+              <option value="3">Best of 3</option>
+              <option value="5">Best of 5</option>
+            </select>
+          </div>
+          <div>
+            <label class="feld-label" for="admin-bestof-finale">Finale</label>
+            <select id="admin-bestof-finale" class="eingabe">
+              <option value="">wie die anderen</option>
+              <option value="3">Best of 3</option>
+              <option value="5">Best of 5</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-grow" id="btn-admin-spielmodus">Spielmodus speichern</button>
+        <p class="hinweis-text" id="admin-spielmodus-ok">Gilt für alle Spiele, die noch nicht bestätigt sind.</p>
+      </div>
       <button class="btn btn-secondary btn-grow" id="btn-admin-reset">Turnier zurücksetzen</button>
       <p class="hinweis-text">Teams, Gruppen und Spiele werden verworfen. Alle Angemeldeten bleiben drin, ihr könnt sofort neu auslosen.</p>
       <button class="btn btn-danger btn-grow" id="btn-admin-loeschen">Turnier löschen</button>
@@ -1407,8 +1429,8 @@
     'firebase-mock.js?v=1.0',
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
-    'turnier-service.js?v=2.23',
-    'app.js?v=3.97',
+    'turnier-service.js?v=2.24',
+    'app.js?v=3.98',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
     'fruehstueck-service.js?v=1.19',
