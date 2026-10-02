@@ -1700,7 +1700,13 @@ function wireEvents() {
   });
 
   // K.o.: nächste Runde manuell
-  document.getElementById("btn-ko-naechste").addEventListener("click", () => turnierService.naechsteRundeManuell());
+  document.getElementById("btn-ko-naechste").addEventListener("click", async () => {
+    const res = await turnierService.naechsteRundeManuell();
+    if (!res.erfolg) return alert(res.fehler);
+    alert(res.neu > 0
+      ? res.neu + (res.neu === 1 ? " neue Partie angelegt." : " neue Partien angelegt.")
+      : "Nichts Neues anzulegen" + (res.offen ? " – " + res.offen + (res.offen === 1 ? " Spiel ist" : " Spiele sind") + " noch offen." : "."));
+  });
 
   // Delegierte Aktionen für Spiel-Buttons
   document.getElementById("app").addEventListener("click", (e) => {
@@ -1861,6 +1867,16 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.71",
+    groups: [
+      { title: "Turnier: K.-o. Partie für Partie", items: [
+          "Im einfachen K.-o. muss nicht mehr die ganze Runde fertig sein: Sobald die beiden Spiele feststehen, aus denen eine Partie der nächsten Runde hervorgeht, wird sie angelegt und kann gespielt werden. Ein Spiel, das sich zieht, hält nur noch seinen eigenen Zweig auf.",
+          "„Nächste Runde manuell prüfen“ sagt jetzt, was passiert ist – „2 neue Partien angelegt“ oder „Nichts Neues – 1 Spiel ist noch offen“.",
+          "Rundennamen richten sich nach der Größe des Baums: ein erst halb angelegtes Halbfinale heißt nicht mehr „Finale“."
+      ]},
+    ],
+  },
   {
     version: "8.70",
     groups: [

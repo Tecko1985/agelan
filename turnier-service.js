@@ -1030,8 +1030,11 @@ function baueBracket(teams, spiele, meta) {
 
   // Im Doppel-K.-o. ist die letzte Gewinnerrunde NICHT das Finale - das grosse
   // Finale kommt erst nach dem Verliererbaum.
+  // ⚠️ Name aus der Baumgröße (Runde 0 / 2^r), nicht aus der Zahl der schon
+  // angelegten Spiele: seit Partie-für-Partie steht im Halbfinale oft erst EIN
+  // Spiel – es hiesse sonst „Finale“.
   const runden = rundenAus(gewinnerSpiele, (anzahl, r) =>
-    doppel && r === wRunden - 1 ? "Gewinner-Finale" : rundenTitel(anzahl));
+    doppel && r === wRunden - 1 ? "Gewinner-Finale" : rundenTitel(ersteRunde ? Math.max(1, ersteRunde / Math.pow(2, r)) : anzahl));
   const verliererRunden = rundenAus(verliererSpiele, (anzahl, r) =>
     r === lRunden - 1 ? "Verlierer-Finale" : "Verliererrunde " + (r + 1));
 
@@ -2880,16 +2883,66 @@ async function koProgressionSchritt() {
   const zustand = snap.val();
   if (!zustand || !zustand.meta || zustand.meta.phase !== "ko") return false;
   const spiele = Object.keys(zustand.spiele || {}).map((sid) => ({ id: sid, ...zustand.spiele[sid] }));
-  return metaKoTyp(zustand.meta) === "doppel"
-    ? doppelKoSchritt(zustand, spiele)
-    : einfachKoSchritt(zustand, spiele);
+  if (metaKoTyp(zustand.meta) === "doppel") return doppelKoSchritt(zustand, spiele);
+  const runde0 = spiele.filter((s) => s.phase === "ko" && !s.platz3 && (Number(s.runde) || 0) === 0).length;
+  const zweierpotenz = runde0 > 0 && (runde0 & (runde0 - 1)) === 0;
+  return zweierpotenz ? einfachKoSchritt(zustand, spiele) : einfachKoSchrittRundenweise(zustand, spiele);
 }
 
+// Einfaches K.-o., Partie für Partie (Michel am 02.10.2026: „ein Spiel der
+// Runde zieht sich – die anderen sollen schon weiterspielen können“).
+// Eine Partie der nächsten Runde entsteht, sobald IHRE beiden Vorgänger
+// (Position 2p und 2p+1 der Runde davor) bestätigt sind – die übrigen Spiele
+// der Runde müssen nicht fertig sein. Platz 3 entsteht, wenn beide
+// Halbfinals durch sind; der Sieger, wenn das Finale bestätigt ist.
+// ⚠️ Die Rundenzahl kommt aus der Größe der ERSTEN Runde, nicht aus der
+// höchsten angelegten – sonst hielte ein angelegtes Halbfinale neben einem
+// offenen Viertelfinale sich selbst für die letzte Runde.
 async function einfachKoSchritt(zustand, spiele) {
-  // WARNUNG: Das Spiel um Platz 3 liegt in derselben Runde wie das Finale,
-  // entscheidet aber nichts ueber den Turniersieg - es MUSS aus der Progression
-  // heraus, sonst zaehlt es als zweites Match der Runde und erzeugt eine Runde
-  // danach.
+  const koSpiele = spiele.filter((s) => s.phase === "ko" && !s.platz3);
+  if (koSpiele.length === 0) return false;
+  const runde0 = koSpiele.filter((s) => (Number(s.runde) || 0) === 0).length;
+  if (!runde0) return false;
+  const anzahlRunden = Math.round(Math.log2(runde0)) + 1;   // 8 Spiele in Runde 0 → 4 Runden
+  const finden = (r, p) => koSpiele.find((s) => (Number(s.runde) || 0) === r && (Number(s.position) || 0) === p);
+  const fertig = (s) => !!s && s.status === "bestaetigt";
+
+  const updates = {};
+  for (let r = 0; r < anzahlRunden - 1; r++) {
+    const naechsteAnzahl = runde0 / Math.pow(2, r + 1);
+    for (let p = 0; p < naechsteAnzahl; p++) {
+      if (finden(r + 1, p)) continue;                        // schon angelegt
+      const a = finden(r, p * 2), b = finden(r, p * 2 + 1);
+      if (!fertig(a) || !fertig(b)) continue;                // Vorgänger noch offen
+      updates["spiele/ko_r" + (r + 1) + "_p" + p] = macheKoSpiel(
+        "w", r + 1, p, koSieger(a), koSieger(b),
+        // Marker fuers abweichende Best-of des Finales
+        { istFinale: naechsteAnzahl === 1 }
+      );
+    }
+  }
+  // Spiel um Platz 3: beide Halbfinals bestätigt.
+  if (zustand.meta.spielUmPlatz3 && anzahlRunden >= 2 && !spiele.some((s) => s.platz3)) {
+    const hf = anzahlRunden - 2;
+    const h0 = finden(hf, 0), h1 = finden(hf, 1);
+    if (fertig(h0) && fertig(h1)) {
+      const dritte = [koVerlierer(h0), koVerlierer(h1)].filter(Boolean);
+      if (dritte.length === 2) {
+        updates["spiele/ko_platz3"] = macheKoSpiel("w", anzahlRunden - 1, 1, dritte[0], dritte[1], { platz3: true });
+      }
+    }
+  }
+  if (Object.keys(updates).length) return legeKoSpieleAn(updates);
+
+  // Nichts mehr anzulegen: steht das Finale fest, den Sieger eintragen.
+  const finale = finden(anzahlRunden - 1, 0);
+  if (fertig(finale) && !zustand.meta.siegerTeamId) await setzeKoSieger(koSieger(finale));
+  return false;
+}
+
+// Bisherige Fassung (ganze Runde auf einmal) – nur noch als Rückfall, falls
+// die erste Runde keine Zweierpotenz ist (alte Turniere). Nicht löschen.
+async function einfachKoSchrittRundenweise(zustand, spiele) {
   const koSpiele = spiele.filter((s) => s.phase === "ko" && !s.platz3);
   if (koSpiele.length === 0) return false;
 
@@ -3050,8 +3103,12 @@ async function doppelKoSchritt(zustand, spiele) {
 async function naechsteRundeManuell() {
   await authBereit;
   if (!istAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
+  const vorher = Object.keys((letzterZustand && letzterZustand.spiele) || {}).length;
   await pruefeKoProgression();
-  return { erfolg: true };
+  const roh = (letzterZustand && letzterZustand.spiele) || {};
+  const neu = Object.keys(roh).length - vorher;
+  const offen = Object.values(roh).filter((s) => s && s.phase === "ko" && s.teamA && s.teamB && s.status !== "bestaetigt").length;
+  return { erfolg: true, neu, offen };
 }
 
 // --- Testspieler (Admin, zum Ausprobieren) --------------------------------
