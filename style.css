@@ -1910,3 +1910,9 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 .baum-frei-marke { font-size: 10px; font-weight: 700; color: var(--muted); }
 .baum-leer { color: var(--muted); }
 .baum-champion { position: absolute; box-sizing: border-box; padding: 10px 12px; border: 2px solid var(--success); border-radius: 10px; font-weight: 700; background: var(--card-bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Turnierbaum ohne Scrollbalken (2026-10-03): volle Fensterbreite, eingepasst per baumEinpassen() */
+.ko-baum-scroll { max-height: none; overflow-x: auto; overflow-y: hidden; border: none; background: transparent; padding: 0; position: relative; scrollbar-width: none; }
+.ko-baum-scroll::-webkit-scrollbar { display: none; }
+.ko-baum-scroll .ko-baum { position: absolute; left: 0; top: 0; }
+.ko-baum-mass { height: 1px; }

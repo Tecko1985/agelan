@@ -1048,9 +1048,46 @@ function setzeKoHtml(el, html) {
   const alt = el.querySelector(".ko-baum-scroll");
   const pos = alt ? [alt.scrollLeft, alt.scrollTop] : null;
   el.innerHTML = html;
+  baumEinpassen();
+  // Falls der Kasten gerade erst sichtbar wird: nach dem Zeichnen noch einmal.
+  requestAnimationFrame(baumEinpassen);
   const neu = el.querySelector(".ko-baum-scroll");
   if (pos && neu) { neu.scrollLeft = pos[0]; neu.scrollTop = pos[1]; }
 }
+
+// Ohne Scrollbalken (Michel am 03.10.2026): Der Baum nutzt die ganze
+// Fensterbreite statt der schmalen Spalte und wird verkleinert, bis er passt.
+// Nach unten läuft er einfach mit der Seite. Nur wenn er selbst bei 55 % noch
+// zu breit wäre (Handy, großes Feld), lässt er sich seitlich wischen – ohne
+// sichtbaren Balken. Kleiner wäre nicht mehr lesbar.
+const BAUM_MIN_SKALA = 0.55;
+function baumEinpassen() {
+  document.querySelectorAll(".ko-baum-scroll").forEach((huelle) => {
+    const baum = huelle.querySelector(".ko-baum");
+    if (!baum) return;
+    const fenster = document.documentElement.clientWidth;
+    const rand = 16;
+    const natB = parseFloat(baum.style.width) || baum.offsetWidth;
+    const natH = parseFloat(baum.style.height) || baum.offsetHeight;
+    const platz = Math.max(200, fenster - 2 * rand);
+    const skala = Math.max(BAUM_MIN_SKALA, Math.min(1, platz / natB));
+    const breite = Math.min(platz, natB * skala);
+    // Mittig im Fenster, unabhängig von der schmalen Spalte drumherum.
+    huelle.style.width = breite + "px";
+    huelle.style.marginLeft = "0px";
+    const links = huelle.getBoundingClientRect().left;
+    huelle.style.marginLeft = Math.round((fenster - breite) / 2 - links) + "px";
+    baum.style.transform = skala < 1 ? "scale(" + skala + ")" : "";
+    baum.style.transformOrigin = "top left";
+    // Die Hülle muss die verkleinerte Größe tragen, sonst bleibt unten Leerraum.
+    huelle.style.height = Math.ceil(natH * skala) + "px";
+    const innen = huelle.querySelector(".ko-baum-mass") || (() => {
+      const m = document.createElement("div"); m.className = "ko-baum-mass"; huelle.appendChild(m); return m;
+    })();
+    innen.style.width = Math.ceil(natB * skala) + "px";
+  });
+}
+window.addEventListener("resize", () => baumEinpassen());
 
 document.addEventListener("click", (e) => {
   const k = e.target.closest && e.target.closest("[data-ko-ansicht]");
@@ -2145,7 +2182,8 @@ const APP_CHANGELOG = [
       { title: "Turnier: Turnierbaum", items: [
           "Über dem K.-o. gibt es den Umschalter „☰ Liste | 🌳 Turnierbaum“. Der Baum zeigt alle Runden nebeneinander, jede Partie mittig zwischen ihren beiden Vorgängern, mit Verbindungslinien – Sieger grün, laufende Partien markiert, noch wartende Partien gestrichelt mit „Sieger Partie N“. Rechts der Turniersieger, darunter das Spiel um Platz 3.",
           "Freilose der ersten Runde stehen als schmale Zeile im Baum. Auf dem Handy lässt sich der Baum seitlich wischen. Melden und Korrigieren gehen weiter in der Liste; die gewählte Ansicht merkt sich das Gerät.",
-          "Nur für einfaches K.-o. – beim Doppel-K.-o. bleibt es bei der Liste."
+          "Nur für einfaches K.-o. – beim Doppel-K.-o. bleibt es bei der Liste.",
+          "Ohne Scrollbalken: Der Baum nutzt die ganze Fensterbreite und wird verkleinert, bis er passt; nach unten läuft er mit der Seite."
       ]},
     ],
   },
