@@ -1858,3 +1858,14 @@ button.es-zaehler-teil.aktiv { background: var(--es-farbe, var(--primary)); bord
 .fr-menge { font-size: 12px; font-weight: 600; color: var(--muted); }
 .fr-menge-aus { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; border: 1px solid currentColor; margin-left: 4px; }
 .fr-paket.fr-paket-ausgebucht { opacity: 0.45; }
+
+/* Turnier: Runden einklappbar mit fertig/gesamt (2026-10-03) */
+details.runde-klapp > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; user-select: none; }
+details.runde-klapp > summary::-webkit-details-marker { display: none; }
+details.runde-klapp > summary::before { content: "\25B8"; display: inline-block; width: 1em; color: var(--muted); transition: transform .15s; }
+details.runde-klapp[open] > summary::before { transform: rotate(90deg); }
+details.runde-klapp > summary .runde-klapp-titel { margin: 0; flex: 1 1 auto; }
+.runde-zaehler { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-variant-numeric: tabular-nums; }
+.runde-zaehler.fertig { color: var(--success, #1a7f4b); border-color: currentColor; }
+details.runde-klapp { margin-bottom: 10px; }
+details.runde-klapp > summary { padding: 6px 0; }

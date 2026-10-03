@@ -699,8 +699,12 @@ function renderGruppen(z) {
       // Schweizer System und Ligamodus spielen in Runden – sonst steht alles
       // in einem Block.
       const spiele = z.istSchweizer || z.spieltage
-        ? g.runden.map((r) => `<h4 class="runden-titel">${escapeHtml(rundenName(z, r.runde))}</h4>
-            <div class="spiel-liste">${r.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`).join("")
+        ? g.runden.map((r) => {
+            const echt = r.spiele.filter((s) => s.teamA && s.teamB);
+            return rundeKlappHtml(z, "g" + g.name + "_r" + r.runde, "h4", rundenName(z, r.runde),
+              echt.filter((s) => s.status === "bestaetigt").length, echt.length,
+              `<div class="spiel-liste">${r.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`);
+          }).join("")
         : `<div class="spiel-liste">${g.spiele.map((s) => spielZeileHtml(z, s)).join("")}</div>`;
       return `<div class="gruppe">
         ${eineTabelle ? "" : `<h3>Gruppe ${escapeHtml(g.name)}</h3>`}
@@ -867,13 +871,39 @@ function koLueckenHtml(z, rundeNr) {
   return karten;
 }
 
+// Runden einklappbar (Michel am 03.10.2026), im Kopf „fertig/gesamt“ der
+// echten Partien (Freilose zählen nicht, wartende K.-o.-Partien schon).
+// Fertige Runden sind von selbst zu, laufende offen. Wer selbst klickt, behält
+// seine Wahl – auch über das Neuzeichnen bei jedem Ergebnis hinweg.
+// ⚠️ Gemerkt wird nur beim Klick auf den Kopf, nicht über das toggle-Ereignis:
+// das feuert auch, wenn die Runde mit „open“ neu gezeichnet wird, und würde den
+// Automatik-Stand als Wahl festschreiben – eine fertige Runde klappte nie zu.
+const RUNDE_OFFEN = new Map();
+function rundeKlappHtml(z, key, tag, titel, fertig, gesamt, innen) {
+  const k = (z.turnierId || "") + "|" + key;
+  const komplett = gesamt > 0 && fertig >= gesamt;
+  const offen = RUNDE_OFFEN.has(k) ? RUNDE_OFFEN.get(k) : !komplett;
+  return `<details class="runde-klapp" data-runde-key="${escapeHtml(k)}"${offen ? " open" : ""}>
+    <summary><${tag} class="runde-klapp-titel">${escapeHtml(titel)}</${tag}><span class="runde-zaehler${komplett ? " fertig" : ""}" title="fertig / gesamt">${fertig}/${gesamt}</span></summary>
+    ${innen}
+  </details>`;
+}
+document.addEventListener("click", (e) => {
+  const kopf = e.target.closest && e.target.closest("details.runde-klapp > summary");
+  if (!kopf) return;
+  const d = kopf.parentElement;
+  RUNDE_OFFEN.set(d.dataset.rundeKey, !d.open);
+});
+
 function bracketHtml(z) {
   if (!z.bracket || z.bracket.runden.length === 0) return '<p class="hinweis-text">Noch keine Paarungen.</p>';
   return z.bracket.runden
     .map((r) => {
       const posVon = (id) => { const sp = z.spiele.find((x) => x.id === id); return sp ? Number(sp.position) || 0 : 0; };
-      const matches = r.matches
-        .filter((m) => !istFreilosMatch(m) && !istLeerMatch(m))
+      const echt = r.matches.filter((m) => !istFreilosMatch(m) && !istLeerMatch(m));
+      const luecken = koLueckenHtml(z, r.runde);
+      const fertig = echt.filter((m) => { const sp = z.spiele.find((s) => s.id === m.id); return sp && sp.status === "bestaetigt"; }).length;
+      const matches = echt
         .map((m) => ({ position: posVon(m.id), html: (() => {
           const sieger = m.siegerTeamId;
           const aWin = sieger && sieger === m.teamA ? " sieger" : "";
@@ -888,11 +918,12 @@ function bracketHtml(z) {
             ${aktionen ? `<div class="match-aktionen">${aktionen}</div>` : ""}
           </div>`;
         })() }))
-        .concat(koLueckenHtml(z, r.runde))
+        .concat(luecken)
         .sort((a, b) => a.position - b.position)
         .map((k) => k.html)
         .join("");
-      return `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${freiloseZeileHtml(z, r.matches)}${matches}</div>`;
+      return `<div class="bracket-runde">${rundeKlappHtml(z, "w" + r.runde, "h3", r.name, fertig, echt.length + luecken.length,
+        freiloseZeileHtml(z, r.matches) + matches)}</div>`;
     })
     .join("") + verliererHtml(z) + grossesFinaleHtml(z) + platz3Html(z);
 }
@@ -902,8 +933,12 @@ function verliererHtml(z) {
   const runden = (z.bracket && z.bracket.verliererRunden) || [];
   if (!runden.length) return "";
   return runden
-    .map((r) => `<div class="bracket-runde"><h3>${escapeHtml(r.name)}</h3>${freiloseZeileHtml(z, r.matches)}${r.matches
-      .filter((m) => !istFreilosMatch(m) && !istLeerMatch(m)).map((m) => matchHtml(z, m)).join("")}</div>`)
+    .map((r) => {
+      const echt = r.matches.filter((m) => !istFreilosMatch(m) && !istLeerMatch(m));
+      const fertig = echt.filter((m) => { const sp = z.spiele.find((s) => s.id === m.id); return sp && sp.status === "bestaetigt"; }).length;
+      return `<div class="bracket-runde">${rundeKlappHtml(z, "l" + r.runde, "h3", r.name, fertig, echt.length,
+        freiloseZeileHtml(z, r.matches) + echt.map((m) => matchHtml(z, m)).join(""))}</div>`;
+    })
     .join("");
 }
 
@@ -1934,6 +1969,15 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.80",
+    groups: [
+      { title: "Turnier: Runden einklappbar", items: [
+          "Jede Runde (K.-o., Verliererbaum, Schweizer Runden und Spieltage) lässt sich mit einem Klick auf die Überschrift ein- und ausklappen. Daneben steht, wie viele Partien fertig sind, z. B. „3/4“ – Freilose zählen nicht mit, noch wartende K.-o.-Partien schon.",
+          "Fertige Runden sind von selbst zugeklappt, laufende offen. Wer selbst auf- oder zuklappt, behält seine Wahl."
+      ]},
+    ],
+  },
   {
     version: "8.79",
     groups: [
