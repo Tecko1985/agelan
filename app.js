@@ -1984,9 +1984,9 @@ function wireEvents() {
     if (el) el.addEventListener("click", oeffneZeitplan);
   });
   document.getElementById("btn-zp-schliessen").addEventListener("click", schliesseZeitplan);
-  document.getElementById("modal-zeitplan").addEventListener("click", (e) => {
-    if (e.target.id === "modal-zeitplan") schliesseZeitplan();
-  });
+  // ⚠️ Kein Schließen per Klick auf den Hintergrund (Michel am 03.10.2026): ein
+  // Fehlklick daneben oder Text mit der Maus markieren (Loslassen außerhalb)
+  // schloss das Fenster samt Eingaben. Zu geht es mit „Schließen“/„Abbrechen“ oder Escape.
 
   document.getElementById("btn-zp-erzeugen").addEventListener("click", async () => {
     zeigeFehler("zp-fehler", "");
@@ -2171,12 +2171,7 @@ function wireEvents() {
   });
 
   // Modals per Klick auf den Hintergrund schließen
-  document.getElementById("modal-melden").addEventListener("click", (e) => {
-    if (e.target.id === "modal-melden") schliesseMeldeDialog();
-  });
-  document.getElementById("modal-admin").addEventListener("click", (e) => {
-    if (e.target.id === "modal-admin") schliesseAdmin();
-  });
+  // Ergebnis melden / Veranstalter: siehe Hinweis beim Zeitplan – kein Schließen per Hintergrund.
 }
 
 // --- Fehlgeschlagene Schreibvorgänge sichtbar machen -------------------------
@@ -2241,6 +2236,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.88",
+    groups: [
+      { title: "Fenster bleiben offen", items: [
+          "Ein Klick neben ein Fenster (Veranstalter, Ergebnis melden, Zeitplan, Streamplan, Programmpunkt, Konto, Passwort) schließt es nicht mehr – auch nicht, wenn man beim Markieren von Text mit der Maus außerhalb loslässt. Zu geht es mit „Schließen“, „Abbrechen“ oder Escape."
+      ]},
+    ],
+  },
   {
     version: "8.87",
     groups: [

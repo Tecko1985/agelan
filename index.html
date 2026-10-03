@@ -1514,9 +1514,9 @@
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
     'turnier-service.js?v=2.37',
-    'app.js?v=3.128',
+    'app.js?v=3.129',
     'stream-service.js?v=2.7',
-    'stream-app.js?v=2.16',
+    'stream-app.js?v=2.17',
     'fruehstueck-service.js?v=1.20',
     'fruehstueck-app.js?v=1.28',
     'essen-service.js?v=2.29',
@@ -1901,7 +1901,8 @@
   kdSpeichern.addEventListener('click', kdSpeichernTun);
   kdTest.addEventListener('click', kdTestTun);
   document.getElementById('konto-zurueck').addEventListener('click', schliesseKonto);
-  kontoGate.addEventListener('click', function (e) { if (e.target === kontoGate) schliesseKonto(); });
+  // Kein Schließen per Klick auf den Hintergrund: ein Fehlklick oder Markieren
+  // mit der Maus warf die Eingaben weg (Michel am 03.10.2026). Escape und „Schließen“ bleiben.
   kdFeld.addEventListener('keydown', function (e) { if (e.key === 'Enter') kdSpeichernTun(); });
   var kopfKonto = document.getElementById('kopf-konto');
   // ⚠️ Nicht `addEventListener('click', oeffneKonto)`: dann waere das
@@ -1985,7 +1986,7 @@
     f.addEventListener('keydown', function (e) { if (e.key === 'Enter') pruefe(); });
   });
   zurueck.addEventListener('click', schliesseGate);
-  gate.addEventListener('click', function (e) { if (e.target === gate) schliesseGate(); });
+  // Passwort-Fenster: ebenso kein Schließen per Hintergrund-Klick.
 
   // Der Titel in der Kopfzeile führt zurück aufs Dashboard – erst wenn man
   // angemeldet ist, denn vorher IST das Dashboard schon zu sehen.

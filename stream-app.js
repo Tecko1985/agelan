@@ -1019,9 +1019,7 @@ function skWireEvents() {
   });
 
   skEl("sk-prg-abbrechen").addEventListener("click", skSchliesseProgrammDialog);
-  skEl("modal-programm").addEventListener("click", (e) => {
-    if (e.target.id === "modal-programm") skSchliesseProgrammDialog();
-  });
+  // Kein Schließen per Klick auf den Hintergrund (Fehlklick, Markieren) – siehe app.js.
 
   // Dialog: Tageswechsel füllt die Zeiten neu (jeder Tag hat sein eigenes Fenster)
   // ⚠️ Jede der drei Zeit-Auswahlen zieht den Parallel-Hinweis nach. Fehlt das
@@ -1078,9 +1076,7 @@ function skWireEvents() {
   });
 
   skEl("sk-dlg-abbrechen").addEventListener("click", skSchliesseDialog);
-  skEl("modal-stream").addEventListener("click", (e) => {
-    if (e.target.id === "modal-stream") skSchliesseDialog();
-  });
+  // Kein Schließen per Klick auf den Hintergrund (Fehlklick, Markieren) – siehe app.js.
 
   // Veranstalter
   // ⚠️ await: die Pruefung laeuft seit 2026-09-15 ueber den Server. Ohne await
