@@ -1970,6 +1970,23 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.83",
+    groups: [
+      { title: "Essen: „Deine Bestellungen“ einklappbar", items: [
+          "„Deine Bestellungen“ lässt sich mit einem Klick auf die Überschrift zuklappen; daneben steht z. B. „1 laufend · 4 erledigt“.",
+          "Abgeholte Bestellungen stehen gesammelt unter „Abgeholt – erledigt“ und sind anfangs zugeklappt. Beides merkt sich das Gerät."
+      ]},
+    ],
+  },
+  {
+    version: "8.82",
+    groups: [
+      { title: "Essen: Lieferungen filtern", items: [
+          "Über „Beim Lieferanten“ gibt es die Filter „Alle“, „Nicht abgeschlossen“ und „Abgeschlossen“ mit Anzahl. So lassen sich Lieferungen, die komplett abgeholt sind, ausblenden. Die Wahl merkt sich das Gerät."
+      ]},
+    ],
+  },
+  {
     version: "8.81",
     groups: [
       { title: "Essen: Foodbot heißt jetzt Age Lan Bot", items: [

@@ -580,14 +580,28 @@ function esNrHtml(p) {
   return p.nummer ? `<span class="es-pos-nr">Nr. ${escapeHtml(p.nummer)}</span> ` : "";
 }
 
+// „Deine Bestellungen“ einklappbar (Michel am 03.10.2026): der ganze Block
+// und darin die schon abgeholten als eigener, anfangs zugeklappter Teil.
+// Gemerkt je Gerät – nur beim Klick, nicht über das toggle-Ereignis (das feuert
+// auch beim Neuzeichnen mit „open“).
+function esMeineLies(schluessel, standard) {
+  try { const w = localStorage.getItem(schluessel); return w === null ? standard : w === "1"; } catch (e) { return standard; }
+}
+function esMeineMerke(schluessel, offen) {
+  try { localStorage.setItem(schluessel, offen ? "1" : "0"); } catch (e) { /* privater Modus */ }
+}
+
 function esRenderMeine(z) {
   const box = esEl("es-meine");
   if (!z.meine.length) { box.innerHTML = ""; return; }
 
-  box.innerHTML = `
-    <div class="karte-block">
-      <h3 class="es-abschnitt">Deine Bestellungen</h3>
-      ${z.meine.map((b) => `
+  const laufend = z.meine.filter((b) => b.status !== "abgeholt");
+  const erledigt = z.meine.filter((b) => b.status === "abgeholt");
+  const blockOffen = esMeineLies("agelan_es_meine_offen", true);
+  const erledigtOffen = esMeineLies("agelan_es_meine_erledigt_offen", false);
+  const kurz = [laufend.length ? laufend.length + " laufend" : "", erledigt.length ? erledigt.length + " erledigt" : ""].filter(Boolean).join(" · ");
+
+  const karte = (b) => `
         <div class="es-bestellung status-${escapeHtml(b.status)}">
           <div class="es-best-kopf">
             <span class="es-status-punkt" aria-hidden="true"></span>
@@ -606,8 +620,27 @@ function esRenderMeine(z) {
               <button type="button" class="mini-btn" data-es-bearbeiten="${escapeHtml(b.id)}">Ändern</button>
               <button type="button" class="mini-btn" data-es-storno="${escapeHtml(b.id)}">Stornieren</button>
             </div>` : ""}
-        </div>`).join("")}
+        </div>`;
+
+  box.innerHTML = `
+    <div class="karte-block">
+      <details class="es-meine-klapp" data-es-meine-klapp="agelan_es_meine_offen"${blockOffen ? " open" : ""}>
+        <summary><h3 class="es-abschnitt">Deine Bestellungen</h3><span class="runde-zaehler">${escapeHtml(kurz)}</span></summary>
+        ${laufend.map(karte).join("")}
+        ${erledigt.length ? `
+          <details class="es-meine-klapp es-meine-erledigt" data-es-meine-klapp="agelan_es_meine_erledigt_offen"${erledigtOffen ? " open" : ""}>
+            <summary><span class="feld-label">Abgeholt – erledigt (${erledigt.length})</span></summary>
+            ${erledigt.map(karte).join("")}
+          </details>` : ""}
+      </details>
     </div>`;
+
+  box.querySelectorAll("details[data-es-meine-klapp] > summary").forEach((kopf) => {
+    kopf.addEventListener("click", () => {
+      const d = kopf.parentElement;
+      esMeineMerke(d.dataset.esMeineKlapp, !d.open);
+    });
+  });
 
   box.querySelectorAll("[data-es-bearbeiten]").forEach((btn) => {
     btn.addEventListener("click", () => esLadeInKorb(btn.dataset.esBearbeiten));
@@ -845,6 +878,26 @@ document.addEventListener("change", (ev) => {
 // Eine Sammelbestellung, die schon beim Lieferanten ist: „Donnerstag 1",
 // „Donnerstag 2" … Darin die Bestellungen, die in genau dieser Mail standen,
 // darüber die Rechnung für genau diese Lieferung.
+// Filter für „Beim Lieferanten“ (Michel am 03.10.2026): abgeschlossene
+// Lieferungen (alles abgeholt) ausblenden. Gemerkt je Gerät.
+let esRundenFilter = (() => {
+  try { const w = localStorage.getItem("agelan_es_rundenfilter"); return w === "offen" || w === "fertig" ? w : "alle"; }
+  catch (e) { return "alle"; }
+})();
+function esRundeSichtbar(r) {
+  if (esRundenFilter === "offen") return !r.fertig;
+  if (esRundenFilter === "fertig") return !!r.fertig;
+  return true;
+}
+function esRundenFilterHtml(runden) {
+  const fertig = runden.filter((r) => r.fertig).length;
+  const knopf = (wert, text, zahl) => `<button type="button" class="es-filter-chip${esRundenFilter === wert ? " aktiv" : ""}"
+    data-es-rundenfilter="${wert}" aria-pressed="${esRundenFilter === wert}">${text} (${zahl})</button>`;
+  return `<div class="es-rundenfilter" role="group" aria-label="Lieferungen filtern">
+    ${knopf("alle", "Alle", runden.length)}${knopf("offen", "Nicht abgeschlossen", runden.length - fertig)}${knopf("fertig", "Abgeschlossen", fertig)}
+  </div>`;
+}
+
 function esRundeHtml(r) {
   // ⚠️ Beim Laden ist ALLES zugeklappt (Michel am 04.09.2026: „beim erneuten
   // aufrufen können die bestellungen gerne geschlossen sein"). `esOffeneRunden`
@@ -1248,8 +1301,22 @@ function esRenderAdminBestellungen(z) {
       </div>
       ${z.altbestand.map(esBestellungHtml).join("")}`}
 
-    ${z.runden.length ? `<p class="feld-label es-gruppe-titel">Beim Lieferanten (${z.runden.length})</p>` : ""}
-    ${z.runden.map(esRundeHtml).join("")}`}`;
+    ${z.runden.length ? `<p class="feld-label es-gruppe-titel">Beim Lieferanten (${z.runden.length})</p>
+      ${esRundenFilterHtml(z.runden)}` : ""}
+    ${(() => {
+      const sichtbar = z.runden.filter(esRundeSichtbar);
+      return sichtbar.length || !z.runden.length
+        ? sichtbar.map(esRundeHtml).join("")
+        : `<p class="fr-leer-hinweis">${esRundenFilter === "offen" ? "Alle Lieferungen sind abgeschlossen." : "Noch keine Lieferung abgeschlossen."}</p>`;
+    })()}`}`;
+
+  box.querySelectorAll("[data-es-rundenfilter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      esRundenFilter = btn.dataset.esRundenfilter;
+      try { localStorage.setItem("agelan_es_rundenfilter", esRundenFilter); } catch (e) { /* privater Modus */ }
+      esRenderAdminBestellungen(esZustand);
+    });
+  });
 
   // Klick auf einen Zähler filtert; derselbe noch einmal (oder „alle“) hebt auf.
   box.querySelectorAll("[data-es-filter]").forEach((btn) => {

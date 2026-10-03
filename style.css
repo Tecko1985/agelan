@@ -1869,3 +1869,18 @@ details.runde-klapp > summary .runde-klapp-titel { margin: 0; flex: 1 1 auto; }
 .runde-zaehler.fertig { color: var(--success, #1a7f4b); border-color: currentColor; }
 details.runde-klapp { margin-bottom: 10px; }
 details.runde-klapp > summary { padding: 6px 0; }
+
+/* Essen: Filter für „Beim Lieferanten“ (2026-10-03) */
+.es-rundenfilter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.es-filter-chip { font: inherit; font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+.es-filter-chip.aktiv { border-color: var(--primary); color: var(--text, inherit); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+
+/* Essen: „Deine Bestellungen“ einklappbar (2026-10-03) */
+details.es-meine-klapp > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; user-select: none; }
+details.es-meine-klapp > summary::-webkit-details-marker { display: none; }
+details.es-meine-klapp > summary::before { content: "\25B8"; display: inline-block; width: 1em; color: var(--muted); transition: transform .15s; }
+details.es-meine-klapp[open] > summary::before { transform: rotate(90deg); }
+details.es-meine-klapp > summary .es-abschnitt { margin: 0; flex: 1 1 auto; }
+details.es-meine-klapp > summary .feld-label { margin: 0; }
+details.es-meine-klapp[open] > summary { margin-bottom: 10px; }
+details.es-meine-erledigt { margin-top: 12px; }
