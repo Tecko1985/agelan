@@ -205,18 +205,24 @@ function frRenderTagInhalt(z) {
   const paketeHtml = z.pakete.length
     ? z.pakete.map((p) => {
         const anzahl = frEntwurf.positionen[p.id] || 0;
+        // Begrenzte Pakete: frei = höchstens für mich; ausgebucht = nichts mehr da.
+        const frei = tag.verfuegbar ? tag.verfuegbar[p.id] : null;
+        const ausgebucht = frei === 0 && anzahl === 0;
+        const mengeText = frei == null ? "" : ausgebucht
+          ? ` <span class="fr-menge-aus">ausgebucht</span>`
+          : ` <span class="fr-menge">noch ${Math.max(0, frei - anzahl)} von ${p.menge}</span>`;
         return `
-        <div class="fr-paket">
+        <div class="fr-paket${ausgebucht ? " fr-paket-ausgebucht" : ""}">
           <div class="fr-paket-info">
             <div class="fr-paket-name">${escapeHtml(p.name)}</div>
             ${p.beschreibung ? `<div class="fr-paket-beschreibung">${escapeHtml(p.beschreibung)}</div>` : ""}
             <div class="fr-paket-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}${belegPreis(p.id) !== null && belegPreis(p.id) !== p.preisCent
-              ? ` <span class="fr-summe-leer">(bestellt zu ${fruehstueckService.centLabel(belegPreis(p.id))})</span>` : ""}</div>
+              ? ` <span class="fr-summe-leer">(bestellt zu ${fruehstueckService.centLabel(belegPreis(p.id))})</span>` : ""}${mengeText}</div>
           </div>
           <div class="fr-stepper">
             <button type="button" data-fr-weniger="${p.id}" ${!stepperAn || anzahl <= 0 ? "disabled" : ""} title="Eins weniger" aria-label="Eins weniger von ${escapeHtml(p.name)}">−</button>
             <span class="fr-stepper-zahl">${anzahl}</span>
-            <button type="button" data-fr-mehr="${p.id}" ${!stepperAn || anzahl >= fruehstueckService.MAX_STUECK ? "disabled" : ""} title="Eins mehr" aria-label="Eins mehr von ${escapeHtml(p.name)}">+</button>
+            <button type="button" data-fr-mehr="${p.id}" ${!stepperAn || anzahl >= fruehstueckService.MAX_STUECK || (frei != null && anzahl >= frei) ? "disabled" : ""} title="${frei != null && anzahl >= frei ? "Keine weiteren verfügbar" : "Eins mehr"}" aria-label="Eins mehr von ${escapeHtml(p.name)}">+</button>
           </div>
         </div>`;
       }).join("")
@@ -598,7 +604,7 @@ function frRenderPaketeVerwalten(z) {
         <div class="fr-paket-verwalten">
           <div class="fr-pv-info">
             <div class="fr-pv-name">${escapeHtml(p.name)}</div>
-            <div class="fr-pv-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}${p.beschreibung ? " · " + escapeHtml(p.beschreibung) : ""}</div>
+            <div class="fr-pv-preis">${p.preisCent ? fruehstueckService.centLabel(p.preisCent) : "kostenlos"}${p.menge ? " · <b>" + p.menge + " Stück je Morgen</b>" : ""}${p.beschreibung ? " · " + escapeHtml(p.beschreibung) : ""}</div>
           </div>
           <div class="fr-pv-aktionen">
             <button type="button" class="mini-btn" data-fr-hoch="${p.id}" ${i === 0 ? "disabled" : ""} title="Nach oben" aria-label="${escapeHtml(p.name)} nach oben">▲</button>
@@ -633,6 +639,7 @@ function frRenderPaketeVerwalten(z) {
     frEl("fr-pak-name").value = p.name;
     frEl("fr-pak-beschreibung").value = p.beschreibung;
     frEl("fr-pak-preis").value = p.preisCent ? (p.preisCent / 100).toFixed(2).replace(".", ",") : "";
+    frEl("fr-pak-menge").value = p.menge ? String(p.menge) : "";
     frEl("fr-btn-pak-anlegen").textContent = "Paket speichern";
     frEl("fr-pak-name").scrollIntoView({ block: "center", behavior: "smooth" });
   }));
@@ -662,6 +669,7 @@ async function frSpeicherePaketJetzt() {
     name: frEl("fr-pak-name").value,
     beschreibung: frEl("fr-pak-beschreibung").value,
     preis: frEl("fr-pak-preis").value,
+    menge: frEl("fr-pak-menge").value,
   };
   const res = frBearbeitetesPaketId
     ? await fruehstueckService.aenderePaket(frBearbeitetesPaketId, werte)
@@ -673,6 +681,7 @@ async function frSpeicherePaketJetzt() {
   frEl("fr-pak-name").value = "";
   frEl("fr-pak-beschreibung").value = "";
   frEl("fr-pak-preis").value = "";
+  frEl("fr-pak-menge").value = "";
   frEl("fr-btn-pak-anlegen").textContent = "Paket hinzufügen";
 }
 

@@ -57,6 +57,7 @@ const FR_NAME_KEY = "agelan_streamer_name"; // denselben Namen wie im Streamplan
 
 const FR_MAX_TAGE = 7;
 const FR_MAX_PAKETE = 20;
+const FR_MAX_MENGE = 999;         // Menge je Paket und Morgen, 0 = unbegrenzt
 const FR_MAX_STUECK = 9;          // je Paket und Person – schützt vor Vertippern
 const FR_MAX_PREIS_CENT = 5000;   // 50 € je Paket ist für ein Frühstück reichlich
 const FR_STANDARD_SCHLUSS = 1200; // 20:00 am Vortag
@@ -272,6 +273,9 @@ function frPaketListe(paketeRoh) {
     preisCent: Math.max(0, Math.round(frZahl(p && p.preisCent, 0))),
     sort: frZahl(p && p.sort, 0),
     erstelltAm: frZahl(p && p.erstelltAm, 0),
+    // Wie viele es je Morgen gibt (Michel am 03.10.2026: „Hähnchen gibt es nur
+    // 12x“). 0 = unbegrenzt.
+    menge: Math.max(0, Math.min(FR_MAX_MENGE, Math.round(frZahl(p && p.menge, 0)))),
   }));
   liste.sort((a, b) => (a.sort - b.sort) || (a.erstelltAm - b.erstelltAm) || a.name.localeCompare(b.name));
   return liste;
@@ -362,6 +366,17 @@ function frTageListe(meta, bestellungenRoh, pakete) {
     bestellungen.forEach((b) => {
       b.positionen.forEach((pos) => { gesamt[pos.paketId] = (gesamt[pos.paketId] || 0) + pos.anzahl; });
     });
+    // Begrenzte Pakete: wie viele ICH an diesem Morgen höchstens haben kann –
+    // die Menge minus das, was die anderen schon gebucht haben. Die eigene
+    // Bestellung zählt nicht dagegen, sonst ließe sie sich nicht mehr ändern.
+    // null = unbegrenzt.
+    const verfuegbar = {};
+    pakete.forEach((p) => {
+      if (!p.menge) { verfuegbar[p.id] = null; return; }
+      const eigenePos = eigene ? eigene.positionen.find((x) => x.paketId === p.id) : null;
+      const andere = (gesamt[p.id] || 0) - (eigenePos ? eigenePos.anzahl : 0);
+      verfuegbar[p.id] = Math.max(0, p.menge - andere);
+    });
 
     liste.push({
       datum,
@@ -381,6 +396,7 @@ function frTageListe(meta, bestellungenRoh, pakete) {
       meineBestellung: eigene,
       anzahlBesteller: bestellungen.length,
       gesamt,
+      verfuegbar,
       stueckGesamt: bestellungen.reduce((s, b) => s + b.stueck, 0),
       summeCentGesamt: bestellungen.reduce((s, b) => s + b.summeCent, 0),
     });
@@ -636,7 +652,7 @@ async function frErstellePlan({ titel, startDatum, anzahlTage, schlussUhr, admin
   return { erfolg: true };
 }
 
-function frPruefePaket({ name, beschreibung, preis }) {
+function frPruefePaket({ name, beschreibung, preis, menge }) {
   const n = frText(name, 60);
   if (!n) return { erfolg: false, fehler: "Das Paket braucht einen Namen." };
   const cent = frPreisNachCent(preis);
@@ -644,13 +660,18 @@ function frPruefePaket({ name, beschreibung, preis }) {
   if (cent > FR_MAX_PREIS_CENT) {
     return { erfolg: false, fehler: "Mehr als " + frCentLabel(FR_MAX_PREIS_CENT) + " je Paket geht nicht." };
   }
+  const mengeText = String(menge == null ? "" : menge).trim();
+  const m = mengeText === "" ? 0 : Number(mengeText);
+  if (!Number.isInteger(m) || m < 0 || m > FR_MAX_MENGE) {
+    return { erfolg: false, fehler: "Die Menge muss eine ganze Zahl zwischen 0 und " + FR_MAX_MENGE + " sein (0 oder leer = unbegrenzt)." };
+  }
   return {
     erfolg: true,
-    werte: { name: n, beschreibung: frText(beschreibung, 200), preisCent: cent },
+    werte: { name: n, beschreibung: frText(beschreibung, 200), preisCent: cent, menge: m },
   };
 }
 
-async function frLegePaketAn({ name, beschreibung, preis }) {
+async function frLegePaketAn({ name, beschreibung, preis, menge }) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   const z = frGetZustand();
@@ -659,7 +680,7 @@ async function frLegePaketAn({ name, beschreibung, preis }) {
     return { erfolg: false, fehler: "Mehr als " + FR_MAX_PAKETE + " Pakete werden unübersichtlich." };
   }
 
-  const geprueft = frPruefePaket({ name, beschreibung, preis });
+  const geprueft = frPruefePaket({ name, beschreibung, preis, menge });
   if (!geprueft.erfolg) return geprueft;
 
   const id = frNeueId("pak");
@@ -673,14 +694,14 @@ async function frLegePaketAn({ name, beschreibung, preis }) {
   return { erfolg: true, id };
 }
 
-async function frAenderePaket(id, { name, beschreibung, preis }) {
+async function frAenderePaket(id, { name, beschreibung, preis, menge }) {
   await frAuthBereit;
   if (!frIstAdmin()) return { erfolg: false, fehler: "Nur der Veranstalter." };
   if (!frGetZustand().pakete.some((p) => p.id === id)) {
     return { erfolg: false, fehler: "Dieses Paket gibt es nicht mehr." };
   }
 
-  const geprueft = frPruefePaket({ name, beschreibung, preis });
+  const geprueft = frPruefePaket({ name, beschreibung, preis, menge });
   if (!geprueft.erfolg) return geprueft;
 
   const abgelehnt = await frSchreibe(() => db.ref(FR_BASIS + "/pakete/" + id).update(geprueft.werte));
@@ -785,6 +806,18 @@ async function frBestelle(datum, { name, positionen, notiz }) {
     feste[pid] = { name: paket.name, preisCent: paket.preisCent };
     stueck += begrenzt;
   });
+
+  // Begrenzte Pakete: nicht mehr, als für mich noch übrig ist.
+  // ⚠️ Prüft den Stand dieses Geräts – klicken zwei im selben Moment auf das
+  // letzte Hähnchen, können beide durchkommen. Für eine LAN reicht das.
+  const zuViel = Object.keys(sauber)
+    .map((pid) => ({ paket: z.pakete.find((p) => p.id === pid), anzahl: sauber[pid], frei: tag.verfuegbar[pid] }))
+    .filter((x) => x.frei != null && x.anzahl > x.frei);
+  if (zuViel.length) {
+    return { erfolg: false, fehler: zuViel.map((x) => x.frei
+      ? x.paket.name + ": nur noch " + x.frei + " verfügbar"
+      : x.paket.name + " ist für diesen Morgen ausgebucht").join(", ") + "." };
+  }
 
   const pfad = FR_BASIS + "/bestellungen/" + datum + "/" + frEigeneUid;
   // ⚠️ Eine bezahlte Bestellung ist ein Beleg: ändert sich ihr Betrag, stünde

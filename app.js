@@ -1935,6 +1935,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.79",
+    groups: [
+      { title: "Frühstück: begrenzte Pakete", items: [
+          "Pakete können eine Menge je Morgen bekommen (z. B. Hähnchen 12). Beim Bestellen steht dann „noch 5 von 12“; sind alle gebucht, ist das Paket ausgegraut und als „ausgebucht“ markiert. Leer oder 0 heißt unbegrenzt.",
+          "Die eigene Bestellung zählt nicht gegen sich selbst – wer schon Hähnchen hat, kann seine Bestellung weiter ändern."
+      ]},
+    ],
+  },
+  {
     version: "8.78",
     groups: [
       { title: "Essen: Gerichte ausblenden", items: [

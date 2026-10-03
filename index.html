@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.28">
+<link rel="stylesheet" href="style.css?v=6.29">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -912,6 +912,7 @@
       <input type="text" id="fr-pak-name" class="eingabe" placeholder="Name, z. B. Klassisch" maxlength="60" autocomplete="off">
       <input type="text" aria-label="Beschreibung des Pakets" id="fr-pak-beschreibung" class="eingabe" placeholder="Beschreibung (freiwillig)" maxlength="200" autocomplete="off" style="margin-top:8px">
       <input type="text" aria-label="Preis des Pakets in Euro" id="fr-pak-preis" class="eingabe" placeholder="Preis in €, z. B. 2,50 (leer = kostenlos)" autocomplete="off" style="margin-top:8px">
+      <input type="number" aria-label="Menge je Morgen" id="fr-pak-menge" class="eingabe" placeholder="Menge je Morgen, z. B. 12 (leer oder 0 = unbegrenzt)" min="0" max="999" step="1" inputmode="numeric" autocomplete="off" style="margin-top:8px">
       <button class="btn btn-secondary btn-grow" id="fr-btn-pak-anlegen">Paket hinzufügen</button>
       <p class="hinweis-text fehler" id="fr-pak-fehler"></p>
       </details>
@@ -1501,11 +1502,11 @@
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
     'turnier-service.js?v=2.36',
-    'app.js?v=3.117',
+    'app.js?v=3.118',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.16',
-    'fruehstueck-service.js?v=1.19',
-    'fruehstueck-app.js?v=1.27',
+    'fruehstueck-service.js?v=1.20',
+    'fruehstueck-app.js?v=1.28',
     'essen-service.js?v=2.29',
     'essen-app.js?v=2.39',
     'uebersicht-app.js?v=1.20'
