@@ -1970,6 +1970,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.81",
+    groups: [
+      { title: "Essen: Foodbot heißt jetzt Age Lan Bot", items: [
+          "Alle Hinweise an der Lieferung sprechen vom „Age Lan Bot“ statt vom „Foodbot“."
+      ]},
+    ],
+  },
+  {
     version: "8.80",
     groups: [
       { title: "Turnier: Runden einklappbar", items: [

@@ -962,7 +962,7 @@ function esDarfBescheid() {
   return typeof kontoIstVeranstalter === "function" && kontoIstVeranstalter();
 }
 
-// --- Foodbot: „bestellt“ ----------------------------------------------------
+// --- Age Lan Bot (vormals Foodbot): „bestellt“ ----------------------------------------------------
 // Michel am 02.10.2026: Sobald eine Sammelbestellung rausgeht, bekommt jede:r
 // darin per Discord „Deine Bestellung wurde soeben beim Pizzalieferanten
 // bestellt – Bestellung 8 am Freitag“ samt der eigenen Posten. Läuft von selbst
@@ -991,7 +991,7 @@ function esBestelltLeute(runde) {
 
 async function esBestelltMelden(rundeId) {
   if (!esDarfBescheid()) {
-    esBestelltStand[rundeId] = { fehler: "Foodbot nicht verschickt – geht nur mit einem ⭐/🛠-Konto." };
+    esBestelltStand[rundeId] = { fehler: "Age Lan Bot hat nicht verschickt – geht nur mit einem ⭐/🛠-Konto." };
     esRender(esZustand);
     return;
   }
@@ -1028,8 +1028,8 @@ async function esBestelltMelden(rundeId) {
   } catch (e) {
     const unbekannt = /Unbekannte Aktion/i.test(String(e && e.message));
     esBestelltStand[rundeId] = { fehler: unbekannt
-      ? "Foodbot nicht verschickt – der Worker kennt die Nachricht „bestellt“ noch nicht (Worker aktualisieren)."
-      : "Foodbot nicht verschickt: " + (e && e.message ? e.message : "Fehler") };
+      ? "Age Lan Bot hat nicht verschickt – der Worker kennt die Nachricht „bestellt“ noch nicht (Worker aktualisieren)."
+      : "Age Lan Bot hat nicht verschickt: " + (e && e.message ? e.message : "Fehler") };
   }
   esRender(esZustand);
 }
@@ -1037,13 +1037,13 @@ async function esBestelltMelden(rundeId) {
 function esBestelltHtml(r) {
   const e = esBestelltStand[r.id];
   if (!e) return "";
-  if (e.laeuft) return `<p class="hinweis-text">🍕 Foodbot meldet „bestellt“ …</p>`;
+  if (e.laeuft) return `<p class="hinweis-text">🍕 Age Lan Bot meldet „bestellt“ …</p>`;
   const nochmal = esDarfBescheid() ? ` <button type="button" class="mini-btn" data-es-bestellt-nochmal="${escapeHtml(r.id)}">erneut senden</button>` : "";
   if (e.fehler) return `<p class="hinweis-text fehler">${escapeHtml(e.fehler)}${nochmal}</p>`;
   const ohne = e.offen && e.offen.length
     ? " · nicht erreicht: " + e.offen.map((o) => escapeHtml(o.nickname || "?") + " (" + escapeHtml(o.grund || "") + ")").join(", ")
     : "";
-  return `<p class="hinweis-text">🍕 Foodbot: ${e.geschickt || 0} über „bestellt“ informiert${ohne}</p>`;
+  return `<p class="hinweis-text">🍕 Age Lan Bot: ${e.geschickt || 0} über „bestellt“ informiert${ohne}</p>`;
 }
 
 async function esBescheidGeben(runde, knopf) {
@@ -1787,7 +1787,7 @@ function esRenderSammelmail(z) {
       if (!esMailBearbeitet && !esMailGeoeffnet) esRenderSammelmail(esZustand);
       esZeigeFehler("es-mail-fehler", res.fehler);
     } else if (res.id) {
-      // Foodbot: allen in dieser Lieferung „bestellt“ melden. Ohne await – die
+      // Age Lan Bot: allen in dieser Lieferung „bestellt“ melden. Ohne await – die
       // Ansicht soll nicht auf Discord warten.
       esBestelltMelden(res.id);
     }
