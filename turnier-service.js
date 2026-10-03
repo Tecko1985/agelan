@@ -142,9 +142,9 @@ function mischeArray(arr) {
 }
 
 // Best-of je Turnier (Michel am 02.10.2026): Vorrunde/K.-o. Bo1, Bo3, Bo5,
-// Finale Bo3/Bo5. 7 bleibt erlaubt, damit ältere Turniere weiterlaufen.
-const BEST_OF_ERLAUBT = [1, 3, 5, 7];
-const BEST_OF_FINALE_ERLAUBT = [3, 5, 7];
+// Finale Bo3/Bo5. Seit 03.10.2026 auch Bo7 und Bo9 (überall wählbar).
+const BEST_OF_ERLAUBT = [1, 3, 5, 7, 9];
+const BEST_OF_FINALE_ERLAUBT = [3, 5, 7, 9];
 
 function noetigeSaetze(bestOf) {
   return Math.ceil((bestOf || 3) / 2); // best-of-3 -> 2, best-of-5 -> 3
@@ -232,7 +232,7 @@ function bestOfFuer(spiel, meta) {
   const standard = meta.bestOf || 3;
   if (!spiel || spiel.phase !== "ko" || spiel.platz3) return standard;
   const finale = Number(meta.bestOfFinale);
-  if (![3, 5, 7].includes(finale)) return standard;
+  if (!BEST_OF_FINALE_ERLAUBT.includes(finale)) return standard;
   // Finale = letzte Runde des Brackets. Ohne Kenntnis der Rundenzahl reicht der
   // Marker, den die Progression beim Anlegen setzt.
   return spiel.istFinale ? finale : standard;
@@ -1863,7 +1863,7 @@ async function loseTurnier(optionen) {
 function gemeinsameLosMeta(opt, meta) {
   const updates = {};
   updates["meta/bestOf"] = BEST_OF_ERLAUBT.includes(Number(opt.bestOf)) ? Number(opt.bestOf) : (meta.bestOf || 3);
-  updates["meta/bestOfFinale"] = [3, 5, 7].includes(Number(opt.bestOfFinale)) ? Number(opt.bestOfFinale) : null;
+  updates["meta/bestOfFinale"] = BEST_OF_FINALE_ERLAUBT.includes(Number(opt.bestOfFinale)) ? Number(opt.bestOfFinale) : null;
   updates["meta/punkteSieg"] = metaPunkteSieg({ punkteSieg: opt.punkteSieg });
   updates["meta/tiebreak"] = TIEBREAK_ARTEN.indexOf(opt.tiebreak) !== -1
     ? opt.tiebreak
@@ -3581,7 +3581,7 @@ const MIN_PRO_PARTIE = 45;
 const MIN_PAUSE = 10;
 // Wie viele Spiele eine Partie im Schnitt hat: Bo3 endet mal 2:0, mal 2:1,
 // Bo5 mal 3:0 bis 3:2. Durchschnitt, kein schlimmster Fall.
-const SPIELE_JE_PARTIE = { 1: 1, 3: 2.5, 5: 4, 7: 5.5 };
+const SPIELE_JE_PARTIE = { 1: 1, 3: 2.5, 5: 4, 7: 5.5, 9: 7 };
 function partieMin(bestOf) {
   return MIN_PRO_PARTIE * (SPIELE_JE_PARTIE[bestOf] || 1);
 }
@@ -3669,6 +3669,8 @@ const turnierService = {
   // (meta.bestOfFinale). Wer im Melde-Dialog einen Modus benennt, muss diese
   // Funktion fragen – validiereSaetze prueft gleich darauf genau damit.
   bestOfFuer,
+  BEST_OF_ERLAUBT,
+  BEST_OF_FINALE_ERLAUBT,
   setzeSpielmodus,
   zieheTeamZurueck,
   setzeErgebnisZurueck,

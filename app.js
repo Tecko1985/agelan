@@ -156,7 +156,7 @@ function renderBedingungen(z) {
   teile.push(ablauf);
   const bo = Number(meta.bestOf) || 3;
   teile.push("Spiele: Best of " + bo + (bo === 1 ? " (ein Spiel entscheidet)" : " (" + Math.ceil(bo / 2) + " Siege nötig)"));
-  if (z.hatKoRunde && [3, 5, 7].includes(Number(meta.bestOfFinale)) && Number(meta.bestOfFinale) !== bo) {
+  if (z.hatKoRunde && turnierService.BEST_OF_FINALE_ERLAUBT.includes(Number(meta.bestOfFinale)) && Number(meta.bestOfFinale) !== bo) {
     teile.push("Finale: Best of " + meta.bestOfFinale);
   }
   el.innerHTML = "<b>Turnierbedingungen:</b> " + teile.filter(Boolean).map(escapeHtml).join(" · ");
@@ -526,8 +526,8 @@ function renderTeams(z) {
     if (!losFelderInit) document.getElementById("los-kotyp").value = z.koTyp === "doppel" ? "doppel" : "einfach";
     // Best-of aus der Formatwahl ebenso vorbelegen.
     if (!losFelderInit && z.meta) {
-      document.getElementById("los-bestof").value = String([1, 3, 5].includes(Number(z.meta.bestOf)) ? z.meta.bestOf : 3);
-      document.getElementById("los-bestof-finale").value = [3, 5].includes(Number(z.meta.bestOfFinale)) ? String(z.meta.bestOfFinale) : "";
+      document.getElementById("los-bestof").value = String(turnierService.BEST_OF_ERLAUBT.includes(Number(z.meta.bestOf)) ? z.meta.bestOf : 3);
+      document.getElementById("los-bestof-finale").value = turnierService.BEST_OF_FINALE_ERLAUBT.includes(Number(z.meta.bestOfFinale)) ? String(z.meta.bestOfFinale) : "";
     }
     // Im Doppel-K.-o. ergibt sich Platz 3 aus dem Verliererbaum.
     const doppelKo = document.getElementById("los-kotyp").value === "doppel";
@@ -2241,6 +2241,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.87",
+    groups: [
+      { title: "Turnier: Best of 7 und Best of 9", items: [
+          "Bei der Formatwahl, beim Auslosen und im Veranstalter-Dialog gibt es jetzt auch Best of 7 (4 Siege) und Best of 9 (5 Siege) – für alle Spiele und fürs Finale. Die Dauer-Schätzung rechnet mit Ø 5,5 bzw. 7 Spielen je Partie."
+      ]},
+    ],
+  },
   {
     version: "8.86",
     groups: [
