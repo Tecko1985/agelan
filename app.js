@@ -991,7 +991,7 @@ function koBaumHtml(z) {
           if (s.status !== "offen" && s.saetzeA != null) { sa = s.saetzeA; sb = s.saetzeB; }
           const w = sieger(s);
           wa = !!w && w === s.teamA; wb = !!w && w === s.teamB;
-          kopf = (nr.get(s.id) ? "Partie " + nr.get(s.id) : "") + (s.status === "gemeldet" ? " · gemeldet" : s.status === "offen" ? " · läuft" : "");
+          kopf = nr.get(s.id) ? "Partie " + nr.get(s.id) : "";
         } else {
           a = seiteAusVorgaenger(r, 2 * p);
           b = seiteAusVorgaenger(r, 2 * p + 1);
@@ -1001,10 +1001,15 @@ function koBaumHtml(z) {
         }
         const zeile = (seite, satz, gewonnen) => `<div class="baum-team${gewonnen ? " sieger" : ""}${seite.offen ? " offen" : ""}"><span>${escapeHtml(seite.text)}</span><b>${satz === "" ? "" : escapeHtml(String(satz))}</b></div>`;
         const laeuft = s && s.status !== "bestaetigt";
+        // Offene Partien fallen auf (Michel am 03.10.2026): Farbbalken links,
+        // getönte Fläche und ein Schild „läuft“ bzw. „gemeldet“ im Kopf.
+        const statusKlasse = s && s.status === "offen" ? " st-offen" : s && s.status === "gemeldet" ? " st-gemeldet" : "";
+        const schild = s && s.status === "offen" ? '<span class="baum-schild">▶ läuft</span>'
+          : s && s.status === "gemeldet" ? '<span class="baum-schild">? gemeldet</span>' : "";
         const tun = s ? baumAktionen(z, s) : [];
-        karten.push(`<div class="baum-match${warte ? " wartet" : ""}${laeuft ? " laeuft" : ""}${tun.length ? " klickbar" : ""}"${tun.length
+        karten.push(`<div class="baum-match${warte ? " wartet" : ""}${laeuft ? " laeuft" : ""}${statusKlasse}${tun.length ? " klickbar" : ""}"${tun.length
           ? ` data-baum-spiel="${escapeHtml(s.id)}" role="button" tabindex="0" title="${escapeHtml(tun.map((t) => t.text).join(" / "))}"` : ""} style="left:${x}px;top:${cy - BAUM_H / 2}px;width:${BAUM_B}px;height:${BAUM_H}px">
-          <div class="baum-kopf">${escapeHtml(kopf)}</div>${zeile(a, sa, wa)}${zeile(b, sb, wb)}</div>`);
+          <div class="baum-kopf"><span>${escapeHtml(kopf)}</span>${schild}</div>${zeile(a, sa, wa)}${zeile(b, sb, wb)}</div>`);
       }
       // Linie zum Nachfolger
       if (r < runden - 1) {
@@ -1039,7 +1044,7 @@ function koBaumHtml(z) {
       <div class="baum-kopf">Spiel um Platz 3${nr.get(p3.id) ? " · Partie " + nr.get(p3.id) : ""}</div>${zeile(p3.teamA, p3.saetzeA)}${zeile(p3.teamB, p3.saetzeB)}</div>`);
     hoehe = Math.max(hoehe, top + BAUM_H + 10);
   }
-  return `<p class="hinweis-text">Tipp auf eine umrandete Partie, um das Ergebnis zu melden, zu bestätigen oder (als Veranstalter) zu korrigieren.</p>
+  return `<p class="hinweis-text">Tipp auf eine Partie, um das Ergebnis zu melden, zu bestätigen oder (als Veranstalter) zu korrigieren.</p>
     <div class="ko-baum-scroll"><div class="ko-baum" style="width:${breite + 4}px;height:${hoehe}px">
       <svg class="baum-linien" width="${breite + 4}" height="${hoehe}" aria-hidden="true">${linien.join("")}</svg>
       ${titel.join("")}${karten.join("")}
@@ -2236,6 +2241,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.86",
+    groups: [
+      { title: "Turnierbaum: offene Partien auffälliger", items: [
+          "Partien, die gerade laufen, haben im Baum einen goldenen Balken links, eine getönte Fläche und das Schild „▶ läuft“. Gemeldete, noch nicht bestätigte Ergebnisse sind blau markiert („? gemeldet“). Fertige Partien bleiben schlicht."
+      ]},
+    ],
+  },
   {
     version: "8.85",
     groups: [

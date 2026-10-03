@@ -1919,7 +1919,19 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 
 /* Turnierbaum: anklickbare Partien (2026-10-03) */
 .baum-match.klickbar { cursor: pointer; }
-.baum-match.klickbar.laeuft { box-shadow: 0 0 0 2px var(--primary-akzent, var(--primary)); }
+.baum-match.klickbar.laeuft:not(.st-offen):not(.st-gemeldet) { box-shadow: 0 0 0 2px var(--primary-akzent, var(--primary)); }
 .baum-match.klickbar:hover, .baum-match.klickbar:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-akzent, var(--primary)); }
 .baum-wahl { position: fixed; z-index: 1000; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); min-width: 190px; }
 .baum-wahl-titel { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+
+/* Turnierbaum: offene Partien auffälliger (2026-10-03) */
+.baum-kopf { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.baum-schild { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .02em; padding: 1px 7px; border-radius: 999px; color: #fff; text-transform: uppercase; }
+.baum-match.st-offen { border: 1px solid var(--gold); border-left: 6px solid var(--gold); background: color-mix(in srgb, var(--gold) 13%, var(--card-bg)); padding-left: 7px; box-shadow: none; }
+.baum-match.st-offen .baum-schild { background: var(--gold-text); }
+:root[data-theme="dark"] .baum-match.st-offen .baum-schild { background: var(--gold); color: #111827; }
+.baum-match.st-gemeldet { border: 1px solid var(--primary-akzent); border-left: 6px solid var(--primary-akzent); background: color-mix(in srgb, var(--primary-akzent) 12%, var(--card-bg)); padding-left: 7px; box-shadow: none; }
+.baum-match.st-gemeldet .baum-schild { background: var(--primary-akzent); }
+:root[data-theme="dark"] .baum-match.st-gemeldet .baum-schild { color: #111827; }
+.baum-match.st-offen .baum-team span, .baum-match.st-gemeldet .baum-team span { font-weight: 600; }
+.baum-match.klickbar.st-offen:hover, .baum-match.klickbar.st-gemeldet:hover { box-shadow: 0 0 0 2px var(--primary-akzent); }
