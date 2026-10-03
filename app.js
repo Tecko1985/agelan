@@ -1970,6 +1970,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.84",
+    groups: [
+      { title: "Essen: „Bestellung vollständig“", items: [
+          "Ist in „Lieferung prüfen“ alles abgehakt, klappt die Liste zu und zeigt „✅ Bestellung vollständig“. Ein Klick auf den Kopf öffnet sie wieder, z. B. um einen Haken zu lösen."
+      ]},
+    ],
+  },
+  {
     version: "8.83",
     groups: [
       { title: "Essen: „Deine Bestellungen“ einklappbar", items: [

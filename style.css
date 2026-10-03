@@ -1884,3 +1884,8 @@ details.es-meine-klapp > summary .es-abschnitt { margin: 0; flex: 1 1 auto; }
 details.es-meine-klapp > summary .feld-label { margin: 0; }
 details.es-meine-klapp[open] > summary { margin-bottom: 10px; }
 details.es-meine-erledigt { margin-top: 12px; }
+
+/* Essen: Prüfliste klappt zu, wenn alles da ist (2026-10-03) */
+details.es-pruefliste > summary { cursor: pointer; list-style: none; user-select: none; }
+details.es-pruefliste > summary::-webkit-details-marker { display: none; }
+details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }

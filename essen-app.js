@@ -839,18 +839,29 @@ function esHakenAufraeumen(runden) {
   try { localStorage.setItem(ES_HAKEN_KEY, JSON.stringify(alle)); } catch (e) { /* privater Modus */ }
 }
 
+// Ist alles abgehakt, klappt die Liste zu und sagt „Bestellung vollständig“
+// (Michel am 03.10.2026). Wer sie wieder aufmacht (z. B. um einen Haken zu
+// lösen), behält sie offen – auch über das Neuzeichnen hinweg.
+const esPruefAuf = new Set();
+function esPruefKopf(an, alle) {
+  return an === alle
+    ? { titel: "✅ Bestellung vollständig", stand: alle + " / " + alle }
+    : { titel: "📋 Lieferung prüfen", stand: an + " / " + alle + " abgehakt" };
+}
+
 function esPruefListeHtml(r) {
   const liste = essenService.sammelliste(r.bestellungen).sort(esNachNummer);
   if (!liste.length) return "";
   const haken = new Set(esHakenLesen()[r.id] || []);
   const erledigt = liste.filter((p) => haken.has(esHakenSchluessel(p))).length;
   const alles = erledigt === liste.length;
+  const kopf = esPruefKopf(erledigt, liste.length);
   return `
-        <div class="es-pruefliste${alles ? " komplett" : ""}" data-es-pruef="${escapeHtml(r.id)}">
-          <div class="es-pruef-kopf">
-            <b>📋 Lieferung prüfen</b>
-            <span class="es-pruef-stand">${alles ? "✅ alles da" : erledigt + " / " + liste.length + " abgehakt"}</span>
-          </div>
+        <details class="es-pruefliste${alles ? " komplett" : ""}" data-es-pruef="${escapeHtml(r.id)}"${!alles || esPruefAuf.has(r.id) ? " open" : ""}>
+          <summary class="es-pruef-kopf">
+            <b class="es-pruef-titel">${kopf.titel}</b>
+            <span class="es-pruef-stand">${kopf.stand}</span>
+          </summary>
           ${liste.map((p) => {
             const k = esHakenSchluessel(p);
             return `<label class="es-pruef-zeile${haken.has(k) ? " ok" : ""}">
@@ -858,8 +869,15 @@ function esPruefListeHtml(r) {
               <span><b>${p.anzahl}×</b> ${esNrHtml(p)}${escapeHtml(p.name)}${p.sonderwunsch ? ` <i>(${escapeHtml(p.sonderwunsch)})</i>` : ""}</span>
             </label>`;
           }).join("")}
-        </div>`;
+        </details>`;
 }
+
+document.addEventListener("click", (ev) => {
+  const kopf = ev.target && ev.target.closest && ev.target.closest("details.es-pruefliste > summary");
+  if (!kopf) return;
+  const d = kopf.parentElement;
+  if (d.open) esPruefAuf.delete(d.dataset.esPruef); else esPruefAuf.add(d.dataset.esPruef);
+});
 
 // Ein Listener für alle Prüflisten – sie werden ständig neu gezeichnet.
 // ⚠️ Nur Anzeige nachziehen, nicht die ganze Seite neu zeichnen: beim Abhaken
@@ -871,8 +889,15 @@ document.addEventListener("change", (ev) => {
   ev.target.closest(".es-pruef-zeile").classList.toggle("ok", ev.target.checked);
   const alle = box.querySelectorAll("[data-es-haken]");
   const an = box.querySelectorAll("[data-es-haken]:checked").length;
+  const kopf = esPruefKopf(an, alle.length);
   box.classList.toggle("komplett", an === alle.length);
-  box.querySelector(".es-pruef-stand").textContent = an === alle.length ? "✅ alles da" : an + " / " + alle.length + " abgehakt";
+  box.querySelector(".es-pruef-titel").textContent = kopf.titel;
+  box.querySelector(".es-pruef-stand").textContent = kopf.stand;
+  // Letzter Haken gesetzt: kurz stehen lassen, dann zuklappen.
+  if (an === alle.length && ev.target.checked) {
+    esPruefAuf.delete(box.dataset.esPruef);
+    setTimeout(() => { if (box.isConnected && box.classList.contains("komplett")) box.open = false; }, 600);
+  }
 });
 
 // Eine Sammelbestellung, die schon beim Lieferanten ist: „Donnerstag 1",
