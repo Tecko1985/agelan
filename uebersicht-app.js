@@ -514,14 +514,83 @@ function ubKachelTurnier() {
 const UB_INFOS_MAX = 2000;
 let ubInfosText = "";
 
+// Formatierung (Michel am 03.10.2026: „ein paar Formatelemente“) – bewusst
+// schlicht, damit man sie am Handy tippen kann:
+//   # Text        große Überschrift        ## Text   kleine Überschrift
+//   - Text        Aufzählungspunkt         ! Text    Hinweis-Kasten (wichtig)
+//   15:00 | Text  Zeitplan-Zeile (links fett, rechts Text)
+//   ---           Trennlinie               (leere Zeile = Abstand)
+//   **fett**  und  ==markiert==  mitten im Text
+// Alles andere: normale Zeile wie bisher.
+function ubInfoInline(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/==(.+?)==/g, '<mark class="ub-info-mark">$1</mark>');
+}
+function ubInfosHtml(text) {
+  const zeilen = String(text || "").split(/\r?\n/).map((z) => z.trim());
+  // Leerzeilen am Anfang/Ende und doppelte Leerzeilen zählen nicht.
+  while (zeilen.length && !zeilen[0]) zeilen.shift();
+  while (zeilen.length && !zeilen[zeilen.length - 1]) zeilen.pop();
+  let vorher = "";
+  return zeilen.map((z) => {
+    if (!z) { const html = vorher ? '<div class="ub-info-abstand"></div>' : ""; vorher = ""; return html; }
+    vorher = z;
+    if (/^-{3,}$/.test(z)) return '<hr class="ub-info-linie">';
+    if (z.startsWith("## ")) return '<p class="ub-block-titel ub-info-kopf">' + ubInfoInline(z.slice(3)) + "</p>";
+    if (z.startsWith("#")) return '<p class="ub-info-gross">' + ubInfoInline(z.replace(/^#+\s*/, "")) + "</p>";
+    if (/^[-•*]\s+/.test(z)) return '<div class="ub-info-punkt">' + ubInfoInline(z.replace(/^[-•*]\s+/, "")) + "</div>";
+    if (/^!\s*/.test(z)) return '<div class="ub-info-wichtig">' + ubInfoInline(z.replace(/^!\s*/, "")) + "</div>";
+    const teile = z.split(/\s+\|\s+/);
+    if (teile.length === 2 && teile[0].length <= 20) {
+      return '<div class="ub-zeile ub-info ub-info-zeit"><span class="ub-info-wann">' + ubInfoInline(teile[0]) +
+        '</span><span class="ub-zeile-kopf">' + ubInfoInline(teile[1]) + "</span></div>";
+    }
+    return '<div class="ub-zeile ub-info"><span class="ub-zeile-kopf">' + ubInfoInline(z) + "</span></div>";
+  }).join("");
+}
 function ubKachelInfos() {
-  const zeilen = String(ubInfosText || "").split(/\r?\n/).map((z) => z.trim()).filter(Boolean);
-  if (!zeilen.length) return "";
-  const inhalt = zeilen.map((z) => z.charAt(0) === "#"
-    ? '<p class="ub-block-titel ub-info-kopf">' + escapeHtml(z.replace(/^#+\s*/, "")) + "</p>"
-    : '<div class="ub-zeile ub-info"><span class="ub-zeile-kopf">' + escapeHtml(z) + "</span></div>"
-  ).join("");
+  const inhalt = ubInfosHtml(ubInfosText);
+  if (!inhalt) return "";
   return ubKachel("ub-infos ub-breit", "ℹ️ Infos", inhalt);
+}
+
+// Vorschau unter dem Eingabefeld – so groß wie auf dem Beamer.
+function ubInfosVorschau() {
+  const feld = ubEl("ub-infos-text");
+  const box = ubEl("ub-infos-vorschau");
+  if (!feld || !box) return;
+  const html = ubInfosHtml(feld.value);
+  box.innerHTML = html ? '<div class="ub-buehne"><div class="ub-kachel ub-infos ub-breit">' + html + "</div></div>" : "";
+  box.hidden = !html;
+}
+
+// Knöpfe über dem Feld: setzen das Zeichen an den Anfang der aktuellen Zeile
+// bzw. legen **…** um die Markierung.
+function ubInfosKnopf(art) {
+  const feld = ubEl("ub-infos-text");
+  if (!feld) return;
+  const v = feld.value, a = feld.selectionStart, e = feld.selectionEnd;
+  if (art === "fett" || art === "mark") {
+    const z = art === "fett" ? "**" : "==";
+    const innen = v.slice(a, e) || (art === "fett" ? "fett" : "markiert");
+    feld.value = v.slice(0, a) + z + innen + z + v.slice(e);
+    feld.setSelectionRange(a + z.length, a + z.length + innen.length);
+  } else if (art === "linie") {
+    const einf = (a && v[a - 1] !== "\n" ? "\n" : "") + "---\n";
+    feld.value = v.slice(0, a) + einf + v.slice(e);
+    feld.setSelectionRange(a + einf.length, a + einf.length);
+  } else {
+    const praefix = { gross: "# ", klein: "## ", punkt: "- ", wichtig: "! ", zeit: "15:00 | " }[art];
+    const start = v.lastIndexOf("\n", a - 1) + 1;
+    const zeile = v.slice(start).split("\n")[0];
+    const ohne = zeile.replace(/^(#{1,2}\s+|[-•*]\s+|!\s*)/, "");
+    feld.value = v.slice(0, start) + praefix + ohne + v.slice(start + zeile.length);
+    const pos = start + praefix.length + ohne.length;
+    feld.setSelectionRange(pos, pos);
+  }
+  feld.focus();
+  ubInfosVorschau();
 }
 
 // --- Auswahl der Kacheln ----------------------------------------------------
@@ -691,10 +760,19 @@ function ubAuswahlBinden() {
       // ⚠️ Nicht überschreiben, während jemand gerade darin tippt – sonst
       // springt der Text unter den Fingern zurück, wenn ein anderes Gerät speichert.
       if (feld && document.activeElement !== feld) feld.value = ubInfosText;
+      ubInfosVorschau();
       ubVielleichtRendern();
     }, (e) => {
       console.warn("[Übersicht] Infos nicht lesbar:", e && e.message);
     });
+  });
+
+  const infosFeld = ubEl("ub-infos-text");
+  if (infosFeld) infosFeld.addEventListener("input", ubInfosVorschau);
+  document.querySelectorAll("[data-ub-format]").forEach((b) => {
+    // mousedown verhindern: sonst verliert das Feld vor dem Klick die Markierung.
+    b.addEventListener("mousedown", (e) => e.preventDefault());
+    b.addEventListener("click", () => ubInfosKnopf(b.dataset.ubFormat));
   });
 
   const knopfInfos = ubEl("ub-infos-speichern");

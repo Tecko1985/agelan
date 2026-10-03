@@ -1945,3 +1945,22 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 /* Übersicht: Runde als Zwischenüberschrift (2026-10-03) */
 .ub-runden-kopf { margin: 20px 0 2px; font-size: clamp(19px, 2.3vw, 28px); font-weight: 800; letter-spacing: .01em; color: var(--gold-text); }
 .ub-runden-kopf:first-of-type { margin-top: 6px; }
+
+/* Übersicht: Infos mit Formatierung (2026-10-03) */
+.ub-info-gross { margin: 16px 0 4px; font-size: 18px; font-weight: 800; color: var(--gold-text); }
+.ub-info-gross:first-child, .ub-info-kopf:first-child { margin-top: 0; }
+.ub-buehne .ub-info-gross { font-size: clamp(20px, 2.6vw, 32px); }
+.ub-info-punkt { position: relative; padding: 4px 0 4px 1.2em; font-weight: 600; font-size: 15px; }
+.ub-info-punkt::before { content: ""; position: absolute; left: .25em; top: .95em; width: .42em; height: .42em; border-radius: 50%; background: var(--gold-text); }
+.ub-buehne .ub-info-punkt { font-size: clamp(17px, 2.3vw, 26px); }
+.ub-info-wichtig { margin: 10px 0; padding: 10px 14px; border-left: 6px solid var(--gold); border-radius: 8px; background: color-mix(in srgb, var(--gold) 14%, var(--card-bg)); font-weight: 700; font-size: 15px; }
+.ub-buehne .ub-info-wichtig { font-size: clamp(17px, 2.3vw, 26px); }
+.ub-info-zeit { flex-wrap: nowrap; align-items: baseline; }
+.ub-info-wann { flex: 0 0 auto; min-width: 4.2em; font-weight: 800; color: var(--gold-text); font-variant-numeric: tabular-nums; }
+.ub-buehne .ub-info-wann { font-size: clamp(17px, 2.3vw, 26px); }
+.ub-info-linie { border: none; border-top: 2px solid var(--border); margin: 12px 0; }
+.ub-info-abstand { height: 14px; }
+.ub-info-mark { background: color-mix(in srgb, var(--gold) 35%, transparent); color: inherit; padding: 0 .2em; border-radius: 3px; }
+.ub-format-leiste { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.ub-infos-vorschau { border: 1px dashed var(--border); border-radius: 12px; padding: 4px; }
+.ub-infos-vorschau .ub-buehne { min-height: 0; }

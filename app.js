@@ -2247,6 +2247,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.93",
+    groups: [
+      { title: "Übersicht: Infos formatieren", items: [
+          "Der Infos-Text kennt jetzt Formatierung: # große Überschrift, ## kleine, - Aufzählungspunkt, „15:00 | Viertelfinale“ als Zeitplan-Zeile, ! Hinweis-Kasten, --- Trennlinie, **fett** und ==markiert==; eine leere Zeile gibt Abstand.",
+          "Über dem Feld gibt es Knöpfe dafür, darunter eine Vorschau in Beamer-Größe."
+      ]},
+    ],
+  },
+  {
     version: "8.92",
     groups: [
       { title: "Übersicht: Runden als Überschrift", items: [

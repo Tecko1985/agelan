@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b2d4f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=6.39">
+<link rel="stylesheet" href="style.css?v=6.40">
 <!-- Hell/Dunkel VOR dem ersten Zeichnen setzen (sonst blitzt es nachts hell). -->
 <!-- Verbindungen zu Firebase schon aufbauen, während das Passwort geprüft wird. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -1255,9 +1255,22 @@
 
    <div class="karte-block">
      <h2>Allgemeine Infos</h2>
-     <p class="hinweis-text">Erscheinen auf der Übersicht als eigene Kachel „ℹ️ Infos“ – für <b>alle</b> sichtbar. Jede Zeile wird ein Punkt. Eine Zeile mit <b>#</b> am Anfang wird eine Zwischenüberschrift. Leer lassen blendet die Kachel aus.</p>
+     <p class="hinweis-text">Erscheinen auf der Übersicht als eigene Kachel „ℹ️ Infos“ – für <b>alle</b> sichtbar. Jede Zeile wird ein Punkt. Leer lassen blendet die Kachel aus.</p>
+     <div class="ub-format-leiste" role="toolbar" aria-label="Formatieren">
+       <button type="button" class="mini-btn" data-ub-format="gross" title="Große Überschrift (# am Zeilenanfang)">Überschrift</button>
+       <button type="button" class="mini-btn" data-ub-format="klein" title="Kleine Überschrift (## am Zeilenanfang)">Unterüberschrift</button>
+       <button type="button" class="mini-btn" data-ub-format="punkt" title="Aufzählungspunkt (- am Zeilenanfang)">• Punkt</button>
+       <button type="button" class="mini-btn" data-ub-format="zeit" title="Zeitplan-Zeile: Zeit | Text">🕒 Zeit | Text</button>
+       <button type="button" class="mini-btn" data-ub-format="wichtig" title="Hinweis-Kasten (! am Zeilenanfang)">! Wichtig</button>
+       <button type="button" class="mini-btn" data-ub-format="fett" title="**fett**"><b>B</b> Fett</button>
+       <button type="button" class="mini-btn" data-ub-format="mark" title="==markiert==">Markiert</button>
+       <button type="button" class="mini-btn" data-ub-format="linie" title="Trennlinie (---)">― Linie</button>
+     </div>
      <textarea id="ub-infos-text" class="eingabe ub-infos-eingabe" rows="8" maxlength="2000"
-               placeholder="# WLAN&#10;Netz: AgeLan · Passwort hängt am Eingang&#10;# Ruhezeit&#10;Ab 2:00 Uhr bitte Kopfhörer"></textarea>
+               placeholder="# 1vs1 Turnier&#10;15:00 | Viertelfinale&#10;18:00 | Halbfinale&#10;21:00 | **Finale**&#10;---&#10;! Bitte Ergebnisse sofort melden"></textarea>
+     <p class="hinweis-text"><b>#</b> große Überschrift · <b>##</b> kleine · <b>-</b> Punkt · <b>15:00 | Text</b> Zeitplan · <b>!</b> Hinweis-Kasten · <b>---</b> Linie · <b>**fett**</b> · <b>==markiert==</b> · leere Zeile = Abstand</p>
+     <p class="feld-label">Vorschau</p>
+     <div id="ub-infos-vorschau" class="ub-infos-vorschau" hidden></div>
      <button type="button" class="btn btn-primary btn-grow" id="ub-infos-speichern">Infos speichern</button>
      <p class="hinweis-text" id="ub-infos-meldung"></p>
    </div>
@@ -1516,14 +1529,14 @@
     'firebase-config.js?v=1.0',
     'verbindung.js?v=1.0',
     'turnier-service.js?v=2.38',
-    'app.js?v=3.133',
+    'app.js?v=3.134',
     'stream-service.js?v=2.7',
     'stream-app.js?v=2.17',
     'fruehstueck-service.js?v=1.20',
     'fruehstueck-app.js?v=1.28',
     'essen-service.js?v=2.29',
     'essen-app.js?v=2.43',
-    'uebersicht-app.js?v=1.23'
+    'uebersicht-app.js?v=1.24'
   ];
 
   var input = document.getElementById('pw-gate-input');
