@@ -1214,6 +1214,24 @@ function laufendePartien() {
         const k = schluessel(s), r = Number(s.runde) || 0;
         if (!(k in ersteRunde) || r < ersteRunde[k]) ersteRunde[k] = r;
       });
+      // Rundenname je Partie (Michel am 03.10.2026: „Achtelfinale, Viertelfinale …“).
+      // Einfaches K.-o.: aus der Größe der ersten Runde, wie im Baum.
+      const n0 = spiele.filter((s) => s.phase === "ko" && !s.platz3 && (s.bracket || "w") === "w" && (Number(s.runde) || 0) === 0).length;
+      const rundeVon = (s) => {
+        const r = Number(s.runde) || 0;
+        if (s.phase !== "ko") {
+          if (istSchweizer(meta)) return "Runde " + (r + 1);
+          return s.gruppe ? "Gruppe " + String(s.gruppe).replace(/^gruppe_/, "") : "";
+        }
+        if (s.platz3) return "Spiel um Platz 3";
+        if (s.bracket === "l") return "Verliererrunde " + (r + 1);
+        if (s.bracket === "f") return s.entscheidung ? "Entscheidungsspiel" : "Großes Finale";
+        if (n0 && (n0 & (n0 - 1)) === 0) {
+          const anzahl = n0 / Math.pow(2, r);
+          return metaKoTyp(meta) === "doppel" && anzahl === 1 ? "Gewinner-Finale" : rundenTitel(Math.max(1, anzahl));
+        }
+        return "K.-o.-Runde " + (r + 1);
+      };
       const partien = offen
         // ⚠️ Nur in der Vorrunde auf die früheste Runde beschränken. Im K.-o.
         // laufen seit „Partie für Partie“ mehrere Runden gleichzeitig – dort ist
@@ -1229,6 +1247,7 @@ function laufendePartien() {
           finale: !!s.istFinale,
           platz3: !!s.platz3,
           ko: s.phase === "ko",
+          runde: rundeVon(s),
         }));
       return { id: t.id, name: t.name, phase: t.phase, bestOf: Number(meta.bestOf) || 3, partien };
     });

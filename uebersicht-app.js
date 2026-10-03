@@ -461,7 +461,7 @@ function ubKachelTurnier() {
       inhalt += '<p class="ub-block-titel">' + escapeHtml(s.kopf) + "</p>";
       inhalt += s.zeilen.length
         ? s.zeilen.map((p) => ubZeile("#" + p.nr, p.a + "  vs  " + p.b,
-            [p.platz3 ? "Spiel um Platz 3" : (p.finale ? "Finale" : ""),
+            [p.runde || (p.platz3 ? "Spiel um Platz 3" : (p.finale ? "Finale" : "")),
              p.bestOf !== undefined && (p.finale || p.platz3) ? "Best of " + p.bestOf : "",
              p.gemeldet ? "Ergebnis gemeldet" : ""].filter(Boolean).join(" · "),
             p.gemeldet ? "ub-still" : "ub-live")).join("")

@@ -2247,6 +2247,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.91",
+    groups: [
+      { title: "Übersicht: Runde bei jeder Partie", items: [
+          "Die Turnier-Kachel nennt bei jeder offenen Partie die Runde – Achtelfinale, Viertelfinale, Halbfinale, Finale, Spiel um Platz 3; im Schweizer System „Runde 3“, im Doppel-K.-o. auch Verliererrunden."
+      ]},
+    ],
+  },
+  {
     version: "8.90",
     groups: [
       { title: "Übersicht: Dauer je Kachel einstellbar", items: [
