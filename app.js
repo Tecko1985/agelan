@@ -2247,6 +2247,15 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.90",
+    groups: [
+      { title: "Übersicht: Dauer je Kachel einstellbar", items: [
+          "Unter Einstellungen steht neben jeder Kachel der Übersicht (Essen, Frühstück, Orga, Turnier, Infos), wie viele Sekunden sie zu sehen ist (5–300). Gilt für alle Bildschirme. Standard: Turnier 30 s, alle anderen 15 s.",
+          "Die Turnier-Kachel bleibt trotzdem so lange, bis jede ihrer Seiten 10 Sekunden zu sehen war."
+      ]},
+    ],
+  },
+  {
     version: "8.89",
     groups: [
       { title: "Downloads ausgeblendet", items: [

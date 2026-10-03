@@ -1935,3 +1935,9 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 :root[data-theme="dark"] .baum-match.st-gemeldet .baum-schild { color: #111827; }
 .baum-match.st-offen .baum-team span, .baum-match.st-gemeldet .baum-team span { font-weight: 600; }
 .baum-match.klickbar.st-offen:hover, .baum-match.klickbar.st-gemeldet:hover { box-shadow: 0 0 0 2px var(--primary-akzent); }
+
+/* Übersicht-Einstellungen: Dauer je Kachel (2026-10-03) */
+.ub-wahl-zeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ub-wahl-zeile .ub-wahl { flex: 1 1 220px; }
+.ub-dauer { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+.ub-dauer .eingabe { width: 80px; padding: 6px 8px; text-align: right; }

@@ -433,6 +433,12 @@
         ".write": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now",
         ".validate": "newData.isString() && newData.val().length <= 2000"
       },
+      "dauer": {
+        ".write": "auth != null && auth.token.agelanOrga === true && auth.token.agelanBis > now",
+        "$kachel": {
+          ".validate": "newData.isNumber() && newData.val() >= 5 && newData.val() <= 300 && ($kachel === 'essen' || $kachel === 'fruehstueck' || $kachel === 'orga' || $kachel === 'turnier' || $kachel === 'infos')"
+        }
+      },
       "$sonst": {
         ".validate": false
       }

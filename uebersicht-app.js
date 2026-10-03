@@ -425,10 +425,22 @@ function ubTurnierSeiteJetzt(anzahl) {
 // ⚠️ Die Turnier-Kachel steht mindestens 30 Sekunden (Michel am 02.10.2026),
 // bei mehr Seiten so lange, bis jede einmal dran war.
 const UB_TURNIER_MIN_MS = 30000;
+// ⚠️ Seit 03.10.2026 einstellbar (Michel: „wie lange welche Info zu sehen
+// ist“): uebersicht/dauer/<id> in Sekunden, für alle. Ohne Wert gilt der
+// Standard (Turnier 30 s, sonst 15 s). Die Turnier-Kachel bleibt trotzdem so
+// lange, bis jede Seite ihre 10 s hatte – sonst sähe man nie alle Partien.
+const UB_DAUER_MIN = 5, UB_DAUER_MAX = 300;
+let ubKachelDauer = {};
+function ubDauerSekunden(id) {
+  const v = Number(ubKachelDauer[id]);
+  if (Number.isFinite(v) && v >= UB_DAUER_MIN && v <= UB_DAUER_MAX) return v;
+  return (id === "turnier" ? UB_TURNIER_MIN_MS : UB_WECHSEL_MS) / 1000;
+}
 function ubStandzeit(id) {
-  if (id !== "turnier") return UB_WECHSEL_MS;
+  const basis = ubDauerSekunden(id) * 1000;
+  if (id !== "turnier") return basis;
   const n = ubTurnierSeiten().length;
-  return Math.max(UB_TURNIER_MIN_MS, n * UB_SEITE_MS);
+  return Math.max(basis, n * UB_SEITE_MS);
 }
 
 function ubKachelTurnier() {
@@ -528,10 +540,19 @@ function ubKachelAn(id) {
 function ubEinstellungenZeichnen() {
   const box = ubEl("ub-einstellungen");
   if (!box) return;
+  // ⚠️ Nicht neu zeichnen, während jemand eine Dauer tippt – sonst springt die
+  // Zahl unter den Fingern zurück, wenn ein anderes Gerät speichert.
+  const aktiv = document.activeElement;
+  if (aktiv && box.contains(aktiv) && aktiv.matches("[data-ub-dauer]")) return;
   box.innerHTML = UB_KACHELN.map((k) =>
-    '<label class="ub-wahl"><input type="checkbox" data-ub-kachel="' + k.id + '"' +
-    (ubKachelAn(k.id) ? " checked" : "") + "> " + escapeHtml(k.label) + "</label>"
-  ).join("");
+    '<div class="ub-wahl-zeile"><label class="ub-wahl"><input type="checkbox" data-ub-kachel="' + k.id + '"' +
+    (ubKachelAn(k.id) ? " checked" : "") + "> " + escapeHtml(k.label) + "</label>" +
+    '<label class="ub-dauer"><input type="number" class="eingabe" data-ub-dauer="' + k.id + '" min="' + UB_DAUER_MIN +
+    '" max="' + UB_DAUER_MAX + '" step="1" inputmode="numeric" value="' + ubDauerSekunden(k.id) +
+    '" aria-label="Sekunden für ' + escapeHtml(k.kurz) + '"> s</label></div>'
+  ).join("") +
+  '<p class="hinweis-text">Sekunden = wie lange die Kachel steht, bevor die nächste kommt (' + UB_DAUER_MIN + "–" + UB_DAUER_MAX +
+  "). Die Turnier-Kachel bleibt mindestens so lange, bis jede ihrer Seiten 10 Sekunden zu sehen war.</p>";
 }
 
 // Schreiben mit der ⭐/🛠-Rolle. ⚠️ Die Rolle (Claim agelanOrga) holt das Gerät
@@ -645,6 +666,16 @@ function ubAuswahlBinden() {
       // Regeln noch nicht veröffentlicht o. ä.: Standard zeigen, nicht leer.
       console.warn("[Übersicht] Auswahl nicht lesbar – Standard gilt:", e && e.message);
     });
+    db.ref("uebersicht/dauer").on("value", (snap) => {
+      const v = snap.val() || {};
+      ubKachelDauer = {};
+      UB_KACHELN.forEach((k) => { if (typeof v[k.id] === "number") ubKachelDauer[k.id] = v[k.id]; });
+      ubEinstellungenZeichnen();
+      ubVielleichtRendern();
+    }, (e) => {
+      // Regeln ohne „dauer“ noch nicht veröffentlicht: Standard gilt.
+      console.warn("[Übersicht] Dauer nicht lesbar – Standard gilt:", e && e.message);
+    });
     db.ref("uebersicht/infos").on("value", (snap) => {
       const v = snap.val();
       ubInfosText = typeof v === "string" ? v : "";
@@ -683,6 +714,28 @@ function ubAuswahlBinden() {
   const box = ubEl("ub-einstellungen");
   if (box) {
     box.addEventListener("change", async (e) => {
+      const dauerFeld = e.target.closest("[data-ub-dauer]");
+      if (dauerFeld) {
+        const fehler = ubEl("ub-einstellungen-fehler");
+        const melde = (t) => { if (fehler) fehler.textContent = t; };
+        const id = dauerFeld.dataset.ubDauer;
+        const wert = Math.round(Number(dauerFeld.value));
+        if (!Number.isFinite(wert) || wert < UB_DAUER_MIN || wert > UB_DAUER_MAX) {
+          melde("Bitte " + UB_DAUER_MIN + " bis " + UB_DAUER_MAX + " Sekunden.");
+          dauerFeld.value = ubDauerSekunden(id);
+          return;
+        }
+        melde("Speichere …");
+        try {
+          await ubMitRolleSchreiben("uebersicht/dauer/" + id, wert, melde);
+          melde("Gespeichert – " + wert + " s.");
+        } catch (err) {
+          dauerFeld.value = ubDauerSekunden(id);
+          melde("Nicht gespeichert: " + (err && err.message || err) +
+            (/permission/i.test(String(err && (err.code || err.message))) ? " (Sind die Firebase-Regeln mit „dauer“ schon veröffentlicht?)" : ""));
+        }
+        return;
+      }
       const cb = e.target.closest("[data-ub-kachel]");
       if (!cb) return;
       const fehler = ubEl("ub-einstellungen-fehler");
