@@ -1916,3 +1916,10 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 .ko-baum-scroll::-webkit-scrollbar { display: none; }
 .ko-baum-scroll .ko-baum { position: absolute; left: 0; top: 0; }
 .ko-baum-mass { height: 1px; }
+
+/* Turnierbaum: anklickbare Partien (2026-10-03) */
+.baum-match.klickbar { cursor: pointer; }
+.baum-match.klickbar.laeuft { box-shadow: 0 0 0 2px var(--primary-akzent, var(--primary)); }
+.baum-match.klickbar:hover, .baum-match.klickbar:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-akzent, var(--primary)); }
+.baum-wahl { position: fixed; z-index: 1000; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); min-width: 190px; }
+.baum-wahl-titel { margin: 0 0 4px; font-size: 13px; font-weight: 700; }

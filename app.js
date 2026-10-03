@@ -1001,7 +1001,9 @@ function koBaumHtml(z) {
         }
         const zeile = (seite, satz, gewonnen) => `<div class="baum-team${gewonnen ? " sieger" : ""}${seite.offen ? " offen" : ""}"><span>${escapeHtml(seite.text)}</span><b>${satz === "" ? "" : escapeHtml(String(satz))}</b></div>`;
         const laeuft = s && s.status !== "bestaetigt";
-        karten.push(`<div class="baum-match${warte ? " wartet" : ""}${laeuft ? " laeuft" : ""}" style="left:${x}px;top:${cy - BAUM_H / 2}px;width:${BAUM_B}px;height:${BAUM_H}px">
+        const tun = s ? baumAktionen(z, s) : [];
+        karten.push(`<div class="baum-match${warte ? " wartet" : ""}${laeuft ? " laeuft" : ""}${tun.length ? " klickbar" : ""}"${tun.length
+          ? ` data-baum-spiel="${escapeHtml(s.id)}" role="button" tabindex="0" title="${escapeHtml(tun.map((t) => t.text).join(" / "))}"` : ""} style="left:${x}px;top:${cy - BAUM_H / 2}px;width:${BAUM_B}px;height:${BAUM_H}px">
           <div class="baum-kopf">${escapeHtml(kopf)}</div>${zeile(a, sa, wa)}${zeile(b, sb, wb)}</div>`);
       }
       // Linie zum Nachfolger
@@ -1030,17 +1032,73 @@ function koBaumHtml(z) {
   if (p3) {
     const x = xVon(runden - 1), top = mitte[runden - 1][0] + BAUM_H / 2 + 40;
     const w = sieger(p3);
+    const tun3 = baumAktionen(z, p3);
     const zeile = (id, satz) => `<div class="baum-team${w && w === id ? " sieger" : ""}"><span>${escapeHtml(name(id))}</span><b>${p3.status !== "offen" && satz != null ? escapeHtml(String(satz)) : ""}</b></div>`;
-    karten.push(`<div class="baum-match${p3.status !== "bestaetigt" ? " laeuft" : ""}" style="left:${x}px;top:${top}px;width:${BAUM_B}px;height:${BAUM_H}px">
+    karten.push(`<div class="baum-match${p3.status !== "bestaetigt" ? " laeuft" : ""}${tun3.length ? " klickbar" : ""}"${tun3.length
+      ? ` data-baum-spiel="${escapeHtml(p3.id)}" role="button" tabindex="0" title="${escapeHtml(tun3.map((t) => t.text).join(" / "))}"` : ""} style="left:${x}px;top:${top}px;width:${BAUM_B}px;height:${BAUM_H}px">
       <div class="baum-kopf">Spiel um Platz 3${nr.get(p3.id) ? " · Partie " + nr.get(p3.id) : ""}</div>${zeile(p3.teamA, p3.saetzeA)}${zeile(p3.teamB, p3.saetzeB)}</div>`);
     hoehe = Math.max(hoehe, top + BAUM_H + 10);
   }
-  return `<p class="hinweis-text">Nur Ansicht – Ergebnisse meldest und korrigierst du in der Liste.</p>
+  return `<p class="hinweis-text">Tipp auf eine umrandete Partie, um das Ergebnis zu melden, zu bestätigen oder (als Veranstalter) zu korrigieren.</p>
     <div class="ko-baum-scroll"><div class="ko-baum" style="width:${breite + 4}px;height:${hoehe}px">
       <svg class="baum-linien" width="${breite + 4}" height="${hoehe}" aria-hidden="true">${linien.join("")}</svg>
       ${titel.join("")}${karten.join("")}
     </div></div>`;
 }
+
+// Was man an einer Partie im Baum tun kann – dieselben Regeln wie die Knöpfe
+// der Liste (spielAktionenHtml), nur als Daten.
+function baumAktionen(z, s) {
+  const d = document.createElement("div");
+  d.innerHTML = spielAktionenHtml(z, s);
+  return [...d.querySelectorAll("[data-aktion]")].map((b) => ({ aktion: b.dataset.aktion, text: b.textContent.trim() === "✎" ? "Ergebnis korrigieren" : b.textContent.trim() }));
+}
+
+// Klick auf eine Partie im Baum (Michel am 03.10.2026): eine Aktion → gleich
+// ausführen (meist „Ergebnis melden“ bzw. als Veranstalter „korrigieren“),
+// mehrere (Bestätigen/Widersprechen) → kleines Auswahlfeld an der Klickstelle.
+function schliesseBaumWahl() {
+  const alt = document.getElementById("baum-wahl");
+  if (alt) alt.remove();
+}
+function baumKlick(karte, x, y) {
+  schliesseBaumWahl();
+  const s = zustand && zustand.spiele.find((t) => t.id === karte.dataset.baumSpiel);
+  if (!s) return;
+  const tun = baumAktionen(zustand, s);
+  if (!tun.length) return;
+  if (tun.length === 1) { spielAktionAusfuehren(tun[0].aktion, s.id); return; }
+  const wahl = document.createElement("div");
+  wahl.id = "baum-wahl";
+  wahl.className = "baum-wahl";
+  wahl.innerHTML = `<p class="baum-wahl-titel">${escapeHtml(teamNameVon(zustand, s.teamA))} ${s.saetzeA != null ? escapeHtml(s.saetzeA + ":" + s.saetzeB) : "vs"} ${escapeHtml(teamNameVon(zustand, s.teamB))}</p>` +
+    tun.map((t) => `<button type="button" class="mini-btn${t.aktion === "bestaetigen" ? " primary" : ""}" data-baum-tun="${escapeHtml(t.aktion)}">${escapeHtml(t.text)}</button>`).join("");
+  document.body.appendChild(wahl);
+  const r = wahl.getBoundingClientRect();
+  wahl.style.left = Math.max(8, Math.min(window.innerWidth - r.width - 8, x - r.width / 2)) + "px";
+  wahl.style.top = Math.max(8, Math.min(window.innerHeight - r.height - 8, y + 12)) + "px";
+  wahl.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-baum-tun]");
+    if (!b) return;
+    schliesseBaumWahl();
+    spielAktionAusfuehren(b.dataset.baumTun, s.id);
+  });
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#baum-wahl")) return;
+  const karte = e.target.closest && e.target.closest("[data-baum-spiel]");
+  if (!karte) { schliesseBaumWahl(); return; }
+  baumKlick(karte, e.clientX, e.clientY);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { schliesseBaumWahl(); return; }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("[data-baum-spiel]")) {
+    e.preventDefault();
+    const r = e.target.getBoundingClientRect();
+    baumKlick(e.target, r.left + r.width / 2, r.bottom);
+  }
+});
+window.addEventListener("scroll", schliesseBaumWahl, { passive: true });
 
 // Neu zeichnen ohne dass der Baum an den Anfang zurückspringt: jedes Ergebnis
 // zeichnet den K.-o.-Kasten neu, die Scrollstellung bleibt.
@@ -1223,6 +1281,13 @@ function spielZeileHtml(z, s) {
 }
 
 // Liefert die passenden Aktions-Buttons für ein Spiel je nach Rolle/Status.
+function spielAktionAusfuehren(aktion, spielId) {
+  if (aktion === "melden") oeffneMeldeDialog(spielId, false);
+  else if (aktion === "korrigieren") oeffneMeldeDialog(spielId, true);
+  else if (aktion === "bestaetigen") turnierService.bestaetigeErgebnis(spielId).then((r) => { if (!r.erfolg) alert(r.fehler); });
+  else if (aktion === "widersprechen") turnierService.widersprichErgebnis(spielId);
+}
+
 function spielAktionenHtml(z, s) {
   const meinTeam = z.eigenesTeam ? z.eigenesTeam.id : null;
   const beteiligt = meinTeam && (s.teamA === meinTeam || s.teamB === meinTeam);
@@ -2001,12 +2066,7 @@ function wireEvents() {
   document.getElementById("app").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-aktion]");
     if (!btn) return;
-    const spielId = btn.getAttribute("data-spiel");
-    const aktion = btn.getAttribute("data-aktion");
-    if (aktion === "melden") oeffneMeldeDialog(spielId, false);
-    else if (aktion === "korrigieren") oeffneMeldeDialog(spielId, true);
-    else if (aktion === "bestaetigen") turnierService.bestaetigeErgebnis(spielId).then((r) => { if (!r.erfolg) alert(r.fehler); });
-    else if (aktion === "widersprechen") turnierService.widersprichErgebnis(spielId);
+    spielAktionAusfuehren(btn.getAttribute("data-aktion"), btn.getAttribute("data-spiel"));
   });
 
   // Melde-Dialog
@@ -2183,7 +2243,8 @@ const APP_CHANGELOG = [
           "Über dem K.-o. gibt es den Umschalter „☰ Liste | 🌳 Turnierbaum“. Der Baum zeigt alle Runden nebeneinander, jede Partie mittig zwischen ihren beiden Vorgängern, mit Verbindungslinien – Sieger grün, laufende Partien markiert, noch wartende Partien gestrichelt mit „Sieger Partie N“. Rechts der Turniersieger, darunter das Spiel um Platz 3.",
           "Freilose der ersten Runde stehen als schmale Zeile im Baum. Auf dem Handy lässt sich der Baum seitlich wischen. Melden und Korrigieren gehen weiter in der Liste; die gewählte Ansicht merkt sich das Gerät.",
           "Nur für einfaches K.-o. – beim Doppel-K.-o. bleibt es bei der Liste.",
-          "Ohne Scrollbalken: Der Baum nutzt die ganze Fensterbreite und wird verkleinert, bis er passt; nach unten läuft er mit der Seite."
+          "Ohne Scrollbalken: Der Baum nutzt die ganze Fensterbreite und wird verkleinert, bis er passt; nach unten läuft er mit der Seite.",
+          "Partien im Baum sind anklickbar: Wer melden darf, landet direkt im Melde-Dialog, Veranstalter bei „Ergebnis korrigieren“ (mit Admin-Win). Bei einem gemeldeten Ergebnis erscheint eine kleine Auswahl „Bestätigen / Widersprechen“."
       ]},
     ],
   },
