@@ -2247,6 +2247,14 @@ window.addEventListener("unhandledrejection", (e) => {
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
   {
+    version: "8.92",
+    groups: [
+      { title: "Übersicht: Runden als Überschrift", items: [
+          "In der Turnier-Kachel steht die Runde jetzt als fette Zwischenüberschrift über ihren Partien („Achtelfinale“, darunter die Partien, dann „Viertelfinale“ …) statt klein an jeder Zeile."
+      ]},
+    ],
+  },
+  {
     version: "8.91",
     groups: [
       { title: "Übersicht: Runde bei jeder Partie", items: [

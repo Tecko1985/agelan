@@ -459,12 +459,20 @@ function ubKachelTurnier() {
       inhalt += s.anmeldung.map((t) => ubZeile("Anmeldung", t, "", "ub-live")).join("");
     } else {
       inhalt += '<p class="ub-block-titel">' + escapeHtml(s.kopf) + "</p>";
+      // Die Runde als fette Zwischenüberschrift über ihren Partien (Michel am
+      // 03.10.2026), nicht an jeder Zeile. Die Partien kommen nach Nummer, und
+      // die Nummern laufen Runde für Runde – gleiche Runden stehen beisammen.
+      let letzteRunde = null;
       inhalt += s.zeilen.length
-        ? s.zeilen.map((p) => ubZeile("#" + p.nr, p.a + "  vs  " + p.b,
-            [p.runde || (p.platz3 ? "Spiel um Platz 3" : (p.finale ? "Finale" : "")),
-             p.bestOf !== undefined && (p.finale || p.platz3) ? "Best of " + p.bestOf : "",
-             p.gemeldet ? "Ergebnis gemeldet" : ""].filter(Boolean).join(" · "),
-            p.gemeldet ? "ub-still" : "ub-live")).join("")
+        ? s.zeilen.map((p) => {
+            const runde = p.runde || (p.platz3 ? "Spiel um Platz 3" : (p.finale ? "Finale" : ""));
+            const kopf = runde && runde !== letzteRunde ? '<p class="ub-runden-kopf">' + escapeHtml(runde) + "</p>" : "";
+            letzteRunde = runde;
+            return kopf + ubZeile("#" + p.nr, p.a + "  vs  " + p.b,
+              [p.bestOf !== undefined && (p.finale || p.platz3) ? "Best of " + p.bestOf : "",
+               p.gemeldet ? "Ergebnis gemeldet" : ""].filter(Boolean).join(" · "),
+              p.gemeldet ? "ub-still" : "ub-live");
+          }).join("")
         : ubLeer(s.leer);
     }
     if (seiten.length > 1) inhalt += '<p class="ub-seite">Seite ' + (i + 1) + " / " + seiten.length + "</p>";

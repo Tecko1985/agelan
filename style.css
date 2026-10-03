@@ -1941,3 +1941,7 @@ details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
 .ub-wahl-zeile .ub-wahl { flex: 1 1 220px; }
 .ub-dauer { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 .ub-dauer .eingabe { width: 80px; padding: 6px 8px; text-align: right; }
+
+/* Übersicht: Runde als Zwischenüberschrift (2026-10-03) */
+.ub-runden-kopf { margin: 20px 0 2px; font-size: clamp(19px, 2.3vw, 28px); font-weight: 800; letter-spacing: .01em; color: var(--gold-text); }
+.ub-runden-kopf:first-of-type { margin-top: 6px; }
