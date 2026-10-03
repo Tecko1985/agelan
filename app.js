@@ -7,6 +7,10 @@
 // Schalter für den ganzen Turnierteil (Tab, Screens, Veranstalter-Zahnrad).
 // Auf false wird die Seite nur für den Streamplan herausgegeben.
 const TURNIER_SICHTBAR = true;
+// Downloads-Reiter ausgeblendet (Michel am 03.10.2026). Wer ihn zuletzt offen
+// hatte, landet auf der Übersicht. Wieder an: true + style="display:none" in
+// index.html (Reiter und Vorraum-Kachel) entfernen.
+const DOWNLOADS_SICHTBAR = false;
 
 // Turniere ANLEGEN darf nur der Veranstalter. Geprüft wird serverseitig gegen
 // das Worker-Secret PW_AGELAN_VERANSTALTER (Scope agelan-veranstalter) – ein
@@ -1128,6 +1132,10 @@ function baumEinpassen() {
   document.querySelectorAll(".ko-baum-scroll").forEach((huelle) => {
     const baum = huelle.querySelector(".ko-baum");
     if (!baum) return;
+    // ⚠️ Unsichtbar (anderer Reiter) lässt sich nichts messen – die Lage wäre
+    // falsch und schob den Baum später über den rechten Rand. Beim Wechsel in
+    // den Reiter rechnet activateTab neu.
+    if (!huelle.offsetParent || !document.documentElement.clientWidth) return;
     const fenster = document.documentElement.clientWidth;
     const rand = 16;
     const natB = parseFloat(baum.style.width) || baum.offsetWidth;
@@ -1139,7 +1147,9 @@ function baumEinpassen() {
     huelle.style.width = breite + "px";
     huelle.style.marginLeft = "0px";
     const links = huelle.getBoundingClientRect().left;
-    huelle.style.marginLeft = Math.round((fenster - breite) / 2 - links) + "px";
+    // Nie über den rechten Fensterrand hinaus (sonst wird die ganze Seite breiter).
+    const verschiebung = Math.round((fenster - breite) / 2 - links);
+    huelle.style.marginLeft = Math.min(verschiebung, Math.floor(fenster - breite - links)) + "px";
     baum.style.transform = skala < 1 ? "scale(" + skala + ")" : "";
     baum.style.transformOrigin = "top left";
     // Die Hülle muss die verkleinerte Größe tragen, sonst bleibt unten Leerraum.
@@ -2236,6 +2246,14 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.89",
+    groups: [
+      { title: "Downloads ausgeblendet", items: [
+          "Der Reiter „Downloads“ und die Kachel im Vorraum sind ausgeblendet. Wer ihn zuletzt offen hatte, landet auf der Übersicht. Die Dateien bleiben auf dem Server."
+      ]},
+    ],
+  },
   {
     version: "8.88",
     groups: [
@@ -3986,6 +4004,9 @@ const APP_CHANGELOG = [
 const AGELAN_TAB_KEY = "agelan_tab";
 
 function activateTab(name) {
+  if (name === "downloads" && !DOWNLOADS_SICHTBAR) name = "uebersicht";
+  // Turnierbaum erst messen, wenn sein Reiter sichtbar ist.
+  if (name === "turnier") requestAnimationFrame(baumEinpassen);
   document.querySelectorAll("nav.tabs button[data-tab]").forEach((b) => {
     // aria-current: Vorleseprogramme erkennen den aktiven Reiter nicht an der Klasse (Abnahme D 21.09.2026).
     const an = b.dataset.tab === name;
