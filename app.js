@@ -761,7 +761,7 @@ function renderGruppen(z) {
 
 // --- K.O. ------------------------------------------------------------------
 function renderKo(z) {
-  document.getElementById("ko-container").innerHTML = bracketHtml(z);
+  setzeKoHtml(document.getElementById("ko-container"), bracketHtml(z));
   document.getElementById("ko-admin").style.display = z.istAdmin ? "" : "none";
   if (z.istAdmin) zeigeSimKnopf("btn-sim-ko", z.offeneSpieleAnzahl);
 }
@@ -784,7 +784,7 @@ function renderBeendet(z) {
   const hatBracket = !!(z.bracket && z.bracket.runden.length);
   const bracketBox = document.getElementById("beendet-bracket");
   bracketBox.style.display = hatBracket ? "" : "none";
-  bracketBox.innerHTML = hatBracket ? bracketHtml(z) : "";
+  setzeKoHtml(bracketBox, hatBracket ? bracketHtml(z) : "");
 
   // Ohne K.-o.-Runde ist die Endtabelle das Ergebnis.
   const tabelleBox = document.getElementById("beendet-tabelle");
@@ -895,8 +895,178 @@ document.addEventListener("click", (e) => {
   RUNDE_OFFEN.set(d.dataset.rundeKey, !d.open);
 });
 
+// --- Turnierbaum als zweite Ansicht (Michel am 03.10.2026) -------------------
+// Umschalter „Liste | Baum“ über dem K.-o. Der Baum zeigt alle Runden als
+// Spalten, jede Partie mittig zwischen ihren beiden Vorgängern, mit Linien.
+// Freilose der ersten Runde sind schmale Zeilen statt ganzer Karten – sonst
+// wäre ein 64er-Feld mit 28 Freilosen meterlang.
+// ⚠️ Nur einfaches K.-o. mit Zweierpotenz in Runde 0 (so lost die App seit
+// jeher). Doppel-K.-o. bleibt in der Liste – Verliererbaum und großes Finale
+// passen nicht in dieses Raster.
+// Nur Anzeige: Melden und Korrigieren gehen in der Liste.
+let koAnsicht = (() => { try { return localStorage.getItem("agelan_ko_ansicht") === "baum" ? "baum" : "liste"; } catch (e) { return "liste"; } })();
+
+const BAUM_B = 210;        // Breite einer Karte
+const BAUM_LUECKE = 44;    // Abstand zwischen den Spalten (Platz für Linien)
+const BAUM_H = 66;         // Höhe einer Partie
+const BAUM_H_FREI = 30;    // Höhe einer Freilos-Zeile in Runde 0
+const BAUM_ABSTAND = 10;   // senkrechter Abstand in Runde 0
+const BAUM_KOPF = 34;      // Platz für die Rundennamen
+
+function koBaumMoeglich(z) {
+  if (!z.meta || z.koTyp === "doppel") return false;
+  const n0 = z.spiele.filter((s) => s.phase === "ko" && !s.platz3 && (s.bracket || "w") === "w" && (Number(s.runde) || 0) === 0).length;
+  return n0 >= 1 && (n0 & (n0 - 1)) === 0;
+}
+
+function koAnsichtUmschalterHtml(z) {
+  if (!koBaumMoeglich(z)) return "";
+  const knopf = (wert, text) => `<button type="button" class="es-filter-chip${koAnsicht === wert ? " aktiv" : ""}" data-ko-ansicht="${wert}" aria-pressed="${koAnsicht === wert}">${text}</button>`;
+  return `<div class="ko-ansicht-wahl" role="group" aria-label="Ansicht">${knopf("liste", "☰ Liste")}${knopf("baum", "🌳 Turnierbaum")}</div>`;
+}
+
+function koRundenName(anzahlSpiele) {
+  if (anzahlSpiele === 1) return "Finale";
+  if (anzahlSpiele === 2) return "Halbfinale";
+  if (anzahlSpiele === 4) return "Viertelfinale";
+  if (anzahlSpiele === 8) return "Achtelfinale";
+  if (anzahlSpiele === 16) return "Sechzehntelfinale";
+  return (anzahlSpiele * 2) + "er-Runde";
+}
+
+function koBaumHtml(z) {
+  const ko = z.spiele.filter((s) => s.phase === "ko" && !s.platz3 && (s.bracket || "w") === "w");
+  const n0 = ko.filter((s) => (Number(s.runde) || 0) === 0).length;
+  const runden = Math.round(Math.log2(n0)) + 1;
+  const finden = (r, p) => ko.find((s) => (Number(s.runde) || 0) === r && (Number(s.position) || 0) === p);
+  const nr = partieNummern(z);
+  const name = (id) => (id ? teamNameVon(z, id) : "");
+  const sieger = (s) => (!s || s.status !== "bestaetigt") ? null : (!s.teamB ? s.teamA : (Number(s.saetzeA) > Number(s.saetzeB) ? s.teamA : s.teamB));
+
+  // Senkrechte Mitten: Runde 0 der Reihe nach, jede weitere Runde mittig
+  // zwischen ihren beiden Vorgängern.
+  const mitte = [[]];
+  const hoehe0 = [];
+  let y = BAUM_KOPF;
+  for (let p = 0; p < n0; p++) {
+    const s = finden(0, p);
+    const h = s && s.teamA && s.teamB ? BAUM_H : BAUM_H_FREI;
+    hoehe0.push(h);
+    mitte[0].push(y + h / 2);
+    y += h + BAUM_ABSTAND;
+  }
+  const gesamtHoehe = Math.max(y, BAUM_KOPF + BAUM_H + BAUM_ABSTAND);
+  for (let r = 1; r < runden; r++) {
+    mitte.push([]);
+    for (let p = 0; p < n0 / Math.pow(2, r); p++) mitte[r].push((mitte[r - 1][2 * p] + mitte[r - 1][2 * p + 1]) / 2);
+  }
+  const xVon = (r) => r * (BAUM_B + BAUM_LUECKE);
+
+  // Eine Seite einer Karte: Teamname, schon bekannt aus dem Vorgänger, oder „Sieger Partie N“.
+  const seiteAusVorgaenger = (r, p) => {
+    const v = finden(r - 1, p);
+    const w = sieger(v);
+    if (w) return { text: name(w), offen: false };
+    // Noch nicht angelegte Vorgänger haben schon ihre feste Nummer (partieNummernAus).
+    const n = nr.get(v ? v.id : "ko_r" + (r - 1) + "_p" + p);
+    return { text: n ? "Sieger Partie " + n : "offen", offen: true };
+  };
+
+  const karten = [];
+  const linien = [];
+  for (let r = 0; r < runden; r++) {
+    const anzahl = n0 / Math.pow(2, r);
+    for (let p = 0; p < anzahl; p++) {
+      const s = finden(r, p);
+      const cy = mitte[r][p];
+      const x = xVon(r);
+      if (r === 0 && !(s && s.teamA && s.teamB)) {
+        const txt = s && s.teamA ? escapeHtml(name(s.teamA)) + ' <span class="baum-frei-marke">Freilos</span>' : '<span class="baum-leer">—</span>';
+        karten.push(`<div class="baum-frei" style="left:${x}px;top:${cy - BAUM_H_FREI / 2}px;width:${BAUM_B}px;height:${BAUM_H_FREI}px">${txt}</div>`);
+      } else {
+        let a, b, sa = "", sb = "", wa = false, wb = false, kopf = "", warte = false;
+        if (s) {
+          a = { text: name(s.teamA), offen: false };
+          b = { text: s.teamB ? name(s.teamB) : "Freilos", offen: !s.teamB };
+          if (s.status !== "offen" && s.saetzeA != null) { sa = s.saetzeA; sb = s.saetzeB; }
+          const w = sieger(s);
+          wa = !!w && w === s.teamA; wb = !!w && w === s.teamB;
+          kopf = (nr.get(s.id) ? "Partie " + nr.get(s.id) : "") + (s.status === "gemeldet" ? " · gemeldet" : s.status === "offen" ? " · läuft" : "");
+        } else {
+          a = seiteAusVorgaenger(r, 2 * p);
+          b = seiteAusVorgaenger(r, 2 * p + 1);
+          warte = true;
+          const eigene = nr.get("ko_r" + r + "_p" + p);
+          kopf = (eigene ? "Partie " + eigene + " · " : "") + "wartet";
+        }
+        const zeile = (seite, satz, gewonnen) => `<div class="baum-team${gewonnen ? " sieger" : ""}${seite.offen ? " offen" : ""}"><span>${escapeHtml(seite.text)}</span><b>${satz === "" ? "" : escapeHtml(String(satz))}</b></div>`;
+        const laeuft = s && s.status !== "bestaetigt";
+        karten.push(`<div class="baum-match${warte ? " wartet" : ""}${laeuft ? " laeuft" : ""}" style="left:${x}px;top:${cy - BAUM_H / 2}px;width:${BAUM_B}px;height:${BAUM_H}px">
+          <div class="baum-kopf">${escapeHtml(kopf)}</div>${zeile(a, sa, wa)}${zeile(b, sb, wb)}</div>`);
+      }
+      // Linie zum Nachfolger
+      if (r < runden - 1) {
+        const x1 = x + BAUM_B, xm = x1 + BAUM_LUECKE / 2, ziel = mitte[r + 1][Math.floor(p / 2)];
+        linien.push(`<path d="M${x1} ${cy}H${xm}V${ziel}H${x1 + BAUM_LUECKE}"/>`);
+      }
+    }
+  }
+  const titel = [];
+  for (let r = 0; r < runden; r++) {
+    titel.push(`<div class="baum-runde-titel" style="left:${xVon(r)}px;width:${BAUM_B}px">${escapeHtml(koRundenName(n0 / Math.pow(2, r)))}</div>`);
+  }
+  // Sieger rechts neben dem Finale, Spiel um Platz 3 darunter.
+  let breite = xVon(runden - 1) + BAUM_B;
+  const finale = finden(runden - 1, 0);
+  const champion = sieger(finale);
+  if (champion) {
+    const x = breite + BAUM_LUECKE;
+    linien.push(`<path d="M${breite} ${mitte[runden - 1][0]}H${x}"/>`);
+    karten.push(`<div class="baum-champion" style="left:${x}px;top:${mitte[runden - 1][0] - 22}px;width:${BAUM_B}px">🏆 ${escapeHtml(name(champion))}</div>`);
+    breite = x + BAUM_B;
+  }
+  let hoehe = gesamtHoehe;
+  const p3 = z.spiele.find((s) => s.phase === "ko" && s.platz3);
+  if (p3) {
+    const x = xVon(runden - 1), top = mitte[runden - 1][0] + BAUM_H / 2 + 40;
+    const w = sieger(p3);
+    const zeile = (id, satz) => `<div class="baum-team${w && w === id ? " sieger" : ""}"><span>${escapeHtml(name(id))}</span><b>${p3.status !== "offen" && satz != null ? escapeHtml(String(satz)) : ""}</b></div>`;
+    karten.push(`<div class="baum-match${p3.status !== "bestaetigt" ? " laeuft" : ""}" style="left:${x}px;top:${top}px;width:${BAUM_B}px;height:${BAUM_H}px">
+      <div class="baum-kopf">Spiel um Platz 3${nr.get(p3.id) ? " · Partie " + nr.get(p3.id) : ""}</div>${zeile(p3.teamA, p3.saetzeA)}${zeile(p3.teamB, p3.saetzeB)}</div>`);
+    hoehe = Math.max(hoehe, top + BAUM_H + 10);
+  }
+  return `<p class="hinweis-text">Nur Ansicht – Ergebnisse meldest und korrigierst du in der Liste.</p>
+    <div class="ko-baum-scroll"><div class="ko-baum" style="width:${breite + 4}px;height:${hoehe}px">
+      <svg class="baum-linien" width="${breite + 4}" height="${hoehe}" aria-hidden="true">${linien.join("")}</svg>
+      ${titel.join("")}${karten.join("")}
+    </div></div>`;
+}
+
+// Neu zeichnen ohne dass der Baum an den Anfang zurückspringt: jedes Ergebnis
+// zeichnet den K.-o.-Kasten neu, die Scrollstellung bleibt.
+function setzeKoHtml(el, html) {
+  const alt = el.querySelector(".ko-baum-scroll");
+  const pos = alt ? [alt.scrollLeft, alt.scrollTop] : null;
+  el.innerHTML = html;
+  const neu = el.querySelector(".ko-baum-scroll");
+  if (pos && neu) { neu.scrollLeft = pos[0]; neu.scrollTop = pos[1]; }
+}
+
+document.addEventListener("click", (e) => {
+  const k = e.target.closest && e.target.closest("[data-ko-ansicht]");
+  if (!k) return;
+  koAnsicht = k.dataset.koAnsicht === "baum" ? "baum" : "liste";
+  try { localStorage.setItem("agelan_ko_ansicht", koAnsicht); } catch (err) { /* privater Modus */ }
+  if (zustand) render(zustand);
+});
+
 function bracketHtml(z) {
   if (!z.bracket || z.bracket.runden.length === 0) return '<p class="hinweis-text">Noch keine Paarungen.</p>';
+  if (koAnsicht === "baum" && koBaumMoeglich(z)) return koAnsichtUmschalterHtml(z) + koBaumHtml(z);
+  return koAnsichtUmschalterHtml(z) + bracketListeHtml(z);
+}
+
+function bracketListeHtml(z) {
   return z.bracket.runden
     .map((r) => {
       const posVon = (id) => { const sp = z.spiele.find((x) => x.id === id); return sp ? Number(sp.position) || 0 : 0; };
@@ -1969,6 +2139,16 @@ window.addEventListener("unhandledrejection", (e) => {
 // ---------- Info-Tab / Versionshistorie ----------
 const APP_VERSION = "1.0";
 const APP_CHANGELOG = [
+  {
+    version: "8.85",
+    groups: [
+      { title: "Turnier: Turnierbaum", items: [
+          "Über dem K.-o. gibt es den Umschalter „☰ Liste | 🌳 Turnierbaum“. Der Baum zeigt alle Runden nebeneinander, jede Partie mittig zwischen ihren beiden Vorgängern, mit Verbindungslinien – Sieger grün, laufende Partien markiert, noch wartende Partien gestrichelt mit „Sieger Partie N“. Rechts der Turniersieger, darunter das Spiel um Platz 3.",
+          "Freilose der ersten Runde stehen als schmale Zeile im Baum. Auf dem Handy lässt sich der Baum seitlich wischen. Melden und Korrigieren gehen weiter in der Liste; die gewählte Ansicht merkt sich das Gerät.",
+          "Nur für einfaches K.-o. – beim Doppel-K.-o. bleibt es bei der Liste."
+      ]},
+    ],
+  },
   {
     version: "8.84",
     groups: [

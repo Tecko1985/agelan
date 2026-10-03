@@ -1889,3 +1889,24 @@ details.es-meine-erledigt { margin-top: 12px; }
 details.es-pruefliste > summary { cursor: pointer; list-style: none; user-select: none; }
 details.es-pruefliste > summary::-webkit-details-marker { display: none; }
 details.es-pruefliste:not([open]) > summary { margin-bottom: 0; }
+
+/* Turnier: Turnierbaum (2026-10-03) */
+.ko-ansicht-wahl { display: flex; gap: 6px; margin: 0 0 12px; }
+.ko-baum-scroll { overflow: auto; max-height: 80vh; border: 1px solid var(--border); border-radius: var(--radius-sm, 10px); background: var(--bg); padding: 10px; -webkit-overflow-scrolling: touch; }
+.ko-baum { position: relative; }
+.baum-linien { position: absolute; left: 0; top: 0; pointer-events: none; }
+.baum-linien path { fill: none; stroke: var(--border); stroke-width: 2; }
+.baum-runde-titel { position: absolute; top: 0; font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; }
+.baum-match { position: absolute; box-sizing: border-box; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; display: flex; flex-direction: column; justify-content: center; font-size: 13px; overflow: hidden; }
+.baum-match.laeuft { border-color: var(--primary-akzent, var(--primary)); }
+.baum-match.wartet { border-style: dashed; background: transparent; }
+.baum-kopf { font-size: 10.5px; font-weight: 700; color: var(--muted); line-height: 1.2; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.baum-team { display: flex; justify-content: space-between; gap: 6px; line-height: 1.35; }
+.baum-team span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.baum-team b { font-variant-numeric: tabular-nums; }
+.baum-team.sieger { color: var(--success); font-weight: 700; }
+.baum-team.offen span { color: var(--muted); font-style: italic; }
+.baum-frei { position: absolute; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; border: 1px dotted var(--border); border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text, inherit); }
+.baum-frei-marke { font-size: 10px; font-weight: 700; color: var(--muted); }
+.baum-leer { color: var(--muted); }
+.baum-champion { position: absolute; box-sizing: border-box; padding: 10px 12px; border: 2px solid var(--success); border-radius: 10px; font-weight: 700; background: var(--card-bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
